@@ -77,8 +77,8 @@ class MockLLMClient(LLMClient):
                 except ValueError:
                     values["history_count"] = 0
 
-        # Count history items by counting "User:" or "Assistant:" markers
-        history_count = sum(1 for line in history_lines if line.strip().startswith(("User:", "Assistant:")))
+        # Count history items by counting "User:" markers (each user message = 1 history entry)
+        history_count = sum(1 for line in history_lines if line.strip().startswith("User:"))
         values.setdefault("input", "")
         values.setdefault("history_count", history_count)
         return values

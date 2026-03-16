@@ -31,13 +31,27 @@ class FinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
-        injected = context.state.get("memory_injected", False)
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
+        injected = self.context.state.get("memory_injected", False)
         return {"type": "final", "content": f"injected={injected}"}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         return action.get("content")
 
 
@@ -45,14 +59,28 @@ class SlowFinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         delay = float(self.config.get("delay", 0.05))
         await asyncio.sleep(delay)
         return {"type": "final", "content": "slow-done"}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         return action.get("content")
 
 
@@ -90,12 +118,26 @@ class NonDictActionPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> Any:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> Any:
         return "not-a-dict-action"
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         _validate_action(action)
         return action.get("content")
 
@@ -104,12 +146,26 @@ class UnknownTypePattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         return {"type": "unknown_type"}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         _validate_action(action)
         return action.get("content")
 
@@ -118,12 +174,26 @@ class MissingToolCallFieldPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         return {"type": "tool_call", "params": {"query": "x"}}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         _validate_action(action)
         return action.get("content")
 
@@ -132,12 +202,26 @@ class InvalidToolCallParamsPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         return {"type": "tool_call", "tool": "search", "params": "not-an-object"}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         _validate_action(action)
         return action.get("content")
 
@@ -147,14 +231,28 @@ class ContinueForeverPattern:
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
         self._max_steps = config.get("max_steps", 4) if config else 4
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         return {"type": "continue"}
 
-    async def execute(self, context: Any) -> Any:
+    async def execute(self) -> Any:
         max_steps = self._max_steps
         for step in range(max_steps):
-            action = await self.react(context)
+            action = await self.react()
             _validate_action(action)
             if action.get("type") == "final":
                 return action.get("content")
@@ -167,18 +265,32 @@ class SlowContinuePattern:
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
         self._max_steps = config.get("max_steps", 4) if config else 4
         self._step_timeout_ms = config.get("step_timeout_ms", 1000) if config else 1000
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
         delay = float(self.config.get("delay", 0.1))
         await asyncio.sleep(delay)
         return {"type": "continue"}
 
-    async def execute(self, context: Any) -> Any:
+    async def execute(self) -> Any:
         max_steps = self._max_steps
         timeout_s = self._step_timeout_ms / 1000
         for step in range(max_steps):
             try:
-                action = await asyncio.wait_for(self.react(context), timeout=timeout_s)
+                action = await asyncio.wait_for(self.react(), timeout=timeout_s)
             except asyncio.TimeoutError as exc:
                 raise TimeoutError(
                     f"Pattern step timed out after {self._step_timeout_ms}ms at step {step}"
@@ -193,13 +305,27 @@ class FailOnceThenFinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+        self.context = None
 
-    async def react(self, context: Any) -> dict[str, Any]:
-        if not context.state.get("failed_once"):
-            context.state["failed_once"] = True
+    async def setup(self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any], tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any) -> None:
+        from openagents.interfaces.pattern import ExecutionContext
+        self.context = ExecutionContext(
+            agent_id=agent_id,
+            session_id=session_id,
+            input_text=input_text,
+            state=state,
+            tools=tools,
+            llm_client=llm_client,
+            llm_options=llm_options,
+            event_bus=event_bus,
+        )
+
+    async def react(self) -> dict[str, Any]:
+        if not self.context.state.get("failed_once"):
+            self.context.state["failed_once"] = True
             raise RuntimeError("pattern fail once")
         return {"type": "final", "content": "recovered"}
 
-    async def execute(self, context: Any) -> Any:
-        action = await self.react(context)
+    async def execute(self) -> Any:
+        action = await self.react()
         return action.get("content")

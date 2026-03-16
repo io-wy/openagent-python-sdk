@@ -90,3 +90,8 @@ MEMORY_WRITEBACK_SUCCEEDED = "memory.writeback_succeeded"
 MEMORY_WRITEBACK_FAILED = "memory.writeback_failed"
 RUN_COMPLETED = "run.completed"
 RUN_FAILED = "run.failed"
+
+# Graceful shutdown event names
+RUNTIME_SHUTDOWN_REQUESTED = "runtime.shutdown_requested"
+RUNTIME_SHUTDOWN_STARTED = "runtime.shutdown_started"
+RUNTIME_SHUTDOWN_COMPLETED = "runtime.shutdown_completed"

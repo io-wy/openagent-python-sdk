@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_WRITEBACK, supports
 from openagents.interfaces.events import (
     CONTEXT_CREATED,
+    EventBusPlugin,
     MEMORY_INJECTED,
     MEMORY_INJECT_FAILED,
     MEMORY_WRITEBACK_FAILED,
@@ -33,23 +34,25 @@ class DefaultRuntime(RuntimePlugin):
     def __init__(
         self,
         config: dict[str, Any] | None = None,
-        event_bus: EventBus | None = None,
-        session_manager: Any = None,  # Forward reference to avoid circular import
     ):
         super().__init__(
             config=config or {},
             capabilities={RUNTIME_RUN},
         )
-        self._event_bus = event_bus or EventBus()
-        self._session_manager = session_manager
+        self._event_bus: EventBusPlugin | None = None
+        self._session_manager: Any | None = None
         self._llm_clients: dict[str, Any | None] = {}
 
     @property
-    def event_bus(self) -> EventBus:
+    def event_bus(self) -> EventBusPlugin:
+        if self._event_bus is None:
+            raise RuntimeError("EventBus not initialized. Call load_runtime_components() first.")
         return self._event_bus
 
     @property
     def session_manager(self) -> Any:
+        if self._session_manager is None:
+            raise RuntimeError("SessionManager not initialized. Call load_runtime_components() first.")
         return self._session_manager
 
     async def run(
