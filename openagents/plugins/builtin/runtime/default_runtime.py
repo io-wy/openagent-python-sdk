@@ -63,6 +63,7 @@ class DefaultRuntime(RuntimePlugin):
         input_text: str,
         app_config: "AppConfig",
         agents_by_id: dict[str, "AgentDefinition"],
+        agent_plugins: Any = None,  # Optional: pre-loaded plugins for hot reload
     ) -> Any:
         """Execute an agent run."""
         # Import here to avoid circular imports
@@ -72,6 +73,12 @@ class DefaultRuntime(RuntimePlugin):
         agent = agents_by_id.get(agent_id)
         if agent is None:
             raise ValueError(f"Unknown agent id: '{agent_id}'")
+
+        # Use pre-loaded plugins if provided (for hot reload support)
+        if agent_plugins is None:
+            plugins = load_agent_plugins(agent)
+        else:
+            plugins = agent_plugins
 
         await self._event_bus.emit(
             RUN_REQUESTED,

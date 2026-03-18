@@ -97,3 +97,25 @@ def test_type_and_impl_both_provided_uses_impl():
     # Should load CustomPattern, not ReActPattern
     assert type(plugins.pattern).__name__ == "CustomPattern"
 
+
+def test_chain_memory_combines_multiple_memories():
+    """Test that chain memory combines multiple memory plugins."""
+    from openagents.plugins.loader import load_memory_plugin
+    from openagents.config.schema import MemoryRef
+
+    ref = MemoryRef(
+        type="chain",
+        config={
+            "memories": [
+                {"type": "buffer"},
+                {"type": "window_buffer", "config": {"window_size": 5}},
+            ]
+        },
+    )
+
+    chain = load_memory_plugin(ref)
+    assert type(chain).__name__ == "ChainMemory"
+    assert len(chain._memories) == 2
+    assert type(chain._memories[0]).__name__ == "BufferMemory"
+    assert type(chain._memories[1]).__name__ == "WindowBufferMemory"
+

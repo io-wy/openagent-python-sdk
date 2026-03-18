@@ -14,6 +14,7 @@ from openagents.decorators import (
 )
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
 from openagents.plugins.builtin.memory.buffer import BufferMemory
+from openagents.plugins.builtin.memory.chain import ChainMemory
 from openagents.plugins.builtin.memory.mem0_memory import Mem0Memory
 from openagents.plugins.builtin.memory.window_buffer import WindowBufferMemory
 from openagents.plugins.builtin.pattern.plan_execute import PlanExecutePattern
@@ -75,6 +76,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "buffer": BufferMemory,
         "window_buffer": WindowBufferMemory,
         "mem0": Mem0Memory,
+        "chain": ChainMemory,
     },
     "pattern": {
         "react": ReActPattern,
