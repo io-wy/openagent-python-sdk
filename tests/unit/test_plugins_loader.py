@@ -8,6 +8,7 @@ from openagents.plugins.loader import (
     load_runtime_components,
     load_memory_plugin,
     load_pattern_plugin,
+    load_skill_plugin,
     load_tool_plugin,
 )
 from openagents.errors.exceptions import PluginLoadError, CapabilityError
@@ -138,6 +139,27 @@ def test_load_tool_plugin():
     plugin = load_tool_plugin(ref)
 
     assert plugin is not None
+
+
+def test_load_skill_plugin():
+    """Test loading a skill plugin."""
+    from openagents.config.schema import SkillRef
+
+    ref = SkillRef(impl="tests.fixtures.custom_plugins.CustomSkill")
+    plugin = load_skill_plugin(ref)
+
+    assert plugin is not None
+    assert plugin.get_metadata()["focus"] == "general"
+
+
+def test_load_skill_plugin_rejects_missing_context_augment_method():
+    """Test loading a skill with declared capability but missing method."""
+    from openagents.config.schema import SkillRef
+
+    ref = SkillRef(impl="tests.fixtures.custom_plugins.BadSkillMissingContextAugmentMethod")
+
+    with pytest.raises(CapabilityError, match="augment_context"):
+        load_skill_plugin(ref)
 
 
 def test_load_tool_plugin_invalid_impl():

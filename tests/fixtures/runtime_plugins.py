@@ -8,8 +8,13 @@ from openagents.interfaces.capabilities import (
     MEMORY_WRITEBACK,
     PATTERN_EXECUTE,
     PATTERN_REACT,
+    SKILL_CONTEXT_AUGMENT,
     SKILL_METADATA,
+    SKILL_POST_RUN,
+    SKILL_PRE_RUN,
     SKILL_SYSTEM_PROMPT,
+    SKILL_TOOL_FILTER,
+    SKILL_TOOLS,
 )
 from openagents.interfaces.runtime import RunArtifact
 
@@ -415,3 +420,60 @@ class RuntimePromptSkill:
 
     def get_metadata(self) -> dict[str, Any]:
         return {"focus": self.config.get("focus", "training")}
+
+
+class RuntimeLifecycleSkill:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+        self.capabilities = {
+            SKILL_SYSTEM_PROMPT,
+            SKILL_METADATA,
+            SKILL_TOOLS,
+            SKILL_CONTEXT_AUGMENT,
+            SKILL_TOOL_FILTER,
+            SKILL_PRE_RUN,
+            SKILL_POST_RUN,
+        }
+
+    def get_system_prompt(self, context: Any | None = None) -> str:
+        return "You are the lifecycle specialist."
+
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"id": "skill_calc", "type": "calc"},
+            {"id": "search", "type": "builtin_search"},
+        ]
+
+    def get_metadata(self) -> dict[str, Any]:
+        return {"focus": self.config.get("focus", "lifecycle")}
+
+    def augment_context(self, context: Any) -> None:
+        context.memory_view["skill_augmented"] = True
+        context.state["skill_context_augmented"] = True
+
+    def filter_tools(
+        self,
+        tools: dict[str, Any],
+        context: Any | None = None,
+    ) -> dict[str, Any]:
+        return {
+            tool_id: tool
+            for tool_id, tool in tools.items()
+            if tool_id != "search"
+        }
+
+    async def before_run(self, context: Any) -> None:
+        context.state["skill_pre_run"] = True
+
+    async def after_run(self, context: Any, result: Any) -> Any:
+        context.state["skill_post_run"] = True
+        if not isinstance(result, dict):
+            return result
+        updated = dict(result)
+        updated["memory_view"] = dict(context.memory_view)
+        updated["state"] = {
+            "skill_context_augmented": context.state.get("skill_context_augmented"),
+            "skill_pre_run": context.state.get("skill_pre_run"),
+            "skill_post_run": context.state.get("skill_post_run"),
+        }
+        return updated

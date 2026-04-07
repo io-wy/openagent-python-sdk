@@ -10,6 +10,13 @@ MEMORY_RETRIEVE = "memory.retrieve"
 PATTERN_REACT = "pattern.react"
 PATTERN_EXECUTE = "pattern.execute"
 TOOL_INVOKE = "tool.invoke"
+SKILL_SYSTEM_PROMPT = "skill.system_prompt"
+SKILL_TOOLS = "skill.tools"
+SKILL_METADATA = "skill.metadata"
+SKILL_CONTEXT_AUGMENT = "skill.context_augment"
+SKILL_TOOL_FILTER = "skill.tool_filter"
+SKILL_PRE_RUN = "skill.pre_run"
+SKILL_POST_RUN = "skill.post_run"
 
 KNOWN_CAPABILITIES = {
     MEMORY_INJECT,
@@ -18,6 +25,13 @@ KNOWN_CAPABILITIES = {
     PATTERN_REACT,
     PATTERN_EXECUTE,
     TOOL_INVOKE,
+    SKILL_SYSTEM_PROMPT,
+    SKILL_TOOLS,
+    SKILL_METADATA,
+    SKILL_CONTEXT_AUGMENT,
+    SKILL_TOOL_FILTER,
+    SKILL_PRE_RUN,
+    SKILL_POST_RUN,
 }
 
 
@@ -46,4 +60,3 @@ def supports(plugin: Any, capability: str) -> bool:
     """
     capabilities = normalize_capabilities(getattr(plugin, "capabilities", set()))
     return capability in capabilities
-

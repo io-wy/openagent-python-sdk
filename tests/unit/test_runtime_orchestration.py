@@ -160,3 +160,31 @@ async def test_runtime_persists_transcript_and_artifacts():
     assert transcript[1]["content"] == "artifact-done"
     assert len(artifacts) == 1
     assert artifacts[0].name == "report.txt"
+
+
+@pytest.mark.asyncio
+async def test_runtime_applies_skill_runtime_augmentation_hooks():
+    payload = _payload(
+        "tests.fixtures.runtime_plugins.InjectWritebackMemory",
+        "tests.fixtures.runtime_plugins.PromptAwarePattern",
+    )
+    payload["agents"][0]["skill"] = {
+        "impl": "tests.fixtures.runtime_plugins.RuntimeLifecycleSkill",
+    }
+    config = load_config_dict(payload)
+    runtime = Runtime(config)
+
+    result = await runtime.run(
+        agent_id="assistant",
+        session_id="skill-hooks",
+        input_text="run the lifecycle hooks",
+    )
+
+    assert result["active_skill"] == "RuntimeLifecycleSkill"
+    assert result["metadata"]["focus"] == "lifecycle"
+    assert result["prompt"] == ["You are the lifecycle specialist."]
+    assert result["tools"] == ["skill_calc"]
+    assert result["memory_view"]["skill_augmented"] is True
+    assert result["state"]["skill_context_augmented"] is True
+    assert result["state"]["skill_pre_run"] is True
+    assert result["state"]["skill_post_run"] is True

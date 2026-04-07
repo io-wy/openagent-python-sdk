@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from openagents.interfaces.capabilities import MEMORY_INJECT, PATTERN_EXECUTE, PATTERN_REACT, TOOL_INVOKE
+from openagents.interfaces.capabilities import (
+    MEMORY_INJECT,
+    PATTERN_EXECUTE,
+    PATTERN_REACT,
+    SKILL_CONTEXT_AUGMENT,
+    SKILL_METADATA,
+    SKILL_SYSTEM_PROMPT,
+    SKILL_TOOLS,
+    TOOL_INVOKE,
+)
 
 
 class CustomMemory:
@@ -67,3 +76,32 @@ class BadPatternNoCapability:
         return action.get("content")
 
 
+class CustomSkill:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+        self.capabilities = {SKILL_SYSTEM_PROMPT, SKILL_TOOLS, SKILL_METADATA}
+
+    def get_system_prompt(self, context: Any | None = None) -> str:
+        focus = self.config.get("focus", "general")
+        return f"Focus on {focus} analysis."
+
+    def get_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"id": "skill_calc", "type": "calc"},
+            {"id": "search", "type": "builtin_search"},
+        ]
+
+    def get_metadata(self) -> dict[str, Any]:
+        return {"focus": self.config.get("focus", "general")}
+
+
+class BadSkillNoCapability:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+        self.capabilities = set()
+
+
+class BadSkillMissingContextAugmentMethod:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+        self.capabilities = {SKILL_CONTEXT_AUGMENT}

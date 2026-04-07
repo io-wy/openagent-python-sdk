@@ -8,8 +8,12 @@ from typing import TYPE_CHECKING, Any
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
     MEMORY_WRITEBACK,
+    SKILL_CONTEXT_AUGMENT,
     SKILL_METADATA,
+    SKILL_POST_RUN,
+    SKILL_PRE_RUN,
     SKILL_SYSTEM_PROMPT,
+    SKILL_TOOL_FILTER,
     supports,
 )
 from openagents.interfaces.events import (
@@ -51,6 +55,12 @@ def _supports_parameter(fn: Any, name: str) -> bool:
         param.name == name or param.kind is inspect.Parameter.VAR_KEYWORD
         for param in params
     )
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 class _AllowAllExecutionPolicy:
@@ -275,9 +285,16 @@ class DefaultRuntime(RuntimePlugin):
                     run_id=request.run_id,
                 )
 
-                self._apply_skill(pattern=plugins.pattern, skill=plugins.skill)
+                await self._apply_skill(pattern=plugins.pattern, skill=plugins.skill)
                 await self._run_memory_inject(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
+                await self._apply_skill_runtime_hooks(pattern=plugins.pattern, skill=plugins.skill)
+                await self._run_skill_pre_run(pattern=plugins.pattern, skill=plugins.skill)
                 result = await plugins.pattern.execute()
+                result = await self._run_skill_post_run(
+                    pattern=plugins.pattern,
+                    skill=plugins.skill,
+                    result=result,
+                )
                 await self._run_memory_writeback(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
                 session_state["_runtime_last_output"] = result
                 await self._append_transcript(
@@ -478,7 +495,7 @@ class DefaultRuntime(RuntimePlugin):
                 ),
             )
 
-    def _apply_skill(self, *, pattern: PatternPlugin, skill: Any | None) -> None:
+    async def _apply_skill(self, *, pattern: PatternPlugin, skill: Any | None) -> None:
         if skill is None or pattern.context is None:
             return
 
@@ -486,14 +503,50 @@ class DefaultRuntime(RuntimePlugin):
         context.active_skill = getattr(skill, "name", "") or type(skill).__name__
 
         if supports(skill, SKILL_SYSTEM_PROMPT):
-            prompt = skill.get_system_prompt(context)
+            prompt = await _maybe_await(skill.get_system_prompt(context))
             if isinstance(prompt, str) and prompt.strip():
                 context.system_prompt_fragments.append(prompt.strip())
 
         if supports(skill, SKILL_METADATA):
-            metadata = skill.get_metadata()
+            metadata = await _maybe_await(skill.get_metadata())
             if isinstance(metadata, dict):
                 context.skill_metadata.update(metadata)
+
+    async def _apply_skill_runtime_hooks(self, *, pattern: PatternPlugin, skill: Any | None) -> None:
+        if skill is None or pattern.context is None:
+            return
+
+        context = pattern.context
+        if supports(skill, SKILL_CONTEXT_AUGMENT):
+            await _maybe_await(skill.augment_context(context))
+
+        if supports(skill, SKILL_TOOL_FILTER):
+            filtered = await _maybe_await(skill.filter_tools(dict(context.tools), context))
+            if filtered is None:
+                return
+            if not isinstance(filtered, dict):
+                raise TypeError("skill.filter_tools() must return a dict[str, Any] or None")
+            context.tools = filtered
+
+    async def _run_skill_pre_run(self, *, pattern: PatternPlugin, skill: Any | None) -> None:
+        if skill is None or pattern.context is None:
+            return
+        if supports(skill, SKILL_PRE_RUN):
+            await _maybe_await(skill.before_run(pattern.context))
+
+    async def _run_skill_post_run(
+        self,
+        *,
+        pattern: PatternPlugin,
+        skill: Any | None,
+        result: Any,
+    ) -> Any:
+        if skill is None or pattern.context is None:
+            return result
+        if not supports(skill, SKILL_POST_RUN):
+            return result
+        updated = await _maybe_await(skill.after_run(pattern.context, result))
+        return result if updated is None else updated
 
     async def _run_memory_inject(
         self,
