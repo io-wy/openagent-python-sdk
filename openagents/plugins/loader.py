@@ -8,6 +8,8 @@ from typing import Any
 
 from openagents.config.schema import (
     AgentDefinition,
+    ContextAssemblerRef,
+    ExecutionPolicyRef,
     EventBusRef,
     MemoryRef,
     PatternRef,
@@ -15,6 +17,7 @@ from openagents.config.schema import (
     RuntimeRef,
     SkillRef,
     SessionRef,
+    ToolExecutorRef,
     ToolRef,
 )
 from openagents.interfaces.capabilities import (
@@ -44,6 +47,9 @@ class LoadedAgentPlugins:
     memory: Any
     pattern: Any
     skill: Any | None
+    tool_executor: Any | None
+    execution_policy: Any | None
+    context_assembler: Any | None
     tools: dict[str, Any]
 
 
@@ -174,6 +180,47 @@ def load_skill_plugin(ref: SkillRef | None) -> Any | None:
     return plugin
 
 
+def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
+    if ref is None:
+        return None
+    plugin = _load_plugin("tool_executor", ref)
+    if not callable(getattr(plugin, "execute", None)):
+        raise CapabilityError(
+            f"tool executor '{type(plugin).__name__}' must implement 'execute'"
+        )
+    if not callable(getattr(plugin, "execute_stream", None)):
+        raise CapabilityError(
+            f"tool executor '{type(plugin).__name__}' must implement 'execute_stream'"
+        )
+    return plugin
+
+
+def load_execution_policy_plugin(ref: ExecutionPolicyRef | None) -> Any | None:
+    if ref is None:
+        return None
+    plugin = _load_plugin("execution_policy", ref)
+    if not callable(getattr(plugin, "evaluate", None)):
+        raise CapabilityError(
+            f"execution policy '{type(plugin).__name__}' must implement 'evaluate'"
+        )
+    return plugin
+
+
+def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None:
+    if ref is None:
+        return None
+    plugin = _load_plugin("context_assembler", ref)
+    if not callable(getattr(plugin, "assemble", None)):
+        raise CapabilityError(
+            f"context assembler '{type(plugin).__name__}' must implement 'assemble'"
+        )
+    if not callable(getattr(plugin, "finalize", None)):
+        raise CapabilityError(
+            f"context assembler '{type(plugin).__name__}' must implement 'finalize'"
+        )
+    return plugin
+
+
 def _normalize_skill_tool_ref(item: Any, index: int) -> ToolRef:
     if isinstance(item, str):
         tool_id = item.strip()
@@ -209,6 +256,9 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     memory = load_memory_plugin(agent.memory)
     pattern = load_pattern_plugin(agent.pattern)
     skill = load_skill_plugin(agent.skill)
+    tool_executor = load_tool_executor_plugin(agent.tool_executor)
+    execution_policy = load_execution_policy_plugin(agent.execution_policy)
+    context_assembler = load_context_assembler_plugin(agent.context_assembler)
 
     tools: dict[str, Any] = {}
     if skill is not None and SKILL_TOOLS in _capability_set(skill):
@@ -218,7 +268,15 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
             continue
         tools[tool_ref.id] = load_tool_plugin(tool_ref)
 
-    return LoadedAgentPlugins(memory=memory, pattern=pattern, skill=skill, tools=tools)
+    return LoadedAgentPlugins(
+        memory=memory,
+        pattern=pattern,
+        skill=skill,
+        tool_executor=tool_executor,
+        execution_policy=execution_policy,
+        context_assembler=context_assembler,
+        tools=tools,
+    )
 
 
 def load_runtime_plugin(ref: RuntimeRef) -> Any:

@@ -59,6 +59,14 @@ def validate_config(config: AppConfig) -> None:
 
         _validate_plugin_selector(agent.memory, f"agents['{agent.id}'].memory")
         _validate_plugin_selector(agent.pattern, f"agents['{agent.id}'].pattern")
+        if agent.skill is not None:
+            _validate_plugin_selector(agent.skill, f"agents['{agent.id}'].skill")
+        if agent.tool_executor is not None:
+            _validate_plugin_selector(agent.tool_executor, f"agents['{agent.id}'].tool_executor")
+        if agent.execution_policy is not None:
+            _validate_plugin_selector(agent.execution_policy, f"agents['{agent.id}'].execution_policy")
+        if agent.context_assembler is not None:
+            _validate_plugin_selector(agent.context_assembler, f"agents['{agent.id}'].context_assembler")
         _validate_llm(agent.llm, f"agents['{agent.id}'].llm")
 
         if agent.memory.on_error not in _MEMORY_ON_ERROR_VALUES:

@@ -274,11 +274,38 @@ class Runtime:
                 "type": agent.skill.type if agent.skill else None,
                 "impl": agent.skill.impl if agent.skill else None,
             },
+            "tool_executor": {
+                "type": agent.tool_executor.type if agent.tool_executor else None,
+                "impl": agent.tool_executor.impl if agent.tool_executor else None,
+            },
+            "execution_policy": {
+                "type": agent.execution_policy.type if agent.execution_policy else None,
+                "impl": agent.execution_policy.impl if agent.execution_policy else None,
+            },
+            "context_assembler": {
+                "type": agent.context_assembler.type if agent.context_assembler else None,
+                "impl": agent.context_assembler.impl if agent.context_assembler else None,
+            },
             "tools": [t.id for t in agent.tools if t.enabled],
             "loaded_plugins": {
                 "memory": type(plugins.memory).__name__ if plugins else None,
                 "pattern": type(plugins.pattern).__name__ if plugins else None,
                 "skill": type(plugins.skill).__name__ if plugins and plugins.skill else None,
+                "tool_executor": (
+                    type(plugins.tool_executor).__name__
+                    if plugins and plugins.tool_executor
+                    else None
+                ),
+                "execution_policy": (
+                    type(plugins.execution_policy).__name__
+                    if plugins and plugins.execution_policy
+                    else None
+                ),
+                "context_assembler": (
+                    type(plugins.context_assembler).__name__
+                    if plugins and plugins.context_assembler
+                    else None
+                ),
                 "tools": list(plugins.tools.keys()) if plugins else [],
             },
         }

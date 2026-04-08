@@ -192,6 +192,41 @@ async def test_runtime_applies_skill_runtime_augmentation_hooks():
 
 
 @pytest.mark.asyncio
+async def test_runtime_prefers_agent_level_runtime_seams_over_runtime_config():
+    payload = _payload(
+        "tests.fixtures.runtime_plugins.InjectWritebackMemory",
+        "tests.fixtures.runtime_plugins.ContextAwarePattern",
+    )
+    payload["runtime"] = {
+        "type": "default",
+        "config": {
+            "context_assembler": {
+                "impl": "tests.fixtures.runtime_plugins.SummarizingContextAssembler",
+                "config": {"prefix": "runtime-level"},
+            }
+        },
+    }
+    payload["agents"][0]["context_assembler"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomContextAssembler",
+        "config": {"marker": "agent-level"},
+    }
+    config = load_config_dict(payload)
+    runtime = Runtime(config)
+
+    result = await runtime.run(
+        agent_id="assistant",
+        session_id="agent-level-assembler",
+        input_text="hello",
+    )
+    session_state = await runtime.session_manager.get_state("agent-level-assembler")
+
+    assert result["transcript_count"] == 1
+    assert result["assembly_metadata"]["marker"] == "agent-level"
+    assert session_state["custom_assembler_seen"] is True
+    assert session_state["custom_assembler_finalized"] is True
+
+
+@pytest.mark.asyncio
 async def test_runtime_uses_configured_tool_executor():
     payload = _payload(
         "tests.fixtures.runtime_plugins.InjectWritebackMemory",

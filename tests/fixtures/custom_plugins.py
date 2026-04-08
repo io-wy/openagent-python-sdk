@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from openagents.interfaces.context import ContextAssemblyResult
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
     PATTERN_EXECUTE,
@@ -99,6 +100,68 @@ class BadSkillNoCapability:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.capabilities = set()
+
+
+class CustomToolExecutor:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+
+    async def execute(self, request: Any) -> Any:
+        data = await request.tool.invoke(request.params or {}, request.context)
+        return type("Result", (), {
+            "tool_id": request.tool_id,
+            "success": True,
+            "data": {"executor": self.config.get("name", "custom"), "data": data},
+            "error": None,
+            "exception": None,
+            "metadata": {},
+        })()
+
+    async def execute_stream(self, request: Any):
+        yield {"type": "result", "data": {"executor": self.config.get("name", "custom")}}
+
+
+class CustomExecutionPolicy:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+        self._deny_tools = set(self.config.get("deny_tools", []))
+
+    async def evaluate(self, request: Any) -> Any:
+        allowed = request.tool_id not in self._deny_tools
+        return type("Decision", (), {
+            "allowed": allowed,
+            "reason": "" if allowed else f"Denied {request.tool_id}",
+            "metadata": {},
+        })()
+
+
+class CustomContextAssembler:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+
+    async def assemble(
+        self,
+        *,
+        request: Any,
+        session_state: dict[str, Any],
+        session_manager: Any,
+    ) -> ContextAssemblyResult:
+        session_state["custom_assembler_seen"] = True
+        return ContextAssemblyResult(
+            transcript=[{"role": "system", "content": self.config.get("marker", "assembled")}],
+            metadata={"marker": self.config.get("marker", "assembled")},
+        )
+
+    async def finalize(
+        self,
+        *,
+        request: Any,
+        session_state: dict[str, Any],
+        session_manager: Any,
+        result: Any,
+    ) -> Any:
+        session_state["custom_assembler_finalized"] = True
+        return result
 
 
 class BadSkillMissingContextAugmentMethod:

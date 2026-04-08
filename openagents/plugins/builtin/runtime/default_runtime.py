@@ -305,9 +305,9 @@ class DefaultRuntime(RuntimePlugin):
 
         usage = RunUsage()
         artifacts = []
-        execution_policy = self._get_execution_policy()
-        tool_executor = self._get_tool_executor()
-        context_assembler = self._get_context_assembler()
+        execution_policy = self._resolve_execution_policy(agent_plugins)
+        tool_executor = self._resolve_tool_executor(agent_plugins)
+        context_assembler = self._resolve_context_assembler(agent_plugins)
 
         try:
             async with self._session_manager.session(request.session_id) as session_state:
@@ -544,6 +544,13 @@ class DefaultRuntime(RuntimePlugin):
         )
         return self._tool_executor
 
+    def _resolve_tool_executor(self, agent_plugins: Any) -> ToolExecutor:
+        tool_executor = getattr(agent_plugins, "tool_executor", None)
+        if tool_executor is not None:
+            self._bind_runtime_dependency(tool_executor)
+            return tool_executor
+        return self._get_tool_executor()
+
     def _get_execution_policy(self) -> ExecutionPolicy:
         if self._execution_policy is not None:
             return self._execution_policy
@@ -555,6 +562,13 @@ class DefaultRuntime(RuntimePlugin):
         )
         return self._execution_policy
 
+    def _resolve_execution_policy(self, agent_plugins: Any) -> ExecutionPolicy:
+        execution_policy = getattr(agent_plugins, "execution_policy", None)
+        if execution_policy is not None:
+            self._bind_runtime_dependency(execution_policy)
+            return execution_policy
+        return self._get_execution_policy()
+
     def _get_context_assembler(self) -> ContextAssemblerPlugin:
         if self._context_assembler is not None:
             return self._context_assembler
@@ -565,6 +579,13 @@ class DefaultRuntime(RuntimePlugin):
             required_methods=("assemble", "finalize"),
         )
         return self._context_assembler
+
+    def _resolve_context_assembler(self, agent_plugins: Any) -> ContextAssemblerPlugin:
+        context_assembler = getattr(agent_plugins, "context_assembler", None)
+        if context_assembler is not None:
+            self._bind_runtime_dependency(context_assembler)
+            return context_assembler
+        return self._get_context_assembler()
 
     def _load_runtime_dependency(
         self,

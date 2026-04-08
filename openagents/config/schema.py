@@ -74,6 +74,18 @@ class PatternRef(PluginRef):
 
 
 @dataclass
+class SkillRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "SkillRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'skill' must be an object")
+        base = PluginRef.from_dict(data, "skill")
+        return cls(type=base.type, impl=base.impl, config=base.config)
+
+
+@dataclass
 class ToolRef(PluginRef):
     id: str = ""
     enabled: bool = True
@@ -96,6 +108,42 @@ class ToolRef(PluginRef):
             impl=base.impl,
             config=base.config,
         )
+
+
+@dataclass
+class ToolExecutorRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ToolExecutorRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'tool_executor' must be an object")
+        base = PluginRef.from_dict(data, "tool_executor")
+        return cls(type=base.type, impl=base.impl, config=base.config)
+
+
+@dataclass
+class ExecutionPolicyRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ExecutionPolicyRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'execution_policy' must be an object")
+        base = PluginRef.from_dict(data, "execution_policy")
+        return cls(type=base.type, impl=base.impl, config=base.config)
+
+
+@dataclass
+class ContextAssemblerRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ContextAssemblerRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'context_assembler' must be an object")
+        base = PluginRef.from_dict(data, "context_assembler")
+        return cls(type=base.type, impl=base.impl, config=base.config)
 
 
 @dataclass
@@ -246,6 +294,10 @@ class AgentDefinition:
     memory: MemoryRef
     pattern: PatternRef
     llm: LLMOptions | None = None
+    skill: SkillRef | None = None
+    tool_executor: ToolExecutorRef | None = None
+    execution_policy: ExecutionPolicyRef | None = None
+    context_assembler: ContextAssemblerRef | None = None
     tools: list[ToolRef] = field(default_factory=list)
     runtime: RuntimeOptions = field(default_factory=RuntimeOptions)
 
@@ -275,6 +327,10 @@ class AgentDefinition:
             memory=MemoryRef.from_dict(memory if isinstance(memory, dict) else {}),
             pattern=PatternRef.from_dict(pattern if isinstance(pattern, dict) else {}),
             llm=LLMOptions.from_dict(llm),
+            skill=SkillRef.from_dict(data.get("skill")),
+            tool_executor=ToolExecutorRef.from_dict(data.get("tool_executor")),
+            execution_policy=ExecutionPolicyRef.from_dict(data.get("execution_policy")),
+            context_assembler=ContextAssemblerRef.from_dict(data.get("context_assembler")),
             tools=[ToolRef.from_dict(item, i) for i, item in enumerate(tools_raw)],
             runtime=RuntimeOptions.from_dict(data.get("runtime")),
         )

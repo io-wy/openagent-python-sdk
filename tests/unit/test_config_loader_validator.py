@@ -51,6 +51,39 @@ def test_load_config_valid_config(tmp_path):
     assert config.agents[0].pattern.type == "react"
 
 
+def test_load_config_accepts_skill_config(tmp_path):
+    payload = _base_config()
+    payload["agents"][0]["skill"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomSkill",
+        "config": {"focus": "training"},
+    }
+    config_path = _write(tmp_path, payload)
+
+    config = load_config(config_path)
+    assert config.agents[0].skill is not None
+    assert config.agents[0].skill.impl == "tests.fixtures.custom_plugins.CustomSkill"
+
+
+def test_load_config_accepts_agent_level_runtime_seams(tmp_path):
+    payload = _base_config()
+    payload["agents"][0]["tool_executor"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomToolExecutor",
+        "config": {"name": "agent-level"},
+    }
+    payload["agents"][0]["execution_policy"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomExecutionPolicy",
+    }
+    payload["agents"][0]["context_assembler"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomContextAssembler",
+    }
+    config_path = _write(tmp_path, payload)
+
+    config = load_config(config_path)
+    assert config.agents[0].tool_executor is not None
+    assert config.agents[0].execution_policy is not None
+    assert config.agents[0].context_assembler is not None
+
+
 def test_load_config_accepts_type_and_impl(tmp_path):
     """Test that both type and impl can be provided together (impl takes priority)."""
     payload = _base_config()
@@ -71,6 +104,24 @@ def test_load_config_rejects_missing_type_and_impl(tmp_path):
     config_path = _write(tmp_path, payload)
 
     with pytest.raises(ConfigError, match="at least one of 'type' or 'impl'"):
+        load_config(config_path)
+
+
+def test_load_config_rejects_skill_missing_type_and_impl(tmp_path):
+    payload = _base_config()
+    payload["agents"][0]["skill"] = {"config": {"focus": "training"}}
+    config_path = _write(tmp_path, payload)
+
+    with pytest.raises(ConfigError, match="agents\\['assistant'\\]\\.skill"):
+        load_config(config_path)
+
+
+def test_load_config_rejects_context_assembler_missing_type_and_impl(tmp_path):
+    payload = _base_config()
+    payload["agents"][0]["context_assembler"] = {"config": {"marker": "x"}}
+    config_path = _write(tmp_path, payload)
+
+    with pytest.raises(ConfigError, match="agents\\['assistant'\\]\\.context_assembler"):
         load_config(config_path)
 
 
