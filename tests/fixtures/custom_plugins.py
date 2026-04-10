@@ -4,6 +4,8 @@ import asyncio
 from typing import Any
 
 from openagents.interfaces.context import ContextAssemblyResult
+from openagents.interfaces.followup import FollowupResolution
+from openagents.interfaces.response_repair import ResponseRepairDecision
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
     PATTERN_EXECUTE,
@@ -174,6 +176,34 @@ class CustomContextAssembler:
     ) -> Any:
         session_state["custom_assembler_finalized"] = True
         return result
+
+
+class CustomFollowupResolver:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+
+    async def resolve(self, context: Any) -> Any:
+        target = str(self.config.get("when_input", ""))
+        if target and str(context.input_text).strip() == target:
+            return FollowupResolution(resolved=True, output=self.config.get("result", "resolved"))
+        return None
+
+
+class CustomResponseRepairPolicy:
+    def __init__(self, config: dict[str, Any] | None = None):
+        self.config = config or {}
+
+    async def repair_empty_response(
+        self,
+        *,
+        context: Any,
+        messages: list[dict[str, Any]],
+        assistant_content: list[dict[str, Any]],
+        stop_reason: str | None,
+        retries: int,
+    ) -> Any:
+        _ = (context, messages, assistant_content, stop_reason, retries)
+        return ResponseRepairDecision(handled=True, output=self.config.get("result", "repaired"))
 
 
 class BadSkillMissingContextAugmentMethod:

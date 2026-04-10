@@ -10,6 +10,11 @@ from openagents.decorators import (
     skill,
     session,
     event_bus,
+    tool_executor,
+    execution_policy,
+    context_assembler,
+    followup_resolver,
+    response_repair_policy,
     get_tool,
     get_pattern,
     get_memory,
@@ -17,6 +22,11 @@ from openagents.decorators import (
     get_skill,
     get_session,
     get_event_bus,
+    get_tool_executor,
+    get_execution_policy,
+    get_context_assembler,
+    get_followup_resolver,
+    get_response_repair_policy,
     list_tools,
     list_patterns,
     list_memories,
@@ -24,6 +34,11 @@ from openagents.decorators import (
     list_skills,
     list_sessions,
     list_event_buses,
+    list_tool_executors,
+    list_execution_policies,
+    list_context_assemblers,
+    list_followup_resolvers,
+    list_response_repair_policies,
 )
 
 
@@ -205,6 +220,46 @@ def test_event_bus_decorator_with_name():
     assert get_event_bus("custom_event_bus") is CustomEventBus
 
 
+def test_followup_resolver_decorator_with_name():
+    @followup_resolver(name="custom_followup")
+    class CustomFollowupResolver:
+        pass
+
+    assert get_followup_resolver("custom_followup") is CustomFollowupResolver
+
+
+def test_tool_executor_decorator_with_name():
+    @tool_executor(name="custom_tool_executor")
+    class CustomToolExecutor:
+        pass
+
+    assert get_tool_executor("custom_tool_executor") is CustomToolExecutor
+
+
+def test_execution_policy_decorator_with_name():
+    @execution_policy(name="custom_execution_policy")
+    class CustomExecutionPolicy:
+        pass
+
+    assert get_execution_policy("custom_execution_policy") is CustomExecutionPolicy
+
+
+def test_context_assembler_decorator_with_name():
+    @context_assembler(name="custom_context_assembler")
+    class CustomContextAssembler:
+        pass
+
+    assert get_context_assembler("custom_context_assembler") is CustomContextAssembler
+
+
+def test_response_repair_policy_decorator_with_name():
+    @response_repair_policy(name="custom_repair")
+    class CustomRepairPolicy:
+        pass
+
+    assert get_response_repair_policy("custom_repair") is CustomRepairPolicy
+
+
 def test_list_functions():
     """Test list_* functions return lists."""
     tools = list_tools()
@@ -228,6 +283,21 @@ def test_list_functions():
     event_buses = list_event_buses()
     assert isinstance(event_buses, list)
 
+    tool_executors = list_tool_executors()
+    assert isinstance(tool_executors, list)
+
+    execution_policies = list_execution_policies()
+    assert isinstance(execution_policies, list)
+
+    context_assemblers = list_context_assemblers()
+    assert isinstance(context_assemblers, list)
+
+    followups = list_followup_resolvers()
+    assert isinstance(followups, list)
+
+    repairs = list_response_repair_policies()
+    assert isinstance(repairs, list)
+
 
 def test_get_nonexistent():
     """Test get_* functions return None for unknown names."""
@@ -238,6 +308,11 @@ def test_get_nonexistent():
     assert get_skill("nonexistent_skill") is None
     assert get_session("nonexistent_session") is None
     assert get_event_bus("nonexistent_event_bus") is None
+    assert get_tool_executor("nonexistent_tool_executor") is None
+    assert get_execution_policy("nonexistent_execution_policy") is None
+    assert get_context_assembler("nonexistent_context_assembler") is None
+    assert get_followup_resolver("nonexistent_followup") is None
+    assert get_response_repair_policy("nonexistent_repair") is None
 
 
 def test_decorator_preserves_functionality():

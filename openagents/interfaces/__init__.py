@@ -16,6 +16,7 @@ from .capabilities import (
     TOOL_INVOKE,
 )
 from .context import ContextAssemblerPlugin, ContextAssemblyResult
+from .followup import FollowupResolution, FollowupResolverPlugin
 from .events import (
     EventBusPlugin,
     EVENT_EMIT,
@@ -29,6 +30,7 @@ from .events import (
 from .memory import MemoryPlugin
 from .pattern import ExecutionContext, PatternPlugin
 from .plugin import BasePlugin
+from .response_repair import ResponseRepairDecision, ResponseRepairPolicyPlugin
 from .runtime import (
     RUNTIME_LIFECYCLE,
     RUNTIME_MANAGE,
@@ -72,8 +74,12 @@ __all__ = [
     "ExecutionContext",
     "ContextAssemblerPlugin",
     "ContextAssemblyResult",
+    "FollowupResolution",
+    "FollowupResolverPlugin",
     "MemoryPlugin",
     "PatternPlugin",
+    "ResponseRepairDecision",
+    "ResponseRepairPolicyPlugin",
     "SkillPlugin",
     "ExecutionPolicy",
     "ExecutionPolicyPlugin",

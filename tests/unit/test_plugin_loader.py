@@ -49,6 +49,10 @@ def test_load_agent_plugins_impl_types():
     payload["agents"][0]["tool_executor"] = {"impl": "tests.fixtures.custom_plugins.CustomToolExecutor"}
     payload["agents"][0]["execution_policy"] = {"impl": "tests.fixtures.custom_plugins.CustomExecutionPolicy"}
     payload["agents"][0]["context_assembler"] = {"impl": "tests.fixtures.custom_plugins.CustomContextAssembler"}
+    payload["agents"][0]["followup_resolver"] = {"impl": "tests.fixtures.custom_plugins.CustomFollowupResolver"}
+    payload["agents"][0]["response_repair_policy"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomResponseRepairPolicy"
+    }
     payload["agents"][0]["tools"] = [
         {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
     ]
@@ -61,6 +65,8 @@ def test_load_agent_plugins_impl_types():
     assert type(plugins.tool_executor).__name__ == "CustomToolExecutor"
     assert type(plugins.execution_policy).__name__ == "CustomExecutionPolicy"
     assert type(plugins.context_assembler).__name__ == "CustomContextAssembler"
+    assert type(plugins.followup_resolver).__name__ == "CustomFollowupResolver"
+    assert type(plugins.response_repair_policy).__name__ == "CustomResponseRepairPolicy"
     assert type(plugins.tools["custom_tool"]).__name__ == "CustomTool"
 
 
@@ -93,6 +99,11 @@ def test_load_decorator_registered_plugins():
     payload["agents"][0]["memory"] = {"type": "DecoratorMemory"}
     payload["agents"][0]["pattern"] = {"type": "DecoratorPattern"}
     payload["agents"][0]["skill"] = {"type": "decorated_skill"}
+    payload["agents"][0]["tool_executor"] = {"type": "decorated_tool_executor"}
+    payload["agents"][0]["execution_policy"] = {"type": "decorated_execution_policy"}
+    payload["agents"][0]["context_assembler"] = {"type": "decorated_context_assembler"}
+    payload["agents"][0]["followup_resolver"] = {"type": "decorated_followup_resolver"}
+    payload["agents"][0]["response_repair_policy"] = {"type": "decorated_response_repair_policy"}
     payload["agents"][0]["tools"] = [{"id": "my_tool", "type": "decorated_tool"}]
 
     config = load_config_dict(payload)
@@ -101,6 +112,11 @@ def test_load_decorator_registered_plugins():
     assert type(plugins.memory).__name__ == "DecoratorMemory"
     assert type(plugins.pattern).__name__ == "DecoratorPattern"
     assert type(plugins.skill).__name__ == "DecoratorSkill"
+    assert type(plugins.tool_executor).__name__ == "DecoratorToolExecutor"
+    assert type(plugins.execution_policy).__name__ == "DecoratorExecutionPolicy"
+    assert type(plugins.context_assembler).__name__ == "DecoratorContextAssembler"
+    assert type(plugins.followup_resolver).__name__ == "DecoratorFollowupResolver"
+    assert type(plugins.response_repair_policy).__name__ == "DecoratorResponseRepairPolicy"
     assert "my_tool" in plugins.tools
     assert type(plugins.tools["my_tool"]).__name__ == "DecoratorTool"
 

@@ -5,15 +5,22 @@ from __future__ import annotations
 from typing import Any
 
 from openagents.decorators import (
+    _CONTEXT_ASSEMBLER_REGISTRY,
     _EVENT_REGISTRY,
+    _EXECUTION_POLICY_REGISTRY,
+    _FOLLOWUP_RESOLVER_REGISTRY,
     _MEMORY_REGISTRY,
     _PATTERN_REGISTRY,
+    _RESPONSE_REPAIR_POLICY_REGISTRY,
     _RUNTIME_REGISTRY,
     _SKILL_REGISTRY,
     _SESSION_REGISTRY,
     _TOOL_REGISTRY,
+    _TOOL_EXECUTOR_REGISTRY,
 )
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
+from openagents.plugins.builtin.context.summarizing import SummarizingContextAssembler
+from openagents.plugins.builtin.execution_policy.filesystem import FilesystemExecutionPolicy
 from openagents.plugins.builtin.memory.buffer import BufferMemory
 from openagents.plugins.builtin.memory.chain import ChainMemory
 from openagents.plugins.builtin.memory.mem0_memory import Mem0Memory
@@ -23,6 +30,7 @@ from openagents.plugins.builtin.pattern.react import ReActPattern
 from openagents.plugins.builtin.pattern.reflexion import ReflexionPattern
 from openagents.plugins.builtin.runtime.default_runtime import DefaultRuntime
 from openagents.plugins.builtin.session.in_memory import InMemorySessionManager
+from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
 from openagents.plugins.builtin.tool.common import BuiltinSearchTool
 from openagents.plugins.builtin.tool.datetime_tools import (
     CurrentTimeTool,
@@ -70,6 +78,11 @@ _DECORATOR_REGISTRY_MAP: dict[str, dict[str, type[Any]]] = {
     "skill": _SKILL_REGISTRY,
     "session": _SESSION_REGISTRY,
     "events": _EVENT_REGISTRY,
+    "tool_executor": _TOOL_EXECUTOR_REGISTRY,
+    "execution_policy": _EXECUTION_POLICY_REGISTRY,
+    "context_assembler": _CONTEXT_ASSEMBLER_REGISTRY,
+    "followup_resolver": _FOLLOWUP_RESOLVER_REGISTRY,
+    "response_repair_policy": _RESPONSE_REPAIR_POLICY_REGISTRY,
     "tool": _TOOL_REGISTRY,
 }
 
@@ -95,6 +108,17 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     "events": {
         "async": AsyncEventBus,
     },
+    "tool_executor": {
+        "safe": SafeToolExecutor,
+    },
+    "execution_policy": {
+        "filesystem": FilesystemExecutionPolicy,
+    },
+    "context_assembler": {
+        "summarizing": SummarizingContextAssembler,
+    },
+    "followup_resolver": {},
+    "response_repair_policy": {},
     "tool": {
         "builtin_search": BuiltinSearchTool,
         "mcp": McpTool,

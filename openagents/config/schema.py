@@ -147,6 +147,30 @@ class ContextAssemblerRef(PluginRef):
 
 
 @dataclass
+class FollowupResolverRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "FollowupResolverRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'followup_resolver' must be an object")
+        base = PluginRef.from_dict(data, "followup_resolver")
+        return cls(type=base.type, impl=base.impl, config=base.config)
+
+
+@dataclass
+class ResponseRepairPolicyRef(PluginRef):
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "ResponseRepairPolicyRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'response_repair_policy' must be an object")
+        base = PluginRef.from_dict(data, "response_repair_policy")
+        return cls(type=base.type, impl=base.impl, config=base.config)
+
+
+@dataclass
 class RuntimeRef(PluginRef):
     """Runtime plugin reference at global level."""
 
@@ -306,6 +330,8 @@ class AgentDefinition:
     tool_executor: ToolExecutorRef | None = None
     execution_policy: ExecutionPolicyRef | None = None
     context_assembler: ContextAssemblerRef | None = None
+    followup_resolver: FollowupResolverRef | None = None
+    response_repair_policy: ResponseRepairPolicyRef | None = None
     tools: list[ToolRef] = field(default_factory=list)
     runtime: RuntimeOptions = field(default_factory=RuntimeOptions)
 
@@ -339,6 +365,8 @@ class AgentDefinition:
             tool_executor=ToolExecutorRef.from_dict(data.get("tool_executor")),
             execution_policy=ExecutionPolicyRef.from_dict(data.get("execution_policy")),
             context_assembler=ContextAssemblerRef.from_dict(data.get("context_assembler")),
+            followup_resolver=FollowupResolverRef.from_dict(data.get("followup_resolver")),
+            response_repair_policy=ResponseRepairPolicyRef.from_dict(data.get("response_repair_policy")),
             tools=[ToolRef.from_dict(item, i) for i, item in enumerate(tools_raw)],
             runtime=RuntimeOptions.from_dict(data.get("runtime")),
         )

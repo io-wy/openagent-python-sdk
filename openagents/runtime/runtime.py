@@ -7,7 +7,7 @@ import inspect
 from pathlib import Path
 from typing import Any
 
-from openagents.config.loader import load_config
+from openagents.config.loader import load_config, load_config_dict
 from openagents.config.schema import AgentDefinition, AppConfig
 from openagents.errors.exceptions import ConfigError
 from openagents.interfaces.runtime import RUN_STOP_FAILED, RunBudget, RunRequest, RunResult
@@ -68,16 +68,22 @@ class Runtime:
         config = load_config(path)
         return cls(config, _config_path=path)
 
-    def _invalidate_runtime_agent_cache(self, agent_ids: set[str] | None = None) -> None:
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "Runtime":
+        """Create a runtime directly from a Python config dict."""
+        config = load_config_dict(payload)
+        return cls(config)
+
+    async def _invalidate_runtime_agent_cache(self, agent_ids: set[str] | None = None) -> None:
         """Invalidate runtime-level per-agent caches when config changes."""
         invalidate = getattr(self._runtime, "invalidate_llm_client", None)
         if not callable(invalidate):
             return
         if agent_ids is None:
-            invalidate()
+            await invalidate()
             return
         for agent_id in agent_ids:
-            invalidate(agent_id)
+            await invalidate(agent_id)
 
     def _get_plugins_for_session(self, session_id: str, agent_id: str) -> Any:
         """Get or create plugins for a specific session.
@@ -196,7 +202,7 @@ class Runtime:
         self._config_version += 1
         self._config = new_config
         self._agents_by_id = new_agents
-        self._invalidate_runtime_agent_cache(changed_agent_ids)
+        await self._invalidate_runtime_agent_cache(changed_agent_ids)
 
         for session_plugins in self._session_plugins.values():
             for agent_id in removed_agent_ids:
@@ -226,7 +232,7 @@ class Runtime:
                     await old_plugins.memory.close()
                 del session_plugins[agent_id]
 
-        self._invalidate_runtime_agent_cache({agent_id})
+        await self._invalidate_runtime_agent_cache({agent_id})
 
         await self._events.emit(
             "agent.reloaded",
@@ -286,6 +292,22 @@ class Runtime:
                 "type": agent.context_assembler.type if agent.context_assembler else None,
                 "impl": agent.context_assembler.impl if agent.context_assembler else None,
             },
+            "followup_resolver": {
+                "type": agent.followup_resolver.type if agent.followup_resolver else None,
+                "impl": agent.followup_resolver.impl if agent.followup_resolver else None,
+            },
+            "response_repair_policy": {
+                "type": (
+                    agent.response_repair_policy.type
+                    if agent.response_repair_policy
+                    else None
+                ),
+                "impl": (
+                    agent.response_repair_policy.impl
+                    if agent.response_repair_policy
+                    else None
+                ),
+            },
             "tools": [t.id for t in agent.tools if t.enabled],
             "loaded_plugins": {
                 "memory": type(plugins.memory).__name__ if plugins else None,
@@ -304,6 +326,16 @@ class Runtime:
                 "context_assembler": (
                     type(plugins.context_assembler).__name__
                     if plugins and plugins.context_assembler
+                    else None
+                ),
+                "followup_resolver": (
+                    type(plugins.followup_resolver).__name__
+                    if plugins and plugins.followup_resolver
+                    else None
+                ),
+                "response_repair_policy": (
+                    type(plugins.response_repair_policy).__name__
+                    if plugins and plugins.response_repair_policy
                     else None
                 ),
                 "tools": list(plugins.tools.keys()) if plugins else [],

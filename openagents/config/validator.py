@@ -67,6 +67,10 @@ def validate_config(config: AppConfig) -> None:
             _validate_plugin_selector(agent.execution_policy, f"agents['{agent.id}'].execution_policy")
         if agent.context_assembler is not None:
             _validate_plugin_selector(agent.context_assembler, f"agents['{agent.id}'].context_assembler")
+        if agent.followup_resolver is not None:
+            _validate_plugin_selector(agent.followup_resolver, f"agents['{agent.id}'].followup_resolver")
+        if agent.response_repair_policy is not None:
+            _validate_plugin_selector(agent.response_repair_policy, f"agents['{agent.id}'].response_repair_policy")
         _validate_llm(agent.llm, f"agents['{agent.id}'].llm")
 
         if agent.memory.on_error not in _MEMORY_ON_ERROR_VALUES:

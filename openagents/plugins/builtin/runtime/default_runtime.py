@@ -339,6 +339,8 @@ class DefaultRuntime(RuntimePlugin):
                     assembly_metadata=assembly.metadata,
                     tool_executor=tool_executor,
                     execution_policy=execution_policy,
+                    followup_resolver=getattr(plugins, "followup_resolver", None),
+                    response_repair_policy=getattr(plugins, "response_repair_policy", None),
                     usage=usage,
                     artifacts=artifacts,
                 )
@@ -442,12 +444,23 @@ class DefaultRuntime(RuntimePlugin):
         self._llm_clients[agent.id] = client
         return client
 
-    def invalidate_llm_client(self, agent_id: str | None = None) -> None:
+    async def _close_llm_client(self, client: Any | None) -> None:
+        if client is None:
+            return
+        close = getattr(client, "aclose", None)
+        if callable(close):
+            await close()
+
+    async def invalidate_llm_client(self, agent_id: str | None = None) -> None:
         """Drop cached LLM clients so updated config is used on next run."""
         if agent_id is None:
+            clients = list(self._llm_clients.values())
             self._llm_clients.clear()
+            for client in clients:
+                await self._close_llm_client(client)
             return
-        self._llm_clients.pop(agent_id, None)
+        client = self._llm_clients.pop(agent_id, None)
+        await self._close_llm_client(client)
 
     def _apply_runtime_budget(self, *, pattern: PatternPlugin, agent: "AgentDefinition") -> None:
         config = getattr(pattern, "config", None)
@@ -488,6 +501,8 @@ class DefaultRuntime(RuntimePlugin):
         assembly_metadata: dict[str, Any],
         tool_executor: ToolExecutor,
         execution_policy: ExecutionPolicy,
+        followup_resolver: Any | None,
+        response_repair_policy: Any | None,
         usage: RunUsage,
         artifacts: list[Any],
     ) -> None:
@@ -508,6 +523,8 @@ class DefaultRuntime(RuntimePlugin):
             "run_request": request,
             "tool_executor": tool_executor,
             "execution_policy": execution_policy,
+            "followup_resolver": followup_resolver,
+            "response_repair_policy": response_repair_policy,
             "usage": usage,
             "artifacts": artifacts,
         }
@@ -530,6 +547,8 @@ class DefaultRuntime(RuntimePlugin):
         context.run_request = request
         context.tool_executor = tool_executor
         context.execution_policy = execution_policy
+        context.followup_resolver = followup_resolver
+        context.response_repair_policy = response_repair_policy
         context.usage = usage
         context.artifacts = artifacts
 
@@ -814,3 +833,9 @@ class DefaultRuntime(RuntimePlugin):
             )
             if agent.memory.on_error == "fail":
                 raise
+
+    async def close(self) -> None:
+        clients = list(self._llm_clients.values())
+        self._llm_clients.clear()
+        for client in clients:
+            await self._close_llm_client(client)

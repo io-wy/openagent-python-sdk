@@ -8,7 +8,9 @@ from typing import TYPE_CHECKING, Any
 from .plugin import BasePlugin
 
 if TYPE_CHECKING:
+    from .followup import FollowupResolverPlugin
     from .events import EventBusPlugin
+    from .response_repair import ResponseRepairPolicyPlugin
     from .session import SessionArtifact
     from .runtime import RunArtifact, RunRequest, RunUsage
     from .tool import ExecutionPolicy, ToolExecutor
@@ -38,6 +40,8 @@ class ExecutionContext:
     run_request: "RunRequest | None" = None
     tool_executor: "ToolExecutor | None" = None
     execution_policy: "ExecutionPolicy | None" = None
+    followup_resolver: "FollowupResolverPlugin | None" = None
+    response_repair_policy: "ResponseRepairPolicyPlugin | None" = None
     usage: "RunUsage | None" = None
     artifacts: list["RunArtifact"] = field(default_factory=list)
 
@@ -67,6 +71,8 @@ class PatternPlugin(BasePlugin):
         run_request: "RunRequest | None" = None,
         tool_executor: "ToolExecutor | None" = None,
         execution_policy: "ExecutionPolicy | None" = None,
+        followup_resolver: "FollowupResolverPlugin | None" = None,
+        response_repair_policy: "ResponseRepairPolicyPlugin | None" = None,
         usage: "RunUsage | None" = None,
         artifacts: list["RunArtifact"] | None = None,
     ) -> None:
@@ -89,6 +95,8 @@ class PatternPlugin(BasePlugin):
             run_request=run_request,
             tool_executor=tool_executor,
             execution_policy=execution_policy,
+            followup_resolver=followup_resolver,
+            response_repair_policy=response_repair_policy,
             usage=usage,
             artifacts=artifacts or [],
         )
@@ -175,7 +183,7 @@ class PatternPlugin(BasePlugin):
         if ctx.llm_client is None:
             raise RuntimeError("No LLM client configured for this agent")
         await self.emit("llm.called", model=model)
-        result = await ctx.llm_client.complete(
+        response = await ctx.llm_client.generate(
             messages=messages,
             model=model,
             temperature=temperature,
@@ -183,8 +191,12 @@ class PatternPlugin(BasePlugin):
         )
         if ctx.usage is not None:
             ctx.usage.llm_calls += 1
+            if response.usage is not None:
+                ctx.usage.input_tokens += response.usage.input_tokens
+                ctx.usage.output_tokens += response.usage.output_tokens
+                ctx.usage.total_tokens += response.usage.total_tokens
         await self.emit("llm.succeeded", model=model)
-        return result
+        return response.output_text
 
     def compose_system_prompt(self, base_prompt: str) -> str:
         """Merge runtime/system fragments into one system prompt."""

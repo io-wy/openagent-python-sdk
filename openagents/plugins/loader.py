@@ -11,9 +11,11 @@ from openagents.config.schema import (
     ContextAssemblerRef,
     ExecutionPolicyRef,
     EventBusRef,
+    FollowupResolverRef,
     MemoryRef,
     PatternRef,
     PluginRef,
+    ResponseRepairPolicyRef,
     RuntimeRef,
     SkillRef,
     SessionRef,
@@ -50,6 +52,8 @@ class LoadedAgentPlugins:
     tool_executor: Any | None
     execution_policy: Any | None
     context_assembler: Any | None
+    followup_resolver: Any | None
+    response_repair_policy: Any | None
     tools: dict[str, Any]
 
 
@@ -183,22 +187,7 @@ def load_skill_plugin(ref: SkillRef | None) -> Any | None:
 def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
     if ref is None:
         return None
-    if ref.impl:
-        plugin = _load_plugin("tool_executor", ref)
-    elif ref.type:
-        from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
-
-        builtins = {
-            "safe": SafeToolExecutor,
-        }
-        plugin_cls = builtins.get(ref.type)
-        if plugin_cls is None:
-            raise PluginLoadError(
-                f"Unknown tool_executor plugin type: '{ref.type}'"
-            )
-        plugin = _instantiate(plugin_cls, ref.config)
-    else:
-        raise PluginLoadError("tool_executor plugin must set one of 'type' or 'impl'")
+    plugin = _load_plugin("tool_executor", ref)
     if not callable(getattr(plugin, "execute", None)):
         raise CapabilityError(
             f"tool executor '{type(plugin).__name__}' must implement 'execute'"
@@ -213,22 +202,7 @@ def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
 def load_execution_policy_plugin(ref: ExecutionPolicyRef | None) -> Any | None:
     if ref is None:
         return None
-    if ref.impl:
-        plugin = _load_plugin("execution_policy", ref)
-    elif ref.type:
-        from openagents.plugins.builtin.execution_policy.filesystem import FilesystemExecutionPolicy
-
-        builtins = {
-            "filesystem": FilesystemExecutionPolicy,
-        }
-        plugin_cls = builtins.get(ref.type)
-        if plugin_cls is None:
-            raise PluginLoadError(
-                f"Unknown execution_policy plugin type: '{ref.type}'"
-            )
-        plugin = _instantiate(plugin_cls, ref.config)
-    else:
-        raise PluginLoadError("execution_policy plugin must set one of 'type' or 'impl'")
+    plugin = _load_plugin("execution_policy", ref)
     if not callable(getattr(plugin, "evaluate", None)):
         raise CapabilityError(
             f"execution policy '{type(plugin).__name__}' must implement 'evaluate'"
@@ -239,22 +213,7 @@ def load_execution_policy_plugin(ref: ExecutionPolicyRef | None) -> Any | None:
 def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None:
     if ref is None:
         return None
-    if ref.impl:
-        plugin = _load_plugin("context_assembler", ref)
-    elif ref.type:
-        from openagents.plugins.builtin.context.summarizing import SummarizingContextAssembler
-
-        builtins = {
-            "summarizing": SummarizingContextAssembler,
-        }
-        plugin_cls = builtins.get(ref.type)
-        if plugin_cls is None:
-            raise PluginLoadError(
-                f"Unknown context_assembler plugin type: '{ref.type}'"
-            )
-        plugin = _instantiate(plugin_cls, ref.config)
-    else:
-        raise PluginLoadError("context_assembler plugin must set one of 'type' or 'impl'")
+    plugin = _load_plugin("context_assembler", ref)
     if not callable(getattr(plugin, "assemble", None)):
         raise CapabilityError(
             f"context assembler '{type(plugin).__name__}' must implement 'assemble'"
@@ -262,6 +221,28 @@ def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None
     if not callable(getattr(plugin, "finalize", None)):
         raise CapabilityError(
             f"context assembler '{type(plugin).__name__}' must implement 'finalize'"
+        )
+    return plugin
+
+
+def load_followup_resolver_plugin(ref: FollowupResolverRef | None) -> Any | None:
+    if ref is None:
+        return None
+    plugin = _load_plugin("followup_resolver", ref)
+    if not callable(getattr(plugin, "resolve", None)):
+        raise CapabilityError(
+            f"follow-up resolver '{type(plugin).__name__}' must implement 'resolve'"
+        )
+    return plugin
+
+
+def load_response_repair_policy_plugin(ref: ResponseRepairPolicyRef | None) -> Any | None:
+    if ref is None:
+        return None
+    plugin = _load_plugin("response_repair_policy", ref)
+    if not callable(getattr(plugin, "repair_empty_response", None)):
+        raise CapabilityError(
+            f"response repair policy '{type(plugin).__name__}' must implement 'repair_empty_response'"
         )
     return plugin
 
@@ -304,6 +285,8 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     tool_executor = load_tool_executor_plugin(agent.tool_executor)
     execution_policy = load_execution_policy_plugin(agent.execution_policy)
     context_assembler = load_context_assembler_plugin(agent.context_assembler)
+    followup_resolver = load_followup_resolver_plugin(agent.followup_resolver)
+    response_repair_policy = load_response_repair_policy_plugin(agent.response_repair_policy)
 
     tools: dict[str, Any] = {}
     if skill is not None and SKILL_TOOLS in _capability_set(skill):
@@ -320,6 +303,8 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
         tool_executor=tool_executor,
         execution_policy=execution_policy,
         context_assembler=context_assembler,
+        followup_resolver=followup_resolver,
+        response_repair_policy=response_repair_policy,
         tools=tools,
     )
 

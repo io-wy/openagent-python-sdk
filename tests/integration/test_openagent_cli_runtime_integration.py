@@ -5,7 +5,8 @@ import json
 import pytest
 
 import openagents.llm.registry as llm_registry
-from openagents.llm.base import LLMChunk, LLMClient
+from openagents.llm.base import LLMChunk, LLMClient, LLMUsage
+from openagents.interfaces.runtime import RunRequest
 from openagents.runtime.runtime import Runtime
 
 
@@ -45,7 +46,11 @@ class _StreamingDeltaClient(LLMClient):
             content={"type": "text", "text": "ignored"},
             delta={"type": "text_delta", "text": "Hello"},
         )
-        yield LLMChunk(type="message_stop", content={"stop_reason": "end_turn"})
+        yield LLMChunk(
+            type="message_stop",
+            content={"stop_reason": "end_turn"},
+            usage=LLMUsage(input_tokens=9, output_tokens=4, total_tokens=13),
+        )
 
 
 def _payload() -> dict:
@@ -97,6 +102,36 @@ async def test_runtime_from_config_claude_code_pattern_collects_text_from_chunk_
     assert result == "Hello"
     assert client.last_tools == []
     assert client.last_tool_choice is None
+
+
+@pytest.mark.asyncio
+async def test_runtime_from_config_claude_code_pattern_reports_stream_usage(
+    monkeypatch,
+    tmp_path,
+):
+    client = _StreamingDeltaClient()
+    monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: client)
+
+    config_path = tmp_path / "agent.json"
+    config_path.write_text(json.dumps(_payload()), encoding="utf-8")
+
+    runtime = Runtime.from_config(config_path)
+    try:
+        result = await runtime.run_detailed(
+            request=RunRequest(
+                agent_id="assistant",
+                session_id="claude-code-pattern-usage",
+                input_text="hello",
+            )
+        )
+    finally:
+        await runtime.close()
+
+    assert result.final_output == "Hello"
+    assert result.usage.llm_calls == 1
+    assert result.usage.input_tokens == 9
+    assert result.usage.output_tokens == 4
+    assert result.usage.total_tokens == 13
 
 
 @pytest.mark.asyncio
@@ -418,4 +453,64 @@ async def test_runtime_from_config_claude_code_pattern_raises_explicit_error_on_
     assert "history_items=0" in message
     assert "last_history_tools=[]" in message
     assert "input='hello'" in message
+    assert client.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_runtime_from_config_claude_code_pattern_uses_followup_resolver_before_llm(
+    monkeypatch,
+    tmp_path,
+):
+    client = _AlwaysEmptyStreamingClient()
+    monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: client)
+
+    payload = _payload()
+    payload["agents"][0]["followup_resolver"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomFollowupResolver",
+        "config": {"when_input": "what did you do", "result": "from followup resolver"},
+    }
+    config_path = tmp_path / "agent.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    runtime = Runtime.from_config(config_path)
+    try:
+        result = await runtime.run(
+            agent_id="assistant",
+            session_id="claude-code-pattern-followup-seam",
+            input_text="what did you do",
+        )
+    finally:
+        await runtime.close()
+
+    assert result == "from followup resolver"
+    assert client.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_runtime_from_config_claude_code_pattern_uses_response_repair_policy_after_empty_response(
+    monkeypatch,
+    tmp_path,
+):
+    client = _AlwaysEmptyStreamingClient()
+    monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: client)
+
+    payload = _payload()
+    payload["agents"][0]["response_repair_policy"] = {
+        "impl": "tests.fixtures.custom_plugins.CustomResponseRepairPolicy",
+        "config": {"result": "from repair policy"},
+    }
+    config_path = tmp_path / "agent.json"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    runtime = Runtime.from_config(config_path)
+    try:
+        result = await runtime.run(
+            agent_id="assistant",
+            session_id="claude-code-pattern-repair-seam",
+            input_text="hello",
+        )
+    finally:
+        await runtime.close()
+
+    assert result == "from repair policy"
     assert client.calls == 2
