@@ -1,0 +1,3 @@
+display_name: OpenAgent Agent Builder
+short_description: Build one runnable OpenAgents single-agent spec and smoke test it for subagent or team-role use.
+default_prompt: Build one OpenAgents single-agent spec for a subagent or team-role agent, then return the spec, smoke result, and integration hints.
