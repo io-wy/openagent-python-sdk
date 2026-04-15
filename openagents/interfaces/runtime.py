@@ -2,43 +2,57 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from openagents.errors.exceptions import OpenAgentsError
 
 from .plugin import BasePlugin
 
 
-RUN_STOP_COMPLETED = "completed"
-RUN_STOP_FAILED = "failed"
-RUN_STOP_CANCELLED = "cancelled"
-RUN_STOP_TIMEOUT = "timeout"
+class StopReason(str, Enum):
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+    MAX_STEPS = "max_steps"
+    BUDGET_EXHAUSTED = "budget_exhausted"
 
 
-@dataclass
-class RunBudget:
+RUN_STOP_COMPLETED = StopReason.COMPLETED.value
+RUN_STOP_FAILED = StopReason.FAILED.value
+RUN_STOP_CANCELLED = StopReason.CANCELLED.value
+RUN_STOP_TIMEOUT = StopReason.TIMEOUT.value
+
+
+class RunBudget(BaseModel):
     """Optional execution budget for a single run."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     max_steps: int | None = None
     max_duration_ms: int | None = None
     max_tool_calls: int | None = None
 
 
-@dataclass
-class RunArtifact:
+class RunArtifact(BaseModel):
     """Artifact emitted by a run."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
     kind: str = "generic"
     payload: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class RunUsage:
+class RunUsage(BaseModel):
     """Usage statistics collected during a run."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     llm_calls: int = 0
     tool_calls: int = 0
@@ -47,32 +61,35 @@ class RunUsage:
     total_tokens: int = 0
 
 
-@dataclass
-class RunRequest:
+class RunRequest(BaseModel):
     """Structured runtime request."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     agent_id: str
     session_id: str
     input_text: str
-    run_id: str = field(default_factory=lambda: str(uuid4()))
+    run_id: str = Field(default_factory=lambda: str(uuid4()))
     parent_run_id: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    context_hints: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    context_hints: dict[str, Any] = Field(default_factory=dict)
     budget: RunBudget | None = None
+    deps: Any = None
 
 
-@dataclass
-class RunResult:
+class RunResult(BaseModel):
     """Structured runtime result."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: str
     final_output: Any = None
-    stop_reason: str = RUN_STOP_COMPLETED
-    usage: RunUsage = field(default_factory=RunUsage)
-    artifacts: list[RunArtifact] = field(default_factory=list)
+    stop_reason: StopReason = StopReason.COMPLETED
+    usage: RunUsage = Field(default_factory=RunUsage)
+    artifacts: list[RunArtifact] = Field(default_factory=list)
     error: str | None = None
     exception: OpenAgentsError | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RuntimePlugin(BasePlugin):

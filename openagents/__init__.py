@@ -2,11 +2,11 @@
 
 Quick Start:
     from openagents import Runtime, load_config
-    from openagents import tool, memory, pattern, runtime, session
+    from openagents import RunContext, tool, memory, pattern, runtime, session
 
     # Define a tool
     @tool
-    async def my_tool(params, context):
+    async def my_tool(params, context: RunContext[object]):
         return {"result": "ok"}
 
     # Define a memory
@@ -37,6 +37,7 @@ from .plugins.builtin.skills.local import (
     LocalSkillsManager,
 )
 from .interfaces.skills import SkillsPlugin, SessionSkillSummary
+from .interfaces.run_context import RunContext
 from .decorators import (
     context_assembler,
     event_bus,
@@ -85,6 +86,7 @@ __all__ = [
     # Core
     "AppConfig",
     "LocalSkillsManager",
+    "RunContext",
     "Runtime",
     "SkillsPlugin",
     "SessionSkillSummary",

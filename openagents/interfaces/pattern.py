@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .plugin import BasePlugin
+from .run_context import RunContext
 
 if TYPE_CHECKING:
     from .followup import FollowupResolverPlugin
@@ -16,34 +16,7 @@ if TYPE_CHECKING:
     from .tool import ExecutionPolicy, ToolExecutor
 
 
-@dataclass
-class ExecutionContext:
-    """Execution context for pattern plugins."""
-
-    agent_id: str
-    session_id: str
-    input_text: str
-    state: dict[str, Any]
-    tools: dict[str, Any]
-    llm_client: Any | None
-    llm_options: Any | None
-    event_bus: "EventBusPlugin"
-    memory_view: dict[str, Any] = field(default_factory=dict)
-    tool_results: list[dict[str, Any]] = field(default_factory=list)
-    scratch: dict[str, Any] = field(default_factory=dict)
-    active_skill: str | None = None
-    skill_metadata: dict[str, Any] = field(default_factory=dict)
-    system_prompt_fragments: list[str] = field(default_factory=list)
-    transcript: list[dict[str, Any]] = field(default_factory=list)
-    session_artifacts: list["SessionArtifact"] = field(default_factory=list)
-    assembly_metadata: dict[str, Any] = field(default_factory=dict)
-    run_request: "RunRequest | None" = None
-    tool_executor: "ToolExecutor | None" = None
-    execution_policy: "ExecutionPolicy | None" = None
-    followup_resolver: "FollowupResolverPlugin | None" = None
-    response_repair_policy: "ResponseRepairPolicyPlugin | None" = None
-    usage: "RunUsage | None" = None
-    artifacts: list["RunArtifact"] = field(default_factory=list)
+ExecutionContext = RunContext[Any]
 
 
 class PatternPlugin(BasePlugin):
@@ -53,7 +26,7 @@ class PatternPlugin(BasePlugin):
     that can be customized by implementations to change runtime behavior.
     """
 
-    context: ExecutionContext | None = None
+    context: RunContext[Any] | None = None
 
     async def setup(
         self,
@@ -80,10 +53,12 @@ class PatternPlugin(BasePlugin):
 
         Called by Runtime before execute() to initialize context.
         """
-        self.context = ExecutionContext(
+        self.context = RunContext[Any](
             agent_id=agent_id,
             session_id=session_id,
+            run_id=run_request.run_id if run_request is not None else "",
             input_text=input_text,
+            deps=getattr(run_request, "deps", None),
             state=state,
             tools=tools,
             llm_client=llm_client,
@@ -102,29 +77,15 @@ class PatternPlugin(BasePlugin):
         )
 
     async def execute(self) -> Any:
-        """Execute pattern and return final result.
-
-        The pattern should use self.call_tool(), self.call_llm(), etc.
-        to interact with runtime.
-        """
+        """Execute pattern and return final result."""
         raise NotImplementedError("PatternPlugin.execute must be implemented")
 
     async def react(self) -> dict[str, Any]:
-        """Run one pattern step and return an action payload (legacy).
-
-        Returns:
-            Dict with action type and parameters (e.g., {"type": "tool_call", "tool": "...", "params": {...}})
-        """
+        """Run one pattern step and return an action payload (legacy)."""
         raise NotImplementedError("PatternPlugin.react must be implemented")
 
-    # Action methods - can be overridden by implementations
-
     async def emit(self, event_name: str, **payload: Any) -> None:
-        """Emit an event.
-
-        Default implementation delegates to event_bus.
-        Override to customize event handling (e.g., filtering, transformation).
-        """
+        """Emit an event."""
         ctx = self.context
         await ctx.event_bus.emit(
             event_name,
@@ -138,14 +99,7 @@ class PatternPlugin(BasePlugin):
         tool_id: str,
         params: dict[str, Any] | None = None,
     ) -> Any:
-        """Call a tool with retry and fallback support.
-
-        Default implementation:
-        - Try tool.invoke(params, self.context)
-        - On exception, call tool.fallback(error, params, self.context)
-
-        Override to customize tool calling (e.g., caching, retries, fallback).
-        """
+        """Call a tool with retry and fallback support."""
         ctx = self.context
         if tool_id not in ctx.tools:
             raise KeyError(f"Tool '{tool_id}' is not registered")
@@ -160,11 +114,10 @@ class PatternPlugin(BasePlugin):
             return result
         except Exception as exc:
             await self.emit("tool.failed", tool_id=tool_id, error=str(exc))
-            # Fallback: let tool handle retry
             result = await tool.fallback(exc, params or {}, ctx)
-            if result is not None:  # Fallback provided new value
+            if result is not None:
                 return result
-            raise  # Re-raise original for retry logic
+            raise
 
     async def call_llm(
         self,
@@ -174,11 +127,7 @@ class PatternPlugin(BasePlugin):
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> str:
-        """Call LLM with streaming support.
-
-        Default implementation delegates to llm_client.complete().
-        Override to customize LLM calls (e.g., caching, fallback models).
-        """
+        """Call LLM with streaming support."""
         ctx = self.context
         if ctx.llm_client is None:
             raise RuntimeError("No LLM client configured for this agent")
@@ -211,13 +160,7 @@ class PatternPlugin(BasePlugin):
         return "\n\n".join(fragment for fragment in fragments if fragment)
 
     async def compress_context(self) -> None:
-        """Compress context when it grows too large.
-
-        Called to reduce context size (e.g., tool_results accumulated).
-        Default implementation does nothing.
-
-        Override to implement context compression (e.g., summarization, truncation).
-        """
+        """Compress context when it grows too large."""
         pass
 
     def add_artifact(
@@ -228,7 +171,7 @@ class PatternPlugin(BasePlugin):
         kind: str = "generic",
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Record a run artifact on the current execution context."""
+        """Append a runtime artifact to the current context."""
         from .runtime import RunArtifact
 
         ctx = self.context

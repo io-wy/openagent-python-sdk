@@ -13,7 +13,8 @@ from openagents.interfaces.events import EventBusPlugin, RuntimeEvent
 from openagents.interfaces.memory import MemoryPlugin
 from openagents.interfaces.pattern import PatternPlugin
 from openagents.interfaces.plugin import BasePlugin
-from openagents.interfaces.runtime import RunArtifact, RunRequest, RunResult, RunUsage, RuntimePlugin
+from openagents.interfaces.run_context import RunContext
+from openagents.interfaces.runtime import RunArtifact, RunRequest, RunResult, RunUsage, RuntimePlugin, StopReason
 from openagents.interfaces.session import SessionArtifact, SessionCheckpoint, SessionManagerPlugin
 from openagents.interfaces.skills import SessionSkillSummary, SkillsPlugin
 from openagents.interfaces.tool import ToolPlugin
@@ -98,6 +99,7 @@ class _ToolSuccess:
 @pytest.mark.asyncio
 async def test_exports_registry_and_capability_helpers_cover_public_surface():
     assert "Runtime" in openagents.__all__
+    assert "RunContext" in openagents.__all__
     assert "load_config" in config_module.__all__
     assert "load_agent_plugins" in plugins_module.__all__
     assert "LocalSkillsManager" in openagents.__all__
@@ -109,6 +111,7 @@ async def test_exports_registry_and_capability_helpers_cover_public_surface():
     assert plugin.supports(TOOL_INVOKE) is True
     assert normalize_capabilities([PATTERN_EXECUTE, " ", 123, TOOL_INVOKE]) == {PATTERN_EXECUTE, TOOL_INVOKE}
     assert supports(plugin, TOOL_INVOKE) is True
+    assert StopReason.COMPLETED.value == "completed"
 
 
 @pytest.mark.asyncio
@@ -201,14 +204,21 @@ async def test_tool_runtime_and_session_base_classes_cover_default_branches():
     tool = _ToolHarness(config={}, capabilities={TOOL_INVOKE})
     runtime = RuntimePlugin(config={}, capabilities=set())
     store = _SessionStore()
+    ctx = RunContext[object](
+        agent_id="assistant",
+        session_id="s1",
+        run_id="run-1",
+        input_text="hello",
+        event_bus=_RecordingEventBus(),
+    )
 
     assert tool.tool_name == "_ToolHarness"
     assert tool.execution_spec().reads_files is False
     assert tool.describe()["name"] == "_ToolHarness"
     assert tool.validate_params({}) == (True, None)
     assert tool.get_dependencies() == []
-    assert [chunk async for chunk in tool.invoke_stream({"value": 1}, "ctx")] == [
-        {"type": "result", "data": {"params": {"value": 1}, "context": "ctx"}}
+    assert [chunk async for chunk in tool.invoke_stream({"value": 1}, ctx)] == [
+        {"type": "result", "data": {"params": {"value": 1}, "context": ctx}}
     ]
     with pytest.raises(RuntimeError, match="boom"):
         await tool.fallback(RuntimeError("boom"), {}, None)

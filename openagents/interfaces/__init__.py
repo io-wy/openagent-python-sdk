@@ -30,11 +30,13 @@ from .events import (
 from .memory import MemoryPlugin
 from .pattern import ExecutionContext, PatternPlugin
 from .plugin import BasePlugin
+from .run_context import RunContext
 from .response_repair import ResponseRepairDecision, ResponseRepairPolicyPlugin
 from .runtime import (
     RUNTIME_LIFECYCLE,
     RUNTIME_MANAGE,
     RUNTIME_RUN,
+    StopReason,
     RunArtifact,
     RunBudget,
     RunRequest,
@@ -72,6 +74,7 @@ from .tool import (
 __all__ = [
     "BasePlugin",
     "ExecutionContext",
+    "RunContext",
     "ContextAssemblerPlugin",
     "ContextAssemblyResult",
     "FollowupResolution",
@@ -100,6 +103,7 @@ __all__ = [
     "RunResult",
     "RunUsage",
     "RunArtifact",
+    "StopReason",
     "RuntimePlugin",
     "SessionArtifact",
     "SessionCheckpoint",

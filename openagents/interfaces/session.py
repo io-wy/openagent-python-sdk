@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .plugin import BasePlugin
 
@@ -16,63 +16,43 @@ _ARTIFACTS_KEY = "_session_artifacts"
 _CHECKPOINTS_KEY = "_session_checkpoints"
 
 
-@dataclass
-class SessionArtifact:
+class SessionArtifact(BaseModel):
     """Stored artifact associated with a session."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     name: str
     kind: str = "generic"
     payload: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SessionArtifact":
-        return cls(
-            name=str(data.get("name", "")),
-            kind=str(data.get("kind", "generic")),
-            payload=data.get("payload"),
-            metadata=dict(data.get("metadata", {})),
-        )
+        return cls.model_validate(data)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "kind": self.kind,
-            "payload": deepcopy(self.payload),
-            "metadata": deepcopy(self.metadata),
-        }
+        return self.model_dump()
 
 
-@dataclass
-class SessionCheckpoint:
+class SessionCheckpoint(BaseModel):
     """Named checkpoint of session state."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     checkpoint_id: str
     state: dict[str, Any]
     transcript_length: int = 0
     artifact_count: int = 0
-    created_at: str = field(
+    created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SessionCheckpoint":
-        return cls(
-            checkpoint_id=str(data.get("checkpoint_id", "")),
-            state=deepcopy(dict(data.get("state", {}))),
-            transcript_length=int(data.get("transcript_length", 0)),
-            artifact_count=int(data.get("artifact_count", 0)),
-            created_at=str(data.get("created_at", "")),
-        )
+        return cls.model_validate(data)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "checkpoint_id": self.checkpoint_id,
-            "state": deepcopy(self.state),
-            "transcript_length": self.transcript_length,
-            "artifact_count": self.artifact_count,
-            "created_at": self.created_at,
-        }
+        return self.model_dump()
 
 
 class SessionManagerPlugin(BasePlugin):
@@ -134,14 +114,14 @@ class SessionManagerPlugin(BasePlugin):
         """Append a message to the session transcript."""
         state = await self.get_state(session_id)
         transcript = list(state.get(_TRANSCRIPT_KEY, []))
-        transcript.append(deepcopy(message))
+        transcript.append(dict(message))
         state[_TRANSCRIPT_KEY] = transcript
         await self.set_state(session_id, state)
 
     async def load_messages(self, session_id: str) -> list[dict[str, Any]]:
         """Load the full transcript for a session."""
         state = await self.get_state(session_id)
-        return deepcopy(list(state.get(_TRANSCRIPT_KEY, [])))
+        return [dict(item) for item in list(state.get(_TRANSCRIPT_KEY, []))]
 
     async def save_artifact(self, session_id: str, artifact: SessionArtifact) -> None:
         """Save an artifact for a session."""
@@ -155,7 +135,7 @@ class SessionManagerPlugin(BasePlugin):
         """List stored artifacts for a session."""
         state = await self.get_state(session_id)
         artifacts = state.get(_ARTIFACTS_KEY, [])
-        return [SessionArtifact.from_dict(item) for item in deepcopy(list(artifacts))]
+        return [SessionArtifact.from_dict(item) for item in list(artifacts)]
 
     async def create_checkpoint(
         self,
@@ -169,7 +149,7 @@ class SessionManagerPlugin(BasePlugin):
         checkpoints = dict(state.get(_CHECKPOINTS_KEY, {}))
         checkpoint = SessionCheckpoint(
             checkpoint_id=checkpoint_id,
-            state=deepcopy(state),
+            state=dict(state),
             transcript_length=len(transcript),
             artifact_count=len(artifacts),
         )
@@ -189,7 +169,7 @@ class SessionManagerPlugin(BasePlugin):
         raw = checkpoints.get(checkpoint_id)
         if raw is None:
             return None
-        return SessionCheckpoint.from_dict(deepcopy(raw))
+        return SessionCheckpoint.from_dict(dict(raw))
 
     async def close(self) -> None:
         """Cleanup session manager resources."""
