@@ -36,9 +36,11 @@ class Runtime:
             from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
             from openagents.plugins.builtin.runtime.default_runtime import DefaultRuntime
             from openagents.plugins.builtin.session.in_memory import InMemorySessionManager
+            from openagents.plugins.builtin.skills.local import LocalSkillsManager
 
             self._events = AsyncEventBus()
             self._session = InMemorySessionManager()
+            self._skills = LocalSkillsManager(config={})
             self._runtime = DefaultRuntime(config={})
             self._runtime._event_bus = self._events
             self._runtime._session_manager = self._session
@@ -47,10 +49,12 @@ class Runtime:
                 runtime_ref=config.runtime,
                 session_ref=config.session,
                 events_ref=config.events,
+                skills_ref=config.skills,
             )
             self._runtime = components.runtime
             self._session = components.session
             self._events = components.events
+            self._skills = components.skills
 
     @property
     def event_bus(self) -> Any:
@@ -61,6 +65,16 @@ class Runtime:
     def session_manager(self) -> Any:
         """Access the session manager instance."""
         return self._session
+
+    @property
+    def skills_manager(self) -> Any:
+        """Access the host-level skills manager instance."""
+        return self._skills
+
+    async def _prepare_skills_for_session(self, session_id: str) -> None:
+        prepare = getattr(self._skills, "prepare_session", None)
+        if callable(prepare):
+            await prepare(session_id=session_id, session_manager=self._session)
 
     @classmethod
     def from_config(cls, config_path: str | Path) -> "Runtime":
@@ -124,6 +138,7 @@ class Runtime:
         if agent is None:
             raise ConfigError(f"Unknown agent id: '{request.agent_id}'")
 
+        await self._prepare_skills_for_session(request.session_id)
         plugins = self._get_plugins_for_session(request.session_id, request.agent_id)
         return await self._run_runtime(request=request, plugins=plugins)
 
@@ -276,10 +291,6 @@ class Runtime:
                 "type": agent.pattern.type,
                 "impl": agent.pattern.impl,
             },
-            "skill": {
-                "type": agent.skill.type if agent.skill else None,
-                "impl": agent.skill.impl if agent.skill else None,
-            },
             "tool_executor": {
                 "type": agent.tool_executor.type if agent.tool_executor else None,
                 "impl": agent.tool_executor.impl if agent.tool_executor else None,
@@ -312,7 +323,6 @@ class Runtime:
             "loaded_plugins": {
                 "memory": type(plugins.memory).__name__ if plugins else None,
                 "pattern": type(plugins.pattern).__name__ if plugins else None,
-                "skill": type(plugins.skill).__name__ if plugins and plugins.skill else None,
                 "tool_executor": (
                     type(plugins.tool_executor).__name__
                     if plugins and plugins.tool_executor

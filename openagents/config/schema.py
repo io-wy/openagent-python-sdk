@@ -74,18 +74,6 @@ class PatternRef(PluginRef):
 
 
 @dataclass
-class SkillRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "SkillRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'skill' must be an object")
-        base = PluginRef.from_dict(data, "skill")
-        return cls(type=base.type, impl=base.impl, config=base.config)
-
-
-@dataclass
 class ToolRef(PluginRef):
     id: str = ""
     enabled: bool = True
@@ -228,6 +216,25 @@ class EventBusRef(PluginRef):
 
 
 @dataclass
+class SkillsRef(PluginRef):
+    """Host-level skills component reference."""
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "SkillsRef | None":
+        if data is None:
+            return None
+        if not isinstance(data, dict):
+            raise ValueError("'skills' must be an object")
+        ref = cls(
+            type=_to_str_or_none(data.get("type"), "skills.type"),
+            impl=_to_str_or_none(data.get("impl"), "skills.impl"),
+            config=_to_dict(data.get("config"), "skills.config"),
+        )
+        ref.validate("skills")
+        return ref
+
+
+@dataclass
 class RuntimeOptions:
     max_steps: int = 16
     step_timeout_ms: int = 30000
@@ -326,7 +333,6 @@ class AgentDefinition:
     memory: MemoryRef
     pattern: PatternRef
     llm: LLMOptions | None = None
-    skill: SkillRef | None = None
     tool_executor: ToolExecutorRef | None = None
     execution_policy: ExecutionPolicyRef | None = None
     context_assembler: ContextAssemblerRef | None = None
@@ -361,7 +367,6 @@ class AgentDefinition:
             memory=MemoryRef.from_dict(memory if isinstance(memory, dict) else {}),
             pattern=PatternRef.from_dict(pattern if isinstance(pattern, dict) else {}),
             llm=LLMOptions.from_dict(llm),
-            skill=SkillRef.from_dict(data.get("skill")),
             tool_executor=ToolExecutorRef.from_dict(data.get("tool_executor")),
             execution_policy=ExecutionPolicyRef.from_dict(data.get("execution_policy")),
             context_assembler=ContextAssemblerRef.from_dict(data.get("context_assembler")),
@@ -379,6 +384,7 @@ class AppConfig:
     runtime: RuntimeRef = field(default_factory=lambda: RuntimeRef(type="default"))
     session: SessionRef = field(default_factory=lambda: SessionRef(type="in_memory"))
     events: EventBusRef = field(default_factory=lambda: EventBusRef(type="async"))
+    skills: SkillsRef = field(default_factory=lambda: SkillsRef(type="local"))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
@@ -399,4 +405,5 @@ class AppConfig:
             runtime=RuntimeRef.from_dict(data.get("runtime")) or RuntimeRef(type="default"),
             session=SessionRef.from_dict(data.get("session")) or SessionRef(type="in_memory"),
             events=EventBusRef.from_dict(data.get("events")) or EventBusRef(type="async"),
+            skills=SkillsRef.from_dict(data.get("skills")) or SkillsRef(type="local"),
         )

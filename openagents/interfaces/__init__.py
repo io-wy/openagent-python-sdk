@@ -52,7 +52,7 @@ from .session import (
     SessionCheckpoint,
     SessionManagerPlugin,
 )
-from .skill import SkillPlugin
+from .skills import SessionSkillSummary, SkillsPlugin
 from .tool import (
     ExecutionPolicy,
     ExecutionPolicyPlugin,
@@ -80,7 +80,8 @@ __all__ = [
     "PatternPlugin",
     "ResponseRepairDecision",
     "ResponseRepairPolicyPlugin",
-    "SkillPlugin",
+    "SkillsPlugin",
+    "SessionSkillSummary",
     "ExecutionPolicy",
     "ExecutionPolicyPlugin",
     "PolicyDecision",
@@ -111,13 +112,6 @@ __all__ = [
     "MEMORY_WRITEBACK",
     "PATTERN_EXECUTE",
     "PATTERN_REACT",
-    "SKILL_CONTEXT_AUGMENT",
-    "SKILL_SYSTEM_PROMPT",
-    "SKILL_TOOLS",
-    "SKILL_METADATA",
-    "SKILL_TOOL_FILTER",
-    "SKILL_PRE_RUN",
-    "SKILL_POST_RUN",
     "TOOL_INVOKE",
     "RUNTIME_RUN",
     "RUNTIME_MANAGE",

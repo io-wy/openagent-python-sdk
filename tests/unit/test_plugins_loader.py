@@ -8,10 +8,10 @@ from openagents.plugins.loader import (
     load_runtime_components,
     load_memory_plugin,
     load_pattern_plugin,
-    load_skill_plugin,
+    load_skills_plugin,
     load_tool_plugin,
 )
-from openagents.errors.exceptions import PluginLoadError, CapabilityError
+from openagents.errors.exceptions import PluginLoadError
 
 
 def _config_with_agent(agent_override: dict = None) -> dict:
@@ -83,11 +83,13 @@ def test_load_runtime_components():
         runtime_ref=config.runtime,
         session_ref=config.session,
         events_ref=config.events,
+        skills_ref=config.skills,
     )
 
     assert components.runtime is not None
     assert components.session is not None
     assert components.events is not None
+    assert components.skills is not None
 
 
 def test_load_runtime_components_missing_impl():
@@ -100,6 +102,7 @@ def test_load_runtime_components_missing_impl():
             runtime_ref=ref,
             session_ref=RuntimeRef(type="in_memory"),
             events_ref=RuntimeRef(type="async_event_bus"),
+            skills_ref=None,
         )
 
 
@@ -141,25 +144,14 @@ def test_load_tool_plugin():
     assert plugin is not None
 
 
-def test_load_skill_plugin():
-    """Test loading a skill plugin."""
-    from openagents.config.schema import SkillRef
+def test_load_skills_plugin():
+    """Test loading the top-level skills component."""
+    from openagents.config.schema import SkillsRef
 
-    ref = SkillRef(impl="tests.fixtures.custom_plugins.CustomSkill")
-    plugin = load_skill_plugin(ref)
+    plugin = load_skills_plugin(SkillsRef(type="local", config={"search_paths": ["skills"]}))
 
     assert plugin is not None
-    assert plugin.get_metadata()["focus"] == "general"
-
-
-def test_load_skill_plugin_rejects_missing_context_augment_method():
-    """Test loading a skill with declared capability but missing method."""
-    from openagents.config.schema import SkillRef
-
-    ref = SkillRef(impl="tests.fixtures.custom_plugins.BadSkillMissingContextAugmentMethod")
-
-    with pytest.raises(CapabilityError, match="augment_context"):
-        load_skill_plugin(ref)
+    assert hasattr(plugin, "prepare_session")
 
 
 def test_load_tool_plugin_invalid_impl():

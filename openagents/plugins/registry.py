@@ -13,12 +13,12 @@ from openagents.decorators import (
     _PATTERN_REGISTRY,
     _RESPONSE_REPAIR_POLICY_REGISTRY,
     _RUNTIME_REGISTRY,
-    _SKILL_REGISTRY,
     _SESSION_REGISTRY,
     _TOOL_REGISTRY,
     _TOOL_EXECUTOR_REGISTRY,
 )
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
+from openagents.plugins.builtin.skills.local import LocalSkillsManager
 from openagents.plugins.builtin.context.summarizing import SummarizingContextAssembler
 from openagents.plugins.builtin.execution_policy.filesystem import FilesystemExecutionPolicy
 from openagents.plugins.builtin.followup.basic import BasicFollowupResolver
@@ -77,9 +77,9 @@ _DECORATOR_REGISTRY_MAP: dict[str, dict[str, type[Any]]] = {
     "memory": _MEMORY_REGISTRY,
     "pattern": _PATTERN_REGISTRY,
     "runtime": _RUNTIME_REGISTRY,
-    "skill": _SKILL_REGISTRY,
     "session": _SESSION_REGISTRY,
     "events": _EVENT_REGISTRY,
+    "skills": {},
     "tool_executor": _TOOL_EXECUTOR_REGISTRY,
     "execution_policy": _EXECUTION_POLICY_REGISTRY,
     "context_assembler": _CONTEXT_ASSEMBLER_REGISTRY,
@@ -103,12 +103,14 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     "runtime": {
         "default": DefaultRuntime,
     },
-    "skill": {},
     "session": {
         "in_memory": InMemorySessionManager,
     },
     "events": {
         "async": AsyncEventBus,
+    },
+    "skills": {
+        "local": LocalSkillsManager,
     },
     "tool_executor": {
         "safe": SafeToolExecutor,

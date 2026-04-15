@@ -59,8 +59,6 @@ def validate_config(config: AppConfig) -> None:
 
         _validate_plugin_selector(agent.memory, f"agents['{agent.id}'].memory")
         _validate_plugin_selector(agent.pattern, f"agents['{agent.id}'].pattern")
-        if agent.skill is not None:
-            _validate_plugin_selector(agent.skill, f"agents['{agent.id}'].skill")
         if agent.tool_executor is not None:
             _validate_plugin_selector(agent.tool_executor, f"agents['{agent.id}'].tool_executor")
         if agent.execution_policy is not None:

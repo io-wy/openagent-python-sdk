@@ -33,6 +33,10 @@ Quick Start:
 
 from .config.loader import load_config, load_config_dict
 from .config.schema import AppConfig
+from .plugins.builtin.skills.local import (
+    LocalSkillsManager,
+)
+from .interfaces.skills import SkillsPlugin, SessionSkillSummary
 from .decorators import (
     context_assembler,
     event_bus,
@@ -46,7 +50,6 @@ from .decorators import (
     get_pattern,
     get_response_repair_policy,
     get_runtime,
-    get_skill,
     get_session,
     get_tool,
     get_tool_executor,
@@ -58,7 +61,6 @@ from .decorators import (
     list_patterns,
     list_response_repair_policies,
     list_runtimes,
-    list_skills,
     list_sessions,
     list_tools,
     list_tool_executors,
@@ -66,7 +68,6 @@ from .decorators import (
     pattern,
     response_repair_policy,
     runtime,
-    skill,
     session,
     tool,
     tool_executor,
@@ -83,7 +84,10 @@ from .runtime.sync import (
 __all__ = [
     # Core
     "AppConfig",
+    "LocalSkillsManager",
     "Runtime",
+    "SkillsPlugin",
+    "SessionSkillSummary",
     "load_config",
     "load_config_dict",
     "run_agent",
@@ -96,7 +100,6 @@ __all__ = [
     "memory",
     "pattern",
     "runtime",
-    "skill",
     "session",
     "event_bus",
     "tool_executor",
@@ -109,7 +112,6 @@ __all__ = [
     "get_memory",
     "get_pattern",
     "get_runtime",
-    "get_skill",
     "get_session",
     "get_event_bus",
     "get_tool_executor",
@@ -121,7 +123,6 @@ __all__ = [
     "list_memories",
     "list_patterns",
     "list_runtimes",
-    "list_skills",
     "list_sessions",
     "list_event_buses",
     "list_tool_executors",

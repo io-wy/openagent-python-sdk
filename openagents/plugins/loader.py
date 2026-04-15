@@ -17,7 +17,7 @@ from openagents.config.schema import (
     PluginRef,
     ResponseRepairPolicyRef,
     RuntimeRef,
-    SkillRef,
+    SkillsRef,
     SessionRef,
     ToolExecutorRef,
     ToolRef,
@@ -27,18 +27,12 @@ from openagents.interfaces.capabilities import (
     MEMORY_WRITEBACK,
     PATTERN_EXECUTE,
     PATTERN_REACT,
-    SKILL_CONTEXT_AUGMENT,
-    SKILL_METADATA,
-    SKILL_POST_RUN,
-    SKILL_PRE_RUN,
-    SKILL_SYSTEM_PROMPT,
-    SKILL_TOOL_FILTER,
-    SKILL_TOOLS,
     TOOL_INVOKE,
     normalize_capabilities,
 )
 from openagents.interfaces.runtime import RUNTIME_RUN
 from openagents.interfaces.session import SESSION_MANAGE
+from openagents.interfaces.skills import SkillsPlugin
 from openagents.interfaces.events import EVENT_EMIT, EVENT_SUBSCRIBE
 from openagents.errors.exceptions import CapabilityError, PluginLoadError
 from openagents.plugins.registry import get_builtin_plugin_class
@@ -48,7 +42,6 @@ from openagents.plugins.registry import get_builtin_plugin_class
 class LoadedAgentPlugins:
     memory: Any
     pattern: Any
-    skill: Any | None
     tool_executor: Any | None
     execution_policy: Any | None
     context_assembler: Any | None
@@ -62,6 +55,7 @@ class LoadedRuntimeComponents:
     runtime: Any
     session: Any
     events: Any
+    skills: Any
 
 
 def _import_symbol(path: str) -> Any:
@@ -154,36 +148,6 @@ def load_tool_plugin(ref: ToolRef) -> Any:
     return plugin
 
 
-def load_skill_plugin(ref: SkillRef | None) -> Any | None:
-    if ref is None:
-        return None
-
-    plugin = _load_plugin("skill", ref)
-    skill_capabilities = _capability_set(plugin)
-    supported_caps = {
-        SKILL_SYSTEM_PROMPT,
-        SKILL_TOOLS,
-        SKILL_METADATA,
-        SKILL_CONTEXT_AUGMENT,
-        SKILL_TOOL_FILTER,
-        SKILL_PRE_RUN,
-        SKILL_POST_RUN,
-    }
-    if not (skill_capabilities & supported_caps):
-        raise CapabilityError(
-            "skill plugin must declare at least one of "
-            f"{sorted(supported_caps)}"
-        )
-    _validate_method_for_capability(plugin, SKILL_SYSTEM_PROMPT, "get_system_prompt")
-    _validate_method_for_capability(plugin, SKILL_TOOLS, "get_tools")
-    _validate_method_for_capability(plugin, SKILL_METADATA, "get_metadata")
-    _validate_method_for_capability(plugin, SKILL_CONTEXT_AUGMENT, "augment_context")
-    _validate_method_for_capability(plugin, SKILL_TOOL_FILTER, "filter_tools")
-    _validate_method_for_capability(plugin, SKILL_PRE_RUN, "before_run")
-    _validate_method_for_capability(plugin, SKILL_POST_RUN, "after_run")
-    return plugin
-
-
 def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
     if ref is None:
         return None
@@ -246,42 +210,9 @@ def load_response_repair_policy_plugin(ref: ResponseRepairPolicyRef | None) -> A
         )
     return plugin
 
-
-def _normalize_skill_tool_ref(item: Any, index: int) -> ToolRef:
-    if isinstance(item, str):
-        tool_id = item.strip()
-        if not tool_id:
-            raise PluginLoadError(f"skill tools[{index}] must not be empty")
-        return ToolRef(id=tool_id, type=tool_id)
-    if isinstance(item, ToolRef):
-        return item
-    if isinstance(item, dict):
-        return ToolRef.from_dict(item, index)
-    raise PluginLoadError(
-        f"skill tools[{index}] must be a string, object, or ToolRef, got {type(item).__name__}"
-    )
-
-
-def _load_skill_tools(skill: Any) -> dict[str, Any]:
-    raw_tools = skill.get_tools()
-    if raw_tools is None:
-        return {}
-    if not isinstance(raw_tools, list):
-        raise PluginLoadError("skill.get_tools() must return a list")
-
-    tools: dict[str, Any] = {}
-    for index, item in enumerate(raw_tools):
-        tool_ref = _normalize_skill_tool_ref(item, index)
-        if not tool_ref.enabled:
-            continue
-        tools[tool_ref.id] = load_tool_plugin(tool_ref)
-    return tools
-
-
 def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     memory = load_memory_plugin(agent.memory)
     pattern = load_pattern_plugin(agent.pattern)
-    skill = load_skill_plugin(agent.skill)
     tool_executor = load_tool_executor_plugin(agent.tool_executor)
     execution_policy = load_execution_policy_plugin(agent.execution_policy)
     context_assembler = load_context_assembler_plugin(agent.context_assembler)
@@ -289,8 +220,6 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     response_repair_policy = load_response_repair_policy_plugin(agent.response_repair_policy)
 
     tools: dict[str, Any] = {}
-    if skill is not None and SKILL_TOOLS in _capability_set(skill):
-        tools.update(_load_skill_tools(skill))
     for tool_ref in agent.tools:
         if not tool_ref.enabled:
             continue
@@ -299,7 +228,6 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     return LoadedAgentPlugins(
         memory=memory,
         pattern=pattern,
-        skill=skill,
         tool_executor=tool_executor,
         execution_policy=execution_policy,
         context_assembler=context_assembler,
@@ -334,10 +262,24 @@ def load_events_plugin(ref: EventBusRef) -> Any:
     return plugin
 
 
+def load_skills_plugin(ref: SkillsRef | None) -> SkillsPlugin:
+    from openagents.config.schema import SkillsRef as DefaultSkillsRef
+
+    actual = ref or DefaultSkillsRef(type="local")
+    plugin = _load_plugin("skills", actual)
+    for method_name in ("prepare_session", "load_references", "run_skill"):
+        if not callable(getattr(plugin, method_name, None)):
+            raise CapabilityError(
+                f"skills component '{type(plugin).__name__}' must implement '{method_name}'"
+            )
+    return plugin
+
+
 def load_runtime_components(
     runtime_ref: RuntimeRef | None,
     session_ref: SessionRef | None,
     events_ref: EventBusRef | None,
+    skills_ref: SkillsRef | None,
 ) -> LoadedRuntimeComponents:
     """Load all runtime components from config references.
 
@@ -354,6 +296,11 @@ def load_runtime_components(
     # Load session (no dependencies)
     session = load_session_plugin(session_ref or DefaultSessionRef(type="in_memory"))
 
+    # Load host-level skills manager and inject session dependency when available
+    skills = load_skills_plugin(skills_ref)
+    if hasattr(skills, "_session_manager"):
+        skills._session_manager = session
+
     # Load runtime with injected dependencies
     runtime = load_runtime_plugin(runtime_ref or DefaultRuntimeRef(type="default"))
 
@@ -363,4 +310,4 @@ def load_runtime_components(
     if hasattr(runtime, "_session_manager"):
         runtime._session_manager = session
 
-    return LoadedRuntimeComponents(runtime=runtime, session=session, events=events)
+    return LoadedRuntimeComponents(runtime=runtime, session=session, events=events, skills=skills)
