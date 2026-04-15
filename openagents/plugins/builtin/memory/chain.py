@@ -46,7 +46,7 @@ class ChainMemory(MemoryPlugin):
 
         for i, mem_config in enumerate(memories_config):
             # Support both {"type": "xxx"} and {"impl": "xxx"} formats
-            ref = MemoryRef.from_dict(mem_config)
+            ref = MemoryRef.model_validate(mem_config)
             memory = _load_plugin("memory", ref)
             self._memories.append(memory)
 

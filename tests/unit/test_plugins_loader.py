@@ -56,7 +56,7 @@ def test_load_memory_plugin_buffer():
     """Test loading buffer memory plugin."""
     from openagents.config.schema import MemoryRef
 
-    ref = MemoryRef(type="buffer", impl="openagents.plugins.builtin.memory.buffer.BufferMemory")
+    ref = MemoryRef(type="buffer")
     plugin = load_memory_plugin(ref)
 
     assert plugin is not None
@@ -68,7 +68,7 @@ def test_load_pattern_plugin_react():
     """Test loading react pattern plugin."""
     from openagents.config.schema import PatternRef
 
-    ref = PatternRef(type="react", impl="openagents.plugins.builtin.pattern.react.ReActPattern")
+    ref = PatternRef(type="react")
     plugin = load_pattern_plugin(ref)
 
     assert plugin is not None
@@ -136,7 +136,6 @@ def test_load_tool_plugin():
 
     ref = ToolRef(
         id="test_tool",
-        type="function",
         impl="openagents.plugins.builtin.tool.math_tools.CalcTool",
     )
     plugin = load_tool_plugin(ref)
@@ -160,7 +159,6 @@ def test_load_tool_plugin_invalid_impl():
 
     ref = ToolRef(
         id="test_tool",
-        type="function",
         impl="invalid.module.path",
     )
     with pytest.raises(PluginLoadError):
@@ -191,7 +189,7 @@ def test_load_memory_plugin_missing_method():
 
     # Can't easily test this without modifying registry
     # Just verify the plugin loads with valid impl
-    ref = MemoryRef(type="buffer", impl="openagents.plugins.builtin.memory.buffer.BufferMemory")
+    ref = MemoryRef(type="buffer")
     plugin = load_memory_plugin(ref)
     assert plugin is not None
 
@@ -201,7 +199,7 @@ def test_load_pattern_plugin_missing_capability():
     from openagents.config.schema import PatternRef
 
     # A pattern without PATTERN_EXECUTE capability
-    ref = PatternRef(type="unknown", impl="openagents.plugins.builtin.pattern.react.ReActPattern")
+    ref = PatternRef(impl="openagents.plugins.builtin.pattern.react.ReActPattern")
     # Should work since react has the capability
     plugin = load_pattern_plugin(ref)
     assert plugin is not None
@@ -211,7 +209,7 @@ def test_load_agent_plugins_with_tools():
     """Test loading agent with tools."""
     config = load_config_dict(_config_with_agent({
         "tools": [
-            {"id": "calc", "type": "function", "impl": "openagents.plugins.builtin.tool.math_tools.CalcTool"}
+            {"id": "calc", "impl": "openagents.plugins.builtin.tool.math_tools.CalcTool"}
         ]
     }))
     agent = config.agents[0]

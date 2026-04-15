@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator, model_validator
+
+from openagents.errors import ConfigValidationError
 
 
-def _to_dict(value: Any, field_name: str) -> dict[str, Any]:
+def _require_dict(value: Any, field_name: str) -> dict[str, Any]:
     if value is None:
         return {}
     if not isinstance(value, dict):
@@ -14,7 +17,7 @@ def _to_dict(value: Any, field_name: str) -> dict[str, Any]:
     return value
 
 
-def _to_str_or_none(value: Any, field_name: str) -> str | None:
+def _clean_optional_str(value: Any, field_name: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
@@ -23,311 +26,153 @@ def _to_str_or_none(value: Any, field_name: str) -> str | None:
     return stripped or None
 
 
-@dataclass
-class PluginRef:
+def _clean_required_str(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"'{field_name}' must be a non-empty string")
+    return value.strip()
+
+
+class PluginRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: str | None = None
     impl: str | None = None
-    config: dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("type", "impl", mode="before")
     @classmethod
-    def from_dict(cls, data: dict[str, Any], field_name: str) -> "PluginRef":
-        if not isinstance(data, dict):
-            raise ValueError(f"'{field_name}' must be an object")
-        return cls(
-            type=_to_str_or_none(data.get("type"), f"{field_name}.type"),
-            impl=_to_str_or_none(data.get("impl"), f"{field_name}.impl"),
-            config=_to_dict(data.get("config"), f"{field_name}.config"),
-        )
+    def _validate_selector_field(cls, value: Any, info: Any) -> str | None:
+        return _clean_optional_str(value, info.field_name)
 
-    def validate(self, field_name: str) -> None:
-        """Validate that type or impl is specified."""
-        if not self.type and not self.impl:
-            raise ValueError(f"'{field_name}' must specify either 'type' or 'impl'")
-        if self.type and self.impl:
-            raise ValueError(f"'{field_name}' must specify only one of 'type' or 'impl', not both")
+    @field_validator("config", mode="before")
+    @classmethod
+    def _validate_config_dict(cls, value: Any) -> dict[str, Any]:
+        return _require_dict(value, "config")
+
+    def validate_selector(self, where: str) -> None:
+        has_type = bool(self.type)
+        has_impl = bool(self.impl)
+        if not has_type and not has_impl:
+            raise ConfigValidationError(f"'{where}' must set at least one of 'type' or 'impl'")
+        if has_type and has_impl:
+            raise ConfigValidationError(f"'{where}' must set only one of 'type' or 'impl'")
 
 
-@dataclass
 class MemoryRef(PluginRef):
-    on_error: str = "continue"
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "MemoryRef":
-        base = PluginRef.from_dict(data, "memory")
-        on_error = data.get("on_error", "continue")
-        if not isinstance(on_error, str):
-            raise ValueError("'memory.on_error' must be a string")
-        return cls(
-            type=base.type,
-            impl=base.impl,
-            config=base.config,
-            on_error=on_error.strip() or "continue",
-        )
+    on_error: Literal["continue", "fail"] = "continue"
 
 
-@dataclass
 class PatternRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PatternRef":
-        base = PluginRef.from_dict(data, "pattern")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class ToolRef(PluginRef):
-    id: str = ""
+    id: str
     enabled: bool = True
 
+    @field_validator("id", mode="before")
     @classmethod
-    def from_dict(cls, data: dict[str, Any], index: int) -> "ToolRef":
-        if not isinstance(data, dict):
-            raise ValueError(f"'tools[{index}]' must be an object")
-        base = PluginRef.from_dict(data, f"tools[{index}]")
-        tool_id = data.get("id")
-        if not isinstance(tool_id, str) or not tool_id.strip():
-            raise ValueError(f"'tools[{index}].id' must be a non-empty string")
-        enabled = data.get("enabled", True)
-        if not isinstance(enabled, bool):
-            raise ValueError(f"'tools[{index}].enabled' must be a boolean")
-        return cls(
-            id=tool_id.strip(),
-            enabled=enabled,
-            type=base.type,
-            impl=base.impl,
-            config=base.config,
-        )
+    def _validate_tool_id(cls, value: Any) -> str:
+        return _clean_required_str(value, "tool.id")
 
 
-@dataclass
 class ToolExecutorRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "ToolExecutorRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'tool_executor' must be an object")
-        base = PluginRef.from_dict(data, "tool_executor")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class ExecutionPolicyRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "ExecutionPolicyRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'execution_policy' must be an object")
-        base = PluginRef.from_dict(data, "execution_policy")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class ContextAssemblerRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "ContextAssemblerRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'context_assembler' must be an object")
-        base = PluginRef.from_dict(data, "context_assembler")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class FollowupResolverRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "FollowupResolverRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'followup_resolver' must be an object")
-        base = PluginRef.from_dict(data, "followup_resolver")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class ResponseRepairPolicyRef(PluginRef):
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "ResponseRepairPolicyRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'response_repair_policy' must be an object")
-        base = PluginRef.from_dict(data, "response_repair_policy")
-        return cls(type=base.type, impl=base.impl, config=base.config)
+    pass
 
 
-@dataclass
 class RuntimeRef(PluginRef):
     """Runtime plugin reference at global level."""
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "RuntimeRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'runtime' must be an object")
-        ref = cls(
-            type=_to_str_or_none(data.get("type"), "runtime.type"),
-            impl=_to_str_or_none(data.get("impl"), "runtime.impl"),
-            config=_to_dict(data.get("config"), "runtime.config"),
-        )
-        ref.validate("runtime")
-        return ref
 
-
-@dataclass
 class SessionRef(PluginRef):
     """Session manager plugin reference at global level."""
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "SessionRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'session' must be an object")
-        ref = cls(
-            type=_to_str_or_none(data.get("type"), "session.type"),
-            impl=_to_str_or_none(data.get("impl"), "session.impl"),
-            config=_to_dict(data.get("config"), "session.config"),
-        )
-        ref.validate("session")
-        return ref
 
-
-@dataclass
 class EventBusRef(PluginRef):
     """Event bus plugin reference at global level."""
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "EventBusRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'events' must be an object")
-        ref = cls(
-            type=_to_str_or_none(data.get("type"), "events.type"),
-            impl=_to_str_or_none(data.get("impl"), "events.impl"),
-            config=_to_dict(data.get("config"), "events.config"),
-        )
-        ref.validate("events")
-        return ref
 
-
-@dataclass
 class SkillsRef(PluginRef):
     """Host-level skills component reference."""
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "SkillsRef | None":
-        if data is None:
-            return None
-        if not isinstance(data, dict):
-            raise ValueError("'skills' must be an object")
-        ref = cls(
-            type=_to_str_or_none(data.get("type"), "skills.type"),
-            impl=_to_str_or_none(data.get("impl"), "skills.impl"),
-            config=_to_dict(data.get("config"), "skills.config"),
-        )
-        ref.validate("skills")
-        return ref
+
+class RuntimeOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_steps: PositiveInt = 16
+    step_timeout_ms: PositiveInt = 30000
+    session_queue_size: PositiveInt = 1000
+    event_queue_size: PositiveInt = 2000
 
 
-@dataclass
-class RuntimeOptions:
-    max_steps: int = 16
-    step_timeout_ms: int = 30000
-    session_queue_size: int = 1000
-    event_queue_size: int = 2000
+class LLMOptions(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "RuntimeOptions":
-        if data is None:
-            return cls()
-        if not isinstance(data, dict):
-            raise ValueError("'runtime' must be an object")
-        return cls(
-            max_steps=data.get("max_steps", 16),
-            step_timeout_ms=data.get("step_timeout_ms", 30000),
-            session_queue_size=data.get("session_queue_size", 1000),
-            event_queue_size=data.get("event_queue_size", 2000),
-        )
-
-
-@dataclass
-class LLMOptions:
     provider: str = "mock"
     model: str | None = None
     api_base: str | None = None
     api_key_env: str | None = None
     temperature: float | None = None
-    max_tokens: int | None = None
-    timeout_ms: int = 30000
+    max_tokens: PositiveInt | None = None
+    timeout_ms: PositiveInt = 30000
     stream_endpoint: str | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
 
+    @field_validator("provider", mode="before")
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> "LLMOptions | None":
-        if data is None:
+    def _validate_provider(cls, value: Any) -> str:
+        if value is None:
+            return "mock"
+        return _clean_required_str(value, "llm.provider")
+
+    @field_validator("model", "api_base", "api_key_env", "stream_endpoint", mode="before")
+    @classmethod
+    def _validate_optional_strings(cls, value: Any, info: Any) -> str | None:
+        return _clean_optional_str(value, f"llm.{info.field_name}")
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def _validate_temperature(cls, value: Any) -> float | None:
+        if value is None:
             return None
-        if not isinstance(data, dict):
-            raise ValueError("'llm' must be an object")
-        provider = data.get("provider", "mock")
-        if not isinstance(provider, str) or not provider.strip():
-            raise ValueError("'llm.provider' must be a non-empty string")
-        model = data.get("model")
-        if model is not None and (not isinstance(model, str) or not model.strip()):
-            raise ValueError("'llm.model' must be a non-empty string when provided")
-        api_base = data.get("api_base")
-        if api_base is not None and (not isinstance(api_base, str) or not api_base.strip()):
-            raise ValueError("'llm.api_base' must be a non-empty string when provided")
-        api_key_env = data.get("api_key_env")
-        if api_key_env is not None and (
-            not isinstance(api_key_env, str) or not api_key_env.strip()
-        ):
-            raise ValueError("'llm.api_key_env' must be a non-empty string when provided")
-        temperature = data.get("temperature")
-        if temperature is not None and not isinstance(temperature, (int, float)):
+        if not isinstance(value, (int, float)):
             raise ValueError("'llm.temperature' must be a number when provided")
-        max_tokens = data.get("max_tokens")
-        if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
-            raise ValueError("'llm.max_tokens' must be a positive integer when provided")
-        timeout_ms = data.get("timeout_ms", 30000)
-        if not isinstance(timeout_ms, int) or timeout_ms <= 0:
-            raise ValueError("'llm.timeout_ms' must be a positive integer")
-        stream_endpoint = data.get("stream_endpoint")
-        if stream_endpoint is not None and (
-            not isinstance(stream_endpoint, str) or not stream_endpoint.strip()
-        ):
-            raise ValueError("'llm.stream_endpoint' must be a non-empty string when provided")
+        return float(value)
 
-        known = {
-            "provider",
-            "model",
-            "api_base",
-            "api_key_env",
-            "temperature",
-            "max_tokens",
-            "timeout_ms",
-            "stream_endpoint",
-        }
-        extra = {k: v for k, v in data.items() if k not in known}
-        return cls(
-            provider=provider.strip(),
-            model=model.strip() if isinstance(model, str) else None,
-            api_base=api_base.strip() if isinstance(api_base, str) else None,
-            api_key_env=api_key_env.strip() if isinstance(api_key_env, str) else None,
-            temperature=float(temperature) if temperature is not None else None,
-            max_tokens=max_tokens,
-            timeout_ms=timeout_ms,
-            stream_endpoint=stream_endpoint.strip() if isinstance(stream_endpoint, str) else None,
-            extra=extra,
-        )
+    @model_validator(mode="after")
+    def _validate_llm_rules(self) -> "LLMOptions":
+        allowed = {"anthropic", "mock", "openai_compatible"}
+        if self.provider not in allowed:
+            raise ConfigValidationError(
+                f"'llm.provider' must be one of {sorted(allowed)}"
+            )
+        if self.provider == "openai_compatible" and not self.api_base:
+            raise ConfigValidationError(
+                "'llm.api_base' is required for provider 'openai_compatible'"
+            )
+        if self.temperature is not None and not 0.0 <= self.temperature <= 2.0:
+            raise ConfigValidationError("'llm.temperature' must be between 0.0 and 2.0")
+        return self
 
 
-@dataclass
-class AgentDefinition:
+class AgentDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     name: str
     memory: MemoryRef
@@ -338,72 +183,82 @@ class AgentDefinition:
     context_assembler: ContextAssemblerRef | None = None
     followup_resolver: FollowupResolverRef | None = None
     response_repair_policy: ResponseRepairPolicyRef | None = None
-    tools: list[ToolRef] = field(default_factory=list)
-    runtime: RuntimeOptions = field(default_factory=RuntimeOptions)
+    tools: list[ToolRef] = Field(default_factory=list)
+    runtime: RuntimeOptions = Field(default_factory=RuntimeOptions)
 
+    @field_validator("id", "name", mode="before")
     @classmethod
-    def from_dict(cls, data: dict[str, Any], index: int) -> "AgentDefinition":
-        if not isinstance(data, dict):
-            raise ValueError(f"'agents[{index}]' must be an object")
+    def _validate_required_strings(cls, value: Any, info: Any) -> str:
+        return _clean_required_str(value, f"agent.{info.field_name}")
 
-        agent_id = data.get("id")
-        if not isinstance(agent_id, str) or not agent_id.strip():
-            raise ValueError(f"'agents[{index}].id' must be a non-empty string")
+    @field_validator("tools", mode="before")
+    @classmethod
+    def _validate_tools_list(cls, value: Any) -> list[Any]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("'tools' must be an array")
+        return value
 
-        name = data.get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"'agents[{index}].name' must be a non-empty string")
+    @model_validator(mode="after")
+    def _validate_agent_rules(self) -> "AgentDefinition":
+        self.memory.validate_selector(f"agents['{self.id}'].memory")
+        self.pattern.validate_selector(f"agents['{self.id}'].pattern")
 
-        memory = data.get("memory")
-        pattern = data.get("pattern")
-        llm = data.get("llm")
-        tools_raw = data.get("tools", [])
-        if not isinstance(tools_raw, list):
-            raise ValueError(f"'agents[{index}].tools' must be an array")
+        optional_refs = {
+            "tool_executor": self.tool_executor,
+            "execution_policy": self.execution_policy,
+            "context_assembler": self.context_assembler,
+            "followup_resolver": self.followup_resolver,
+            "response_repair_policy": self.response_repair_policy,
+        }
+        for field_name, ref in optional_refs.items():
+            if ref is not None:
+                ref.validate_selector(f"agents['{self.id}'].{field_name}")
 
-        return cls(
-            id=agent_id.strip(),
-            name=name.strip(),
-            memory=MemoryRef.from_dict(memory if isinstance(memory, dict) else {}),
-            pattern=PatternRef.from_dict(pattern if isinstance(pattern, dict) else {}),
-            llm=LLMOptions.from_dict(llm),
-            tool_executor=ToolExecutorRef.from_dict(data.get("tool_executor")),
-            execution_policy=ExecutionPolicyRef.from_dict(data.get("execution_policy")),
-            context_assembler=ContextAssemblerRef.from_dict(data.get("context_assembler")),
-            followup_resolver=FollowupResolverRef.from_dict(data.get("followup_resolver")),
-            response_repair_policy=ResponseRepairPolicyRef.from_dict(data.get("response_repair_policy")),
-            tools=[ToolRef.from_dict(item, i) for i, item in enumerate(tools_raw)],
-            runtime=RuntimeOptions.from_dict(data.get("runtime")),
-        )
+        seen_tool_ids: set[str] = set()
+        for tool in self.tools:
+            tool.validate_selector(f"agents['{self.id}'].tools['{tool.id}']")
+            if tool.id in seen_tool_ids:
+                raise ConfigValidationError(f"Duplicate tool id '{tool.id}' in agent '{self.id}'")
+            seen_tool_ids.add(tool.id)
+        return self
 
 
-@dataclass
-class AppConfig:
+class AppConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     version: str = "1.0"
-    agents: list[AgentDefinition] = field(default_factory=list)
-    runtime: RuntimeRef = field(default_factory=lambda: RuntimeRef(type="default"))
-    session: SessionRef = field(default_factory=lambda: SessionRef(type="in_memory"))
-    events: EventBusRef = field(default_factory=lambda: EventBusRef(type="async"))
-    skills: SkillsRef = field(default_factory=lambda: SkillsRef(type="local"))
+    agents: list[AgentDefinition] = Field(default_factory=list)
+    runtime: RuntimeRef = Field(default_factory=lambda: RuntimeRef(type="default"))
+    session: SessionRef = Field(default_factory=lambda: SessionRef(type="in_memory"))
+    events: EventBusRef = Field(default_factory=lambda: EventBusRef(type="async"))
+    skills: SkillsRef = Field(default_factory=lambda: SkillsRef(type="local"))
 
+    @model_validator(mode="before")
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AppConfig":
-        if not isinstance(data, dict):
+    def _validate_root_shape(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
             raise ValueError("Config root must be an object")
-        version = data.get("version", "1.0")
-        if not isinstance(version, str) or not version.strip():
-            raise ValueError("'version' must be a non-empty string")
-
-        agents_raw = data.get("agents", [])
-        if not isinstance(agents_raw, list):
+        agents = value.get("agents", [])
+        if not isinstance(agents, list):
             raise ValueError("'agents' must be an array")
+        return value
 
-        agents = [AgentDefinition.from_dict(item, idx) for idx, item in enumerate(agents_raw)]
-        return cls(
-            version=version.strip(),
-            agents=agents,
-            runtime=RuntimeRef.from_dict(data.get("runtime")) or RuntimeRef(type="default"),
-            session=SessionRef.from_dict(data.get("session")) or SessionRef(type="in_memory"),
-            events=EventBusRef.from_dict(data.get("events")) or EventBusRef(type="async"),
-            skills=SkillsRef.from_dict(data.get("skills")) or SkillsRef(type="local"),
-        )
+    @field_validator("version", mode="before")
+    @classmethod
+    def _validate_version(cls, value: Any) -> str:
+        if value is None:
+            return "1.0"
+        return _clean_required_str(value, "version")
+
+    @model_validator(mode="after")
+    def _validate_config_rules(self) -> "AppConfig":
+        if not self.agents:
+            raise ConfigValidationError("'agents' must contain at least one item")
+
+        self.runtime.validate_selector("runtime")
+        self.session.validate_selector("session")
+        self.events.validate_selector("events")
+        self.skills.validate_selector("skills")
+        return self

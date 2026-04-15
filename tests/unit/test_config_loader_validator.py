@@ -72,8 +72,7 @@ def test_load_config_accepts_agent_level_runtime_seams(tmp_path):
     assert config.agents[0].context_assembler is not None
 
 
-def test_load_config_accepts_type_and_impl(tmp_path):
-    """Test that both type and impl can be provided together (impl takes priority)."""
+def test_load_config_rejects_type_and_impl_together(tmp_path):
     payload = _base_config()
     payload["agents"][0]["memory"] = {
         "type": "window_buffer",
@@ -81,9 +80,8 @@ def test_load_config_accepts_type_and_impl(tmp_path):
     }
     config_path = _write(tmp_path, payload)
 
-    config = load_config(config_path)
-    assert config.agents[0].memory.type == "window_buffer"
-    assert config.agents[0].memory.impl == "my_plugins.memory.FileMemory"
+    with pytest.raises(ConfigError, match="only one of 'type' or 'impl'"):
+        load_config(config_path)
 
 
 def test_load_config_rejects_missing_type_and_impl(tmp_path):

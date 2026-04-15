@@ -1,7 +1,7 @@
 import pytest
 
 from openagents.config.loader import load_config_dict
-from openagents.errors.exceptions import CapabilityError, PluginLoadError
+from openagents.errors.exceptions import CapabilityError, ConfigError, PluginLoadError
 from openagents.plugins.loader import load_agent_plugins
 
 
@@ -118,17 +118,13 @@ def test_load_decorator_registered_plugins():
     assert type(plugins.tools["my_tool"]).__name__ == "DecoratorTool"
 
 
-def test_type_and_impl_both_provided_uses_impl():
-    """Test that when both type and impl are provided, impl takes priority."""
+def test_type_and_impl_both_provided_is_rejected():
+    """Test that config rejects ambiguous selectors."""
     payload = _base_payload()
-    # Both type and impl - impl should win
     payload["agents"][0]["pattern"] = {"type": "react", "impl": "tests.fixtures.custom_plugins.CustomPattern"}
 
-    config = load_config_dict(payload)
-    plugins = load_agent_plugins(config.agents[0])
-
-    # Should load CustomPattern, not ReActPattern
-    assert type(plugins.pattern).__name__ == "CustomPattern"
+    with pytest.raises(ConfigError, match="only one of 'type' or 'impl'"):
+        load_config_dict(payload)
 
 
 def test_load_agent_plugins_explicit_tools_override_skill_tools():
