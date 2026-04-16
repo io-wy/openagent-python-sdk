@@ -248,6 +248,7 @@ class ReActPattern(PatternPlugin):
 
     async def execute(self) -> Any:
         """Execute the complete ReAct loop."""
+        self._inject_validation_correction()
         ctx = self.context
         allowed_action_types = {"tool_call", "final", "continue"}
         max_steps = self._max_steps()
