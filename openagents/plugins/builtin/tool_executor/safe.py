@@ -43,8 +43,8 @@ class SafeToolExecutor(ToolExecutorPlugin):
             )
         except asyncio.TimeoutError as exc:
             timeout_exc = ToolTimeoutError(
-                f"Tool '{request.tool_id}' timed out after {timeout_ms}ms"
-                , tool_name=request.tool_id
+                f"Tool '{request.tool_id}' timed out after {timeout_ms}ms",
+                tool_name=request.tool_id,
             )
             return ToolExecutionResult(
                 tool_id=request.tool_id,
