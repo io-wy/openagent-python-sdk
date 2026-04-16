@@ -120,12 +120,14 @@ async def test_reflexion_pattern_executes_tool_then_finishes_after_reflection():
     assert [event.name for event in pattern.context.event_bus.history] == [
         "pattern.step_started",
         "llm.called",
+        "usage.updated",
         "llm.succeeded",
         "pattern.step_finished",
         "tool.called",
         "tool.succeeded",
         "pattern.step_started",
         "llm.called",
+        "usage.updated",
         "llm.succeeded",
         "pattern.step_finished",
     ]

@@ -193,6 +193,7 @@ async def test_pattern_plugin_setup_call_tool_call_llm_compose_prompt_and_artifa
         "tool.called",
         "tool.failed",
         "llm.called",
+        "usage.updated",
         "llm.succeeded",
     ]
 

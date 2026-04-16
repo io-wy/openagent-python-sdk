@@ -132,7 +132,6 @@ class PatternPlugin(BasePlugin):
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> str:
-        """Call LLM with streaming support."""
         ctx = self.context
         if ctx.llm_client is None:
             raise RuntimeError("No LLM client configured for this agent")
@@ -149,6 +148,24 @@ class PatternPlugin(BasePlugin):
                 ctx.usage.input_tokens += response.usage.input_tokens
                 ctx.usage.output_tokens += response.usage.output_tokens
                 ctx.usage.total_tokens += response.usage.total_tokens
+
+                meta = response.usage.metadata or {}
+                cached_read = int(meta.get("cache_read_input_tokens", meta.get("cached_tokens", 0)) or 0)
+                cached_write = int(meta.get("cache_creation_input_tokens", 0) or 0)
+                ctx.usage.input_tokens_cached += cached_read
+                ctx.usage.input_tokens_cache_creation += cached_write
+
+                call_cost = meta.get("cost_usd")
+                sticky = ctx.scratch.get("__cost_unavailable__")
+                if sticky or call_cost is None:
+                    ctx.usage.cost_usd = None
+                    ctx.scratch["__cost_unavailable__"] = True
+                else:
+                    current = ctx.usage.cost_usd if ctx.usage.cost_usd is not None else 0.0
+                    ctx.usage.cost_usd = current + float(call_cost)
+                    for bucket, amount in (meta.get("cost_breakdown") or {}).items():
+                        ctx.usage.cost_breakdown[bucket] = ctx.usage.cost_breakdown.get(bucket, 0.0) + float(amount)
+        await self.emit("usage.updated", usage=ctx.usage.model_dump() if ctx.usage else None)
         await self.emit("llm.succeeded", model=model)
         return response.output_text
 
