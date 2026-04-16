@@ -121,6 +121,15 @@ class RuntimeOptions(BaseModel):
     event_queue_size: PositiveInt = 2000
 
 
+class LLMPricing(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input: float | None = None
+    output: float | None = None
+    cached_read: float | None = None
+    cached_write: float | None = None
+
+
 class LLMOptions(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -132,6 +141,7 @@ class LLMOptions(BaseModel):
     max_tokens: PositiveInt | None = None
     timeout_ms: PositiveInt = 30000
     stream_endpoint: str | None = None
+    pricing: LLMPricing | None = None
 
     @field_validator("provider", mode="before")
     @classmethod
