@@ -9,6 +9,18 @@ from typing import Any, AsyncIterator
 from openagents.llm.base import LLMChunk, LLMResponse, LLMToolCall, LLMUsage
 from openagents.llm.providers._http_base import HTTPProviderClient
 
+try:
+    import tiktoken  # type: ignore
+except ImportError:  # pragma: no cover
+    tiktoken = None
+
+
+_OPENAI_PRICE_TABLE: dict[str, dict[str, float]] = {
+    "gpt-4o":         {"in": 2.50, "out": 10.00, "cached_read": 1.25},
+    "gpt-4o-mini":    {"in": 0.15, "out":  0.60, "cached_read": 0.075},
+    "o1":             {"in": 15.00, "out": 60.00, "cached_read": 7.50},
+}
+
 
 def _extract_text_content(content: Any) -> str:
     if isinstance(content, str):
@@ -37,17 +49,6 @@ def _parse_json_object(raw: Any) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def _parse_usage(payload: dict[str, Any]) -> LLMUsage | None:
-    usage = payload.get("usage")
-    if not isinstance(usage, dict):
-        return None
-    return LLMUsage(
-        input_tokens=int(usage.get("prompt_tokens", 0) or 0),
-        output_tokens=int(usage.get("completion_tokens", 0) or 0),
-        total_tokens=int(usage.get("total_tokens", 0) or 0),
-    ).normalized()
 
 
 def _parse_tool_calls(payload: list[Any]) -> list[LLMToolCall]:
@@ -90,8 +91,9 @@ class OpenAICompatibleClient(HTTPProviderClient):
     def __init__(
         self,
         *,
-        api_base: str,
+        api_base: str = "https://api.openai.com/v1",
         model: str,
+        api_key: str | None = None,
         api_key_env: str = "OPENAI_API_KEY",
         timeout_ms: int = 30000,
         default_temperature: float | None = None,
@@ -99,8 +101,42 @@ class OpenAICompatibleClient(HTTPProviderClient):
         super().__init__(timeout_ms=timeout_ms)
         self.api_base = api_base.rstrip("/")
         self.model = model
+        self.api_key = api_key
         self.api_key_env = api_key_env
         self.default_temperature = default_temperature
+
+        self.provider_name = "openai_compatible"
+        self.model_id = model or ""
+        rates = _OPENAI_PRICE_TABLE.get(self.model_id, {})
+        self.price_per_mtok_input = rates.get("in")
+        self.price_per_mtok_output = rates.get("out")
+        self.price_per_mtok_cached_read = rates.get("cached_read")
+        # OpenAI has no cache-write concept
+        self.price_per_mtok_cached_write = rates.get("cached_write")
+
+    def _normalize_usage(self, raw_usage: dict[str, Any] | None) -> LLMUsage:
+        raw = raw_usage or {}
+        details = raw.get("prompt_tokens_details") or {}
+        meta: dict[str, Any] = {}
+        if "cached_tokens" in details:
+            meta["cached_tokens"] = int(details["cached_tokens"] or 0)
+        input_tokens = int(raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0)
+        output_tokens = int(raw.get("completion_tokens", raw.get("output_tokens", 0)) or 0)
+        return LLMUsage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            metadata=meta,
+        )
+
+    def count_tokens(self, text: str) -> int:
+        if tiktoken is None:
+            return super().count_tokens(text)
+        try:
+            enc = tiktoken.encoding_for_model(self.model_id)
+        except KeyError:
+            enc = tiktoken.get_encoding("cl100k_base")
+        return max(1, len(enc.encode(text or "")))
 
     def _chat_completions_endpoint(self) -> str:
         if self.api_base.endswith("/chat/completions"):
@@ -110,7 +146,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
         return f"{self.api_base}/v1/chat/completions"
 
     def _build_headers(self) -> dict[str, str]:
-        api_key = os.getenv(self.api_key_env, "")
+        api_key = self.api_key if self.api_key is not None else os.getenv(self.api_key_env, "")
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -185,11 +221,17 @@ class OpenAICompatibleClient(HTTPProviderClient):
         message = choice.get("message", {}) if isinstance(choice, dict) else {}
         output_text = _extract_text_content(message.get("content"))
 
+        raw_usage = data.get("usage")
+        normalized_usage = (
+            self._normalize_usage(raw_usage).normalized()
+            if isinstance(raw_usage, dict)
+            else None
+        )
         result = LLMResponse(
             output_text=output_text,
             content=message.get("content", []) if isinstance(message.get("content"), list) else [],
             tool_calls=_parse_tool_calls(message.get("tool_calls", [])),
-            usage=_parse_usage(data),
+            usage=normalized_usage,
             stop_reason=choice.get("finish_reason"),
             structured_output=_parse_structured_output(output_text, response_format),
             model=data.get("model"),
@@ -272,9 +314,9 @@ class OpenAICompatibleClient(HTTPProviderClient):
                     except json.JSONDecodeError:
                         continue
 
-                    usage = _parse_usage(data)
-                    if usage is not None:
-                        latest_usage = usage
+                    raw_usage = data.get("usage")
+                    if isinstance(raw_usage, dict):
+                        latest_usage = self._normalize_usage(raw_usage).normalized()
 
                     choices = data.get("choices", [])
                     for choice in choices:
@@ -348,9 +390,9 @@ class OpenAICompatibleClient(HTTPProviderClient):
                     except json.JSONDecodeError:
                         data = None
                     if isinstance(data, dict):
-                        usage = _parse_usage(data)
-                        if usage is not None:
-                            latest_usage = usage
+                        raw_usage = data.get("usage")
+                        if isinstance(raw_usage, dict):
+                            latest_usage = self._normalize_usage(raw_usage).normalized()
 
             if pending_stop_reason is not None:
                 yield LLMChunk(
