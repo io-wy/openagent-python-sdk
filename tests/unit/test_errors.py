@@ -22,10 +22,12 @@ def test_new_error_types_are_importable_from_package_surface():
     config_load_error = getattr(errors_pkg, "ConfigLoadError")
     plugin_capability_error = getattr(errors_pkg, "PluginCapabilityError")
     agent_not_found_error = getattr(errors_mod, "AgentNotFoundError")
+    output_validation_error = getattr(errors_pkg, "OutputValidationError")
 
     assert issubclass(config_load_error, errors_mod.OpenAgentsError)
     assert issubclass(plugin_capability_error, errors_mod.OpenAgentsError)
     assert issubclass(agent_not_found_error, errors_mod.OpenAgentsError)
+    assert issubclass(output_validation_error, errors_mod.OpenAgentsError)
 
 
 import pytest
