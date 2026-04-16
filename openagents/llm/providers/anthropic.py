@@ -75,6 +75,9 @@ class AnthropicClient(HTTPProviderClient):
         self.price_per_mtok_output = rates.get("out")
         self.price_per_mtok_cached_read = rates.get("cached_read")
         self.price_per_mtok_cached_write = rates.get("cached_write")
+        from openagents.config.schema import LLMPricing
+
+        self._pricing_overrides: LLMPricing | None = None
 
     def _normalize_usage(self, raw_usage: dict[str, Any] | None) -> LLMUsage:
         raw = raw_usage or {}
@@ -297,6 +300,11 @@ class AnthropicClient(HTTPProviderClient):
             if isinstance(raw_usage, dict)
             else None
         )
+        if normalized_usage is not None:
+            normalized_usage = self._compute_cost_for(
+                usage=normalized_usage,
+                overrides=self._pricing_overrides,
+            )
         result = LLMResponse(
             output_text="".join(output_parts),
             content=normalized_content,
@@ -374,12 +382,15 @@ class AnthropicClient(HTTPProviderClient):
                     if event_type is None and "choices" in data:
                         usage = data.get("usage")
                         if isinstance(usage, dict):
-                            latest_usage = self._normalize_usage(
-                                {
-                                    "input_tokens": usage.get("prompt_tokens", 0),
-                                    "output_tokens": usage.get("completion_tokens", 0),
-                                }
-                            ).normalized()
+                            latest_usage = self._compute_cost_for(
+                                usage=self._normalize_usage(
+                                    {
+                                        "input_tokens": usage.get("prompt_tokens", 0),
+                                        "output_tokens": usage.get("completion_tokens", 0),
+                                    }
+                                ).normalized(),
+                                overrides=self._pricing_overrides,
+                            )
 
                         for choice in data.get("choices", []):
                             if not isinstance(choice, dict):
@@ -448,7 +459,10 @@ class AnthropicClient(HTTPProviderClient):
                         if isinstance(message, dict):
                             msg_usage = message.get("usage")
                             if isinstance(msg_usage, dict):
-                                latest_usage = self._normalize_usage(msg_usage).normalized()
+                                latest_usage = self._compute_cost_for(
+                                    usage=self._normalize_usage(msg_usage).normalized(),
+                                    overrides=self._pricing_overrides,
+                                )
                         yield LLMChunk(type="message_start", content=data, usage=latest_usage)
                     elif event_type == "content_block_start":
                         yield LLMChunk(
@@ -482,11 +496,14 @@ class AnthropicClient(HTTPProviderClient):
                                 )
                             merged_metadata = dict(latest_usage.metadata) if latest_usage else {}
                             merged_metadata.update(normalized_delta.metadata)
-                            latest_usage = LLMUsage(
-                                input_tokens=normalized_delta.input_tokens,
-                                output_tokens=normalized_delta.output_tokens,
-                                total_tokens=total_tokens,
-                                metadata=merged_metadata,
+                            latest_usage = self._compute_cost_for(
+                                usage=LLMUsage(
+                                    input_tokens=normalized_delta.input_tokens,
+                                    output_tokens=normalized_delta.output_tokens,
+                                    total_tokens=total_tokens,
+                                    metadata=merged_metadata,
+                                ),
+                                overrides=self._pricing_overrides,
                             )
                         delta = data.get("delta", {})
                         if isinstance(delta, dict):

@@ -127,7 +127,11 @@ async def test_generate_passes_tools_and_parses_tool_calls_and_usage(monkeypatch
     assert len(result.tool_calls) == 1
     assert result.tool_calls[0].name == "search"
     assert result.tool_calls[0].arguments == {"query": "weather"}
-    assert result.usage == LLMUsage(input_tokens=11, output_tokens=7, total_tokens=18)
+    assert result.usage.input_tokens == 11
+    assert result.usage.output_tokens == 7
+    assert result.usage.total_tokens == 18
+    assert result.usage.metadata.get("cost_usd") is not None
+    assert "cost_breakdown" in result.usage.metadata
 
 
 @pytest.mark.asyncio
@@ -221,4 +225,7 @@ async def test_complete_stream_emits_tool_use_chunks_and_usage(monkeypatch):
     assert chunks[0].content == {"type": "tool_use", "id": "call_1", "name": "read"}
     assert chunks[1].delta == {"type": "input_json_delta", "partial_json": "{\"path\":\"README.md\"}"}
     assert chunks[2].content == {"stop_reason": "tool_use"}
-    assert chunks[2].usage == LLMUsage(input_tokens=9, output_tokens=4, total_tokens=13)
+    assert chunks[2].usage.input_tokens == 9
+    assert chunks[2].usage.output_tokens == 4
+    assert chunks[2].usage.total_tokens == 13
+    assert chunks[2].usage.metadata.get("cost_usd") is not None

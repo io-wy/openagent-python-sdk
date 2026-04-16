@@ -113,6 +113,9 @@ class OpenAICompatibleClient(HTTPProviderClient):
         self.price_per_mtok_cached_read = rates.get("cached_read")
         # OpenAI has no cache-write concept
         self.price_per_mtok_cached_write = rates.get("cached_write")
+        from openagents.config.schema import LLMPricing
+
+        self._pricing_overrides: LLMPricing | None = None
 
     def _normalize_usage(self, raw_usage: dict[str, Any] | None) -> LLMUsage:
         raw = raw_usage or {}
@@ -227,6 +230,11 @@ class OpenAICompatibleClient(HTTPProviderClient):
             if isinstance(raw_usage, dict)
             else None
         )
+        if normalized_usage is not None:
+            normalized_usage = self._compute_cost_for(
+                usage=normalized_usage,
+                overrides=self._pricing_overrides,
+            )
         result = LLMResponse(
             output_text=output_text,
             content=message.get("content", []) if isinstance(message.get("content"), list) else [],
@@ -316,7 +324,10 @@ class OpenAICompatibleClient(HTTPProviderClient):
 
                     raw_usage = data.get("usage")
                     if isinstance(raw_usage, dict):
-                        latest_usage = self._normalize_usage(raw_usage).normalized()
+                        latest_usage = self._compute_cost_for(
+                            usage=self._normalize_usage(raw_usage).normalized(),
+                            overrides=self._pricing_overrides,
+                        )
 
                     choices = data.get("choices", [])
                     for choice in choices:
@@ -392,7 +403,10 @@ class OpenAICompatibleClient(HTTPProviderClient):
                     if isinstance(data, dict):
                         raw_usage = data.get("usage")
                         if isinstance(raw_usage, dict):
-                            latest_usage = self._normalize_usage(raw_usage).normalized()
+                            latest_usage = self._compute_cost_for(
+                                usage=self._normalize_usage(raw_usage).normalized(),
+                                overrides=self._pricing_overrides,
+                            )
 
             if pending_stop_reason is not None:
                 yield LLMChunk(

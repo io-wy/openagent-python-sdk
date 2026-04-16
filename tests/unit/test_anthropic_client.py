@@ -105,7 +105,11 @@ async def test_generate_parses_tool_calls_and_usage(monkeypatch):
     assert len(result.tool_calls) == 1
     assert result.tool_calls[0].name == "read"
     assert result.tool_calls[0].arguments == {"path": "README.md"}
-    assert result.usage == LLMUsage(input_tokens=12, output_tokens=5, total_tokens=17)
+    assert result.usage.input_tokens == 12
+    assert result.usage.output_tokens == 5
+    assert result.usage.total_tokens == 17
+    assert result.usage.metadata.get("cost_usd") is None
+    assert result.usage.metadata.get("cost_breakdown") == {}
 
 
 @pytest.mark.asyncio

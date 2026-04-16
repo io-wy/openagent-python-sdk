@@ -170,4 +170,8 @@ async def test_complete_stream_carries_usage_and_stop_reason_from_message_events
     assert chunks[2].type == "message_delta"
     assert chunks[3].type == "message_stop"
     assert chunks[3].content == {"stop_reason": "end_turn"}
-    assert chunks[3].usage == LLMUsage(input_tokens=10, output_tokens=4, total_tokens=14)
+    assert chunks[3].usage.input_tokens == 10
+    assert chunks[3].usage.output_tokens == 4
+    assert chunks[3].usage.total_tokens == 14
+    assert chunks[3].usage.metadata.get("cost_usd") is None
+    assert chunks[3].usage.metadata.get("cost_breakdown") == {}
