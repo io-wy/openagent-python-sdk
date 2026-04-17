@@ -10,4 +10,4 @@ __pycache__/
 *.env
 .coverage
 dist/
-
+examples/research_analyst/sessions/
