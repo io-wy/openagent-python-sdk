@@ -399,6 +399,13 @@ The third integration test (`test_research_analyst_strict_json_repair`) was not 
 
 ### 13.2 `retry_attempts >= 2` assertion in `events.ndjson` replaced with indirect proof
 
+> **Resolved by 2026-04-17 plugin-system-cleanup spec.** `_BoundTool.invoke` now
+> returns the full `ToolExecutionResult` and `pattern.call_tool` emits the
+> executor metadata as the `executor_metadata` field on `tool.succeeded`, so
+> `test_research_analyst_end_to_end` was migrated to the direct
+> `executor_metadata.retry_attempts >= 3` assertion. The original deviation
+> note below is preserved for archive purposes.
+
 `RetryToolExecutor.execute` stamps `metadata.retry_attempts` onto `ToolExecutionResult`, but `_BoundTool.invoke` in `openagents/plugins/builtin/runtime/default_runtime.py` returns only `result.data` when feeding the result into the ReAct loop — the metadata is discarded before any `tool.*` event is emitted. Surfacing executor metadata in events would require an SDK-internal change to widen the bound-tool → event-payload path, which is out of scope for this changeset.
 
 **Mitigation:** `test_research_analyst_end_to_end` proves retry fired indirectly. The stub's `/pages/flaky` route sleeps past the 200 ms executor timeout on the first two attempts; `report.md` can only be written if `RetryToolExecutor` actually retried the timed-out call on its third attempt (at which point the stub returns `_FLAKY_OK`). The inline comment in the test makes this causal chain explicit.

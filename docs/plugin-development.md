@@ -450,7 +450,71 @@ async def test_custom_tool_plugin():
 - `tests/fixtures/runtime_plugins.py`
 - `examples/production_coding_agent/`
 
-## 18. 继续阅读
+## 18. Typed Config
+
+新版插件推荐用 `TypedConfigPluginMixin` 为 `self.config` 生成强类型的 `self.cfg`。
+
+写法（必须把 mixin 放在 plugin ABC 之前，让 `super().__init__` 还能解析到 ABC）：
+
+```python
+from pydantic import BaseModel, Field
+
+from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_WRITEBACK
+from openagents.interfaces.memory import MemoryPlugin
+from openagents.interfaces.typed_config import TypedConfigPluginMixin
+
+
+class BufferMemory(TypedConfigPluginMixin, MemoryPlugin):
+    class Config(BaseModel):
+        state_key: str = "memory_buffer"
+        view_key: str = "history"
+        max_items: int | None = Field(default=None, gt=0)
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        super().__init__(
+            config=config or {},
+            capabilities={MEMORY_INJECT, MEMORY_WRITEBACK},
+        )
+        self._init_typed_config()
+
+    async def inject(self, context):
+        # Read typed fields off self.cfg
+        view_key = self.cfg.view_key
+        ...
+```
+
+要点：
+
+- `Config` 是嵌套 `pydantic.BaseModel`
+- `_init_typed_config()` 必须在 `super().__init__()` 之后显式调用
+- 未知 config 键不会报错，只会经 `openagents.interfaces.typed_config` 的 logger 发一条 warning，便于平滑迁移
+- 未来 0.4.x 可能会切到 `extra='forbid'` 严格模式
+
+## 19. Composing plugins
+
+写 combinator 类型 plugin（嵌套加载其它 plugin）的时候，用公开的 `load_plugin`：
+
+```python
+from openagents.config.schema import ToolExecutorRef
+from openagents.plugins.loader import load_plugin
+
+
+class MyRetryExecutor:
+    def __init__(self, config: dict[str, Any] | None = None):
+        ...
+        inner_ref = ToolExecutorRef(**config["inner"])
+        self._inner = load_plugin(
+            "tool_executor",
+            inner_ref,
+            required_methods=("execute", "execute_stream"),
+        )
+```
+
+`openagents.plugins.loader._load_plugin` 仍然可用，但会发 `DeprecationWarning`，
+计划在后续版本移除。所有 in-tree combinator（`memory.chain`, `tool_executor.retry`,
+`execution_policy.composite`, `events.file_logging`）都已迁到公开 API。
+
+## 20. 继续阅读
 
 - [开发者指南](developer-guide.md)
 - [Seam 与扩展点](seams-and-extension-points.md)

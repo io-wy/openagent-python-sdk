@@ -539,7 +539,20 @@ policy 输出：
 
 它们不是 builtin registry 的完整替代品。
 
-## 13. 继续阅读
+## 13. Plugin authoring helpers
+
+供自定义 combinator 与 pattern 作者使用的公开 helper。
+
+| Symbol | Module | Purpose |
+| --- | --- | --- |
+| `load_plugin(kind, ref, *, required_methods=())` | `openagents.plugins.loader` | 公开的子插件加载入口，combinator (`memory.chain`, `tool_executor.retry`, `execution_policy.composite`, `events.file_logging`) 内部都走它 |
+| `unwrap_tool_result(result) -> tuple[data, metadata \| None]` | `openagents.interfaces.pattern` | 把 `_BoundTool.invoke()` 返回的 `ToolExecutionResult` 解包成 `(data, executor_metadata)`；对 raw `ToolPlugin.invoke()` 返回值则直接 passthrough，metadata 为 `None` |
+| `TypedConfigPluginMixin` | `openagents.interfaces.typed_config` | Mixin，提供基于嵌套 `Config(BaseModel)` 的 `self.cfg` 校验；未知键发 warning 而非报错 |
+
+`openagents.plugins.loader._load_plugin` 仍保留为 deprecated 别名，
+会发 `DeprecationWarning`。
+
+## 14. 继续阅读
 
 - [开发者指南](developer-guide.md)
 - [Seam 与扩展点](seams-and-extension-points.md)

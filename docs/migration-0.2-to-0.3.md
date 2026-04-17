@@ -175,3 +175,23 @@ YAML 输出 (`--format yaml`) 需要 optional 依赖：`pip install io-openagent
   chunk 的 `attempt` 字段区分不同尝试。
 - `LLMClient.count_tokens` 在 Anthropic 上当前走 `len//4` fallback（Phase 2 再接
   provider-native tokenizer）。OpenAI-compatible 在装了 `tiktoken` 时走原生。
+
+## 0.3.x cleanup pass: plugin loader API & event payload changes
+
+- `openagents.plugins.loader._load_plugin` → `load_plugin` (public).
+  下划线别名仍然可用但会发 `DeprecationWarning`。自定义 combinator plugin
+  请切到公开导入。
+
+- `tool.succeeded` 事件 payload 现在多一个 `executor_metadata` 字段，
+  携带 `RetryToolExecutor` 的 `retry_attempts`、`SafeToolExecutor` 的
+  `timeout_ms`、`CompositeExecutionPolicy` 的 `decided_by` 等执行器侧元数据。
+  只读 `tool_id` 和 `result` 的订阅方不受影响。
+
+- `_BoundTool.invoke()`（kernel-internal）现在返回 `ToolExecutionResult`
+  而非 `result.data`。如果你的自定义 pattern 绕过了基类 `call_tool` 并直接
+  调用 `tool.invoke()`，请用从 `openagents.interfaces.pattern` 导出的
+  公开 helper `unwrap_tool_result(result)` 兼容 bound 与 raw 两种返回形态。
+
+- 内置插件现在通过 `TypedConfigPluginMixin` 校验 `self.config`。未知键
+  不再静默丢弃，而是发一条 `received unknown config keys` 警告。审计你
+  的 `agent.json` 时检查进程日志。下一个 major 版本会变成错误。
