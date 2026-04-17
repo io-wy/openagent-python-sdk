@@ -32,9 +32,12 @@ App / Product Protocols
     task envelopes, coding plans, review contracts, approvals, UI semantics
             |
             v
-SDK Runtime Seams
-    tool_executor, execution_policy, context_assembler,
-    followup_resolver, response_repair_policy
+SDK Runtime Seams (post 2026-04-18 consolidation: 8 seams)
+    memory, pattern, tool, tool_executor, context_assembler,
+    runtime, session, events, skills
+(folded into other seams: execution_policy -> tool_executor.evaluate_policy,
+ followup_resolver -> PatternPlugin.resolve_followup,
+ response_repair_policy -> PatternPlugin.repair_empty_response)
             |
             v
 Kernel Protocols
@@ -98,17 +101,18 @@ behavior changes:
   - `pattern`
   - `tool`
 - execution seams:
-  - `tool_executor`
-  - `execution_policy`
+  - `tool_executor` (policy owned via `evaluate_policy()`)
   - `context_assembler`
-- semantic recovery seams:
-  - `followup_resolver`
-  - `response_repair_policy`
 - app infrastructure seams:
   - `runtime`
   - `session`
   - `events`
   - `skills`
+
+Pattern-subclass method overrides (no longer standalone seams since 2026-04-18):
+
+- `PatternPlugin.resolve_followup()` — local follow-up short-circuit
+- `PatternPlugin.repair_empty_response()` — empty/bad response recovery
 
 ### 3. App-Defined Middle Protocols
 
@@ -329,16 +333,14 @@ That is intentional. The current rule is:
 
 If your problem is:
 
-- "how should this tool run?"
-  - use `tool_executor`
-- "is this tool allowed?"
-  - use `execution_policy`
+- "how should this tool run, and is it allowed?"
+  - use `tool_executor` (override `evaluate_policy()` for permission)
 - "what context enters this run?"
   - use `context_assembler`
 - "can this follow-up be answered locally?"
-  - use `followup_resolver`
+  - override `PatternPlugin.resolve_followup()` on your pattern subclass
 - "how should a bad provider response degrade?"
-  - use `response_repair_policy`
+  - override `PatternPlugin.repair_empty_response()` on your pattern subclass
 - "how should my coding agent represent review tasks, work plans, or product state?"
   - design an app protocol on top of the kernel carriers
 

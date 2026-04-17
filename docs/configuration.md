@@ -72,11 +72,13 @@ agent 级 selector 至少要提供一个 `type` 或 `impl`。
 - `memory`
 - `pattern`
 - `tool_executor`
-- `execution_policy`
 - `context_assembler`
-- `followup_resolver`
-- `response_repair_policy`
 - `tools[]`
+
+> Note: `execution_policy`、`followup_resolver`、`response_repair_policy`
+> agent 级字段已在 2026-04-18 seam 合并中移除，strict schema 会拒绝这些 key。
+> 迁移方式见下文 `tool_executor` 段、以及
+> [`docs/seams-and-extension-points.md`](seams-and-extension-points.md) §2。
 
 ## 3. 顶层组件
 
@@ -221,11 +223,8 @@ OTel API 会 no-op，bridge 等于零成本。
   "memory": {"type": "window_buffer"},
   "pattern": {"type": "react"},
   "llm": {"provider": "mock"},
-  "tool_executor": {"type": "safe"},
-  "execution_policy": {"type": "filesystem"},
-  "context_assembler": {"type": "summarizing"},
-  "followup_resolver": {"type": "basic"},
-  "response_repair_policy": {"type": "basic"},
+  "tool_executor": {"type": "filesystem_aware", "config": {"read_roots": ["./src"]}},
+  "context_assembler": {"type": "head_tail"},
   "tools": [],
   "runtime": {
     "max_steps": 16,
@@ -244,11 +243,8 @@ OTel API 会 no-op，bridge 等于零成本。
 | `memory` | object | 是 | memory selector |
 | `pattern` | object | 是 | pattern selector |
 | `llm` | object | 否 | provider 配置 |
-| `tool_executor` | object | 否 | tool 执行 seam |
-| `execution_policy` | object | 否 | policy seam |
+| `tool_executor` | object | 否 | tool 执行 seam（含 `evaluate_policy`） |
 | `context_assembler` | object | 否 | context seam |
-| `followup_resolver` | object | 否 | follow-up seam |
-| `response_repair_policy` | object | 否 | response repair seam |
 | `tools` | array | 否 | tool 列表 |
 | `runtime` | object | 否 | agent 级运行限制，不是 runtime plugin selector |
 
@@ -433,45 +429,41 @@ builtin tool id：
 - timeout
 - stream passthrough
 - 执行错误规范化
+- tool 权限判断（覆写 `evaluate_policy()`）
 
 builtin：
 
-- `safe`
-
-### `execution_policy`
-
-```json
-{
-  "execution_policy": {
-    "type": "filesystem",
-    "config": {
-      "read_roots": ["workspace"],
-      "write_roots": ["workspace"],
-      "allow_tools": ["read_file"]
+- `safe` — 基础 timeout + 错误规范化，不做权限判断
+- `retry` — 包装一个 inner executor，按错误类型指数退避重试
+- `filesystem_aware` — 内嵌 `FilesystemExecutionPolicy`，替代旧 `execution_policy: filesystem` 用法：
+  ```json
+  {
+    "tool_executor": {
+      "type": "filesystem_aware",
+      "config": {
+        "read_roots": ["workspace"],
+        "write_roots": ["workspace"],
+        "allow_tools": ["read_file", "write_file"]
+      }
     }
   }
-}
-```
+  ```
 
-适合解决：
-
-- filesystem allowlist
-- tool allow / deny
-- 权限判断
-
-builtin：
-
-- `filesystem`
+需要多种 policy 组合（例如 filesystem + network allowlist）时，写一个自定义
+`ToolExecutorPlugin` 子类并覆写 `evaluate_policy()`，内部组合
+`openagents.plugins.builtin.execution_policy` 下的 helper
+（`FilesystemExecutionPolicy` / `NetworkAllowlistExecutionPolicy` / `CompositePolicy`）。
+参考 `examples/research_analyst/app/executor.py`。
 
 ### `context_assembler`
 
 ```json
 {
   "context_assembler": {
-    "type": "summarizing",
+    "type": "head_tail",
     "config": {
-      "max_messages": 20,
-      "max_artifacts": 10,
+      "head_messages": 4,
+      "tail_messages": 8,
       "include_summary_message": true
     }
   }
@@ -487,49 +479,29 @@ builtin：
 
 builtin：
 
-- `summarizing`
+- `truncating`、`head_tail`、`sliding_window`、`importance_weighted`
 
-## 11. Agent 级 semantic recovery seam
+## 11. Follow-up / Empty-response 兜底（pattern 方法覆写）
 
-### `followup_resolver`
+旧版本独立的 `followup_resolver` / `response_repair_policy` 两个 seam 已经合并为
+`PatternPlugin` 上的两个可选方法覆写。需要本地短路回答 follow-up 或降级空响应时，
+写一个 `PatternPlugin` 子类覆写它们：
 
-```json
-{
-  "followup_resolver": {
-    "type": "basic"
-  }
-}
+```python
+class MyPattern(ReActPattern):
+    async def resolve_followup(self, *, context):
+        # 返回 FollowupResolution(status="resolved", output=...) 短路 LLM
+        return None  # abstain -> 走 LLM 循环
+
+    async def repair_empty_response(self, *, context, messages, assistant_content, stop_reason, retries):
+        # 返回 ResponseRepairDecision(status="repaired", output=...) 或 status="error"
+        return None  # abstain -> 让空响应继续传出
 ```
 
-适合解决：
+参考：
 
-- 本地 follow-up 语义兜底
-- 上一轮做了什么
-- 本地 action summary
-
-builtin：
-
-- `basic`
-
-### `response_repair_policy`
-
-```json
-{
-  "response_repair_policy": {
-    "type": "basic"
-  }
-}
-```
-
-适合解决：
-
-- empty response 诊断
-- bad response 降级
-- provider recovery
-
-builtin：
-
-- `basic`
+- `examples/research_analyst/app/followup_pattern.py`（rule-based follow-up 覆写）
+- `examples/production_coding_agent/app/plugins.py`（coding journal follow-up + error-mode repair）
 
 ## 12. runtime.config 里的 seam 默认值
 
@@ -544,19 +516,9 @@ builtin `default` runtime 还支持在 `runtime.config` 里声明 seam 默认值
         "type": "safe",
         "config": {"default_timeout_ms": 1000}
       },
-      "execution_policy": {
-        "type": "filesystem",
-        "config": {"read_roots": ["workspace"]}
-      },
       "context_assembler": {
-        "type": "summarizing",
-        "config": {"max_messages": 10}
-      },
-      "followup_resolver": {
-        "type": "basic"
-      },
-      "response_repair_policy": {
-        "type": "basic"
+        "type": "head_tail",
+        "config": {"head_messages": 4, "tail_messages": 8}
       }
     }
   }
@@ -585,10 +547,7 @@ builtin `default` runtime 还支持在 `runtime.config` 里声明 seam 默认值
 - `session`
 - `event_bus`
 - `tool_executor`
-- `execution_policy`
 - `context_assembler`
-- `followup_resolver`
-- `response_repair_policy`
 
 注意：
 

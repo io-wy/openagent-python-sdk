@@ -30,10 +30,7 @@
 - `session`
 - `event_bus`
 - `tool_executor`
-- `execution_policy`
 - `context_assembler`
-- `followup_resolver`
-- `response_repair_policy`
 
 ### Registry accessors
 
@@ -44,10 +41,7 @@
 - `get_session`
 - `get_event_bus`
 - `get_tool_executor`
-- `get_execution_policy`
 - `get_context_assembler`
-- `get_followup_resolver`
-- `get_response_repair_policy`
 
 ### Registry list helpers
 
@@ -58,10 +52,13 @@
 - `list_sessions`
 - `list_event_buses`
 - `list_tool_executors`
-- `list_execution_policies`
 - `list_context_assemblers`
-- `list_followup_resolvers`
-- `list_response_repair_policies`
+
+> Post 2026-04-18 seam-consolidation：`execution_policy` / `followup_resolver` /
+> `response_repair_policy` 三套 decorator / registry 已移除。
+> - tool 权限 → `ToolExecutorPlugin.evaluate_policy()`
+> - follow-up → `PatternPlugin.resolve_followup()`
+> - empty response repair → `PatternPlugin.repair_empty_response()`
 
 ## 2. Runtime facade
 
@@ -179,12 +176,12 @@
 - `pattern: PatternRef`
 - `llm: LLMOptions | None`
 - `tool_executor: ToolExecutorRef | None`
-- `execution_policy: ExecutionPolicyRef | None`
 - `context_assembler: ContextAssemblerRef | None`
-- `followup_resolver: FollowupResolverRef | None`
-- `response_repair_policy: ResponseRepairPolicyRef | None`
 - `tools: list[ToolRef]`
 - `runtime: RuntimeOptions`
+
+> `execution_policy` / `followup_resolver` / `response_repair_policy` 三个字段在
+> 2026-04-18 seam 合并中移除；strict schema 会拒绝这些旧 key。
 
 ### `RuntimeOptions`
 
@@ -301,11 +298,12 @@ run 的 usage 聚合：
 - `assembly_metadata`
 - `run_request`
 - `tool_executor`
-- `execution_policy`
-- `followup_resolver`
-- `response_repair_policy`
 - `usage`
 - `artifacts`
+
+> `execution_policy` / `followup_resolver` / `response_repair_policy` 属性在
+> 2026-04-18 seam 合并中移除 —— 权限判断由 `tool_executor.evaluate_policy()` 负责，
+> follow-up / empty-response 走 `PatternPlugin` 上的方法覆写。
 
 这是 app-defined middle protocol 最重要的 carrier。
 

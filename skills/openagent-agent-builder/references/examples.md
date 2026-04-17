@@ -22,7 +22,7 @@ Expected output shape:
 
 - `agent_spec.agent_key == "reviewer"`
 - `agent_spec.sdk_config.agents[0].pattern.type == "react"`
-- `agent_spec.sdk_config.agents[0].execution_policy.type == "filesystem"`
+- `agent_spec.sdk_config.agents[0].tool_executor.type == "filesystem_aware"`
   (`read_roots = ["C:/repo"]`, no `write_roots` because no write tool requested)
 - `handoff_contract.expected_output == "findings"`
 - `smoke_result.status == "passed"` (mock LLM)
@@ -64,8 +64,8 @@ Expected output shape:
 Expected output shape:
 
 - `agent_spec.sdk_config.agents[0].pattern.type == "react"`
-- `agent_spec.sdk_config.agents[0].tool_executor.type == "safe"`
-- `agent_spec.sdk_config.agents[0].execution_policy.config.write_roots == ["C:/repo"]`
+- `agent_spec.sdk_config.agents[0].tool_executor.type == "filesystem_aware"`
+- `agent_spec.sdk_config.agents[0].tool_executor.config.write_roots == ["C:/repo"]`
   (write root is added because `write_file` is present and `read_only` is not set)
 - `agent_spec.sdk_config.agents[0].runtime.max_steps == 12`
 
@@ -118,11 +118,11 @@ Notes:
 - Set `smoke_run: false` if the environment has no credentials for the real provider.
 - For `openai_compatible`, `api_base` is required.
 
-## Overriding the Context Assembler or Response Repair Policy
+## Overriding the Context Assembler
 
 ```json
 {
-  "task_goal": "Produce a JSON-only patch report.",
+  "task_goal": "Produce a focused patch report.",
   "agent_role": "reviewer",
   "agent_mode": "team-role",
   "workspace_root": "C:/repo",
@@ -130,16 +130,34 @@ Notes:
     "context_assembler": {
       "type": "head_tail",
       "config": { "head_messages": 4, "tail_messages": 8 }
-    },
-    "response_repair_policy": {
-      "type": "strict_json",
-      "config": { "max_retries": 2 }
     }
   }
 }
 ```
 
-Any per-agent seam (`memory`, `pattern`, `tool_executor`, `execution_policy`, `context_assembler`, `followup_resolver`, `response_repair_policy`, `runtime`, `tools`) can be overridden this way. Dict values deep-merge into the archetype default; `tools` as a list replaces the list entirely.
+Any per-agent seam (`memory`, `pattern`, `tool_executor`, `context_assembler`, `runtime`, `tools`)
+can be overridden this way. Dict values deep-merge into the archetype default; `tools` as a list
+replaces the list entirely.
+
+### Follow-up and Response Repair
+
+Post seam-consolidation (2026-04-18), follow-up resolution and empty-response repair are
+**pattern-subclass method overrides** (`PatternPlugin.resolve_followup()` /
+`PatternPlugin.repair_empty_response()`) rather than standalone seams. To customize them,
+pass a custom pattern via `overrides.pattern.impl`:
+
+```json
+{
+  "overrides": {
+    "pattern": {
+      "impl": "myapp.agents.patterns.StrictJsonReActPattern",
+      "config": { "max_steps": 6 }
+    }
+  }
+}
+```
+
+See `examples/research_analyst/app/followup_pattern.py` for a working override.
 
 ## Pointing at a Custom Plugin Class
 

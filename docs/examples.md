@@ -121,18 +121,18 @@ uv run pytest -q tests/integration/test_production_coding_agent_example.py
 
 ## research_analyst
 
-该示例展示 0.3.x 新增的 7 个 builtin 在一个真实任务里怎么串起来。
+该示例展示 post-seam-consolidation（2026-04-18）的扩展方式如何在一个真实任务里串起来。
 
-| seam | builtin | 作用 |
+| 机制 | 实现位置 | 作用 |
 | --- | --- | --- |
-| `tool_executor` | `retry` | 把 `safe` 包一层；`/pages/flaky` 前两次 sleep 超过 200ms 超时 → `ToolTimeoutError` → 自动重试，第三次成功返回 |
-| `execution_policy` | `composite` + `filesystem` + `network_allowlist` | `composite` AND-组合文件根白名单和网络 host 白名单 |
-| `followup_resolver` | `rule_based` | 第二轮"你刚才查了哪些 URL"通过 regex → 模板本地解析，不打模型（`FollowupFirstReActPattern` 里显式调 `ctx.followup_resolver.resolve(...)`）|
-| `session` | `jsonl_file` | 全部 transcript / artifact / checkpoint 落盘到 `sessions/<sid>.jsonl`；重启后可重放 |
-| `events` | `file_logging` | 所有事件追加到 `sessions/events.ndjson`，便于审计 |
-| `response_repair_policy` | `strict_json` | 模型返回 markdown fenced JSON 时从文本里抽出 JSON；失败可 fallback 到 `basic` |
+| 自定义 `tool_executor` | `examples/research_analyst/app/executor.py::SandboxedResearchExecutor` | 覆写 `evaluate_policy()`：内嵌 `CompositePolicy` AND-组合 filesystem + network allowlist；`execute()` 委托给 `RetryToolExecutor(inner=SafeToolExecutor)` 实现重试 + 超时 |
+| pattern 子类 + `resolve_followup()` 覆写 | `FollowupFirstReActPattern`（`followup_pattern.py`）| 继承 builtin `ReActPattern`，加载 `followup_rules.json` 后在 `resolve_followup()` 里做 regex → 模板本地解析；builtin `ReActPattern.execute()` 会先调用它短路 LLM |
+| `session` | builtin `jsonl_file` | 全部 transcript / artifact / checkpoint 落盘到 `sessions/<sid>.jsonl`；重启后可重放 |
+| `events` | builtin `file_logging` | 所有事件追加到 `sessions/events.ndjson`，便于审计 |
 
-pattern 层用的是 `FollowupFirstReActPattern`（`examples/research_analyst/app/followup_pattern.py`）——kernel **不会**自动调用 `followup_resolver.resolve()`，这是 app-layer 的显式选择，参见 `docs/seams-and-extension-points.md` 关于 "followup_resolver 由 pattern 调用" 的说明。
+pattern 层用的是 `FollowupFirstReActPattern`（`examples/research_analyst/app/followup_pattern.py`），
+只重写 `resolve_followup()` 即可。builtin `ReActPattern.execute()` 负责在 LLM loop 之前调用它。
+与旧 seam 不同，follow-up 的调用点现在由 kernel 内部负责而不是 app 层显式调用。
 
 ### 注意事项
 

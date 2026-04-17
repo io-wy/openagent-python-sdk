@@ -257,9 +257,11 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 - `execute(request) -> ToolExecutionResult`
 - `execute_stream(request)`
 
-## 11. 自定义 Execution Policy
+## 11. 自定义 Tool Policy（覆写 `evaluate_policy()`）
 
-当问题是“tool 能不能执行”时，用 `execution_policy`。
+当问题是“tool 能不能执行”时，写一个 `ToolExecutorPlugin` 子类并覆写
+`evaluate_policy()`。原先独立的 `execution_policy` seam 在 2026-04-18 合并中
+已并入 `tool_executor`。
 
 常见场景：
 
@@ -270,7 +272,11 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 
 最小契约：
 
-- `evaluate(request) -> PolicyDecision`
+- `evaluate_policy(request) -> PolicyDecision`（默认 allow-all）
+
+参考：
+- builtin `filesystem_aware` 是最简单例子（只包一个 `FilesystemExecutionPolicy`）
+- `examples/research_analyst/app/executor.py` 展示如何用 `CompositePolicy` 组合多个 policy helper
 
 ## 12. 自定义 Context Assembler
 
@@ -291,9 +297,12 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 
 这也是承载 app-defined context protocol 的最佳 seam 之一。
 
-## 13. 自定义 Follow-up / Repair
+## 13. 自定义 Follow-up / Repair（覆写 `PatternPlugin` 方法）
 
-### `followup_resolver`
+旧版本独立的 `followup_resolver` / `response_repair_policy` 两个 seam 在 2026-04-18 合并中
+已并入 `PatternPlugin`。改为在自己的 pattern 子类上覆写两个可选方法：
+
+### `PatternPlugin.resolve_followup()`
 
 适合本地语义兜底：
 
@@ -301,17 +310,18 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 - 用了哪些工具
 - 读了哪些文件
 
-最小契约：
+契约：
 
-- `resolve(context=...) -> FollowupResolution | None`
+```python
+class MyPattern(ReActPattern):
+    async def resolve_followup(self, *, context) -> FollowupResolution | None:
+        ...  # 默认返回 None（abstain）
+```
 
-推荐状态：
+builtin `ReActPattern.execute()` 会先调用它；返回 `status="resolved"` 时短路 LLM。
+推荐状态：`resolved` / `abstain` / `error`（返回 `None` 等同 abstain）。
 
-- `resolved`
-- `abstain`
-- `error`
-
-### `response_repair_policy`
+### `PatternPlugin.repair_empty_response()`
 
 适合 provider / runtime 的 bad response 降级：
 
@@ -320,15 +330,18 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 - 停止但没内容
 - 明确诊断信息
 
-最小契约：
+契约：
 
-- `repair_empty_response(...) -> ResponseRepairDecision | None`
+```python
+class MyPattern(ReActPattern):
+    async def repair_empty_response(
+        self, *, context, messages, assistant_content, stop_reason, retries
+    ) -> ResponseRepairDecision | None:
+        ...  # 默认返回 None（abstain）
+```
 
-推荐状态：
-
-- `repaired`
-- `abstain`
-- `error`
+builtin pattern 在 provider 返回空串时会调用一次。
+推荐状态：`repaired` / `abstain` / `error`（返回 `None` 等同 abstain）。
 
 ## 14. App-Defined Middle Protocol
 
@@ -358,10 +371,7 @@ Skill 适合做 runtime augmentation，不适合接管整个 agent loop。
 - `session`
 - `event_bus`
 - `tool_executor`
-- `execution_policy`
 - `context_assembler`
-- `followup_resolver`
-- `response_repair_policy`
 
 示例：
 

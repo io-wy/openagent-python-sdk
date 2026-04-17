@@ -21,11 +21,11 @@ Before building the agent, gather:
 - `task_goal` (required) — the one-line job this agent is being built for.
 - `agent_role` (required) — one of `planner`, `coder`, `reviewer`, `researcher` (archetype keys; see `src/openagent_agent_builder/archetypes.py`).
 - `agent_mode` (required) — `subagent` or `team-role`.
-- `workspace_root` — absolute or repo-relative path; when present a `filesystem` execution policy is emitted automatically.
+- `workspace_root` — absolute or repo-relative path; when present a `filesystem_aware` tool_executor is emitted automatically (embeds the filesystem sandbox).
 - `available_tools` — list of tool ids the caller permits. Filters the archetype's default tool list; unknown ids are dropped.
 - `constraints` — free-form dict merged into `runtime:` options (e.g. `max_steps`, `step_timeout_ms`) plus recognised flags like `read_only` (suppresses `write_roots`).
 - `handoff_expectation` — `{input, output, artifact_format}`; fills the generated `handoff_contract`.
-- `overrides` — per-seam overrides: `agent_key`, `agent_name`, `memory`, `pattern`, `llm`, `tool_executor`, `execution_policy`, `context_assembler`, `followup_resolver`, `response_repair_policy`, `runtime`, `tools`. Dict values deep-merge; lists (`tools`) replace.
+- `overrides` — per-seam overrides: `agent_key`, `agent_name`, `memory`, `pattern`, `llm`, `tool_executor`, `context_assembler`, `runtime`, `tools`. Dict values deep-merge; lists (`tools`) replace.
 - `smoke_run` — leave `true` to actually execute one `Runtime.run_detailed(...)` against the generated spec.
 
 ## What The Skill Returns
@@ -62,7 +62,7 @@ Pipeline (see `src/openagent_agent_builder/`):
 
 1. `normalize.normalize_input` — validates required fields, slugifies ids, dedupes tool ids.
 2. `archetypes.resolve_archetype` — returns a deep copy of the role's default `memory/pattern/llm/tool_executor/tools/runtime/handoff_contract/integration_hints`.
-3. `render.render_agent_spec` — filters tools to `available_tools`, merges `overrides`, adds a `filesystem` execution policy when `workspace_root` is set, emits the `AppConfig` bundle.
+3. `render.render_agent_spec` — filters tools to `available_tools`, merges `overrides`, swaps in a `filesystem_aware` tool_executor (with `read_roots` / `write_roots`) when `workspace_root` is set, emits the `AppConfig` bundle.
 4. `smoke.smoke_run_agent_spec` — spins up `Runtime.from_dict(sdk_config)`, runs one `RunRequest`, closes the runtime.
 
 ## SDK Surface It Targets
@@ -70,7 +70,14 @@ Pipeline (see `src/openagent_agent_builder/`):
 The rendered `sdk_config` conforms to `openagents.config.schema.AppConfig` (current version `1.0`):
 
 - **Top-level seams**: `runtime` (`default`), `session` (`in_memory` / `jsonl_file` / `sqlite`), `events` (`async` / `file_logging` / `otel_bridge`), `skills` (`local`). The renderer fills in `default` / `in_memory` / `async` / `local`; override via `overrides["runtime"]` etc.
-- **Agent seams**: `memory`, `pattern`, optional `tool_executor`, `execution_policy`, `context_assembler`, `followup_resolver`, `response_repair_policy`, `tools`, `llm`, `runtime`.
+- **Agent seams** (post 2026-04-18 consolidation, 11→8): `memory`, `pattern`, optional `tool_executor`, `context_assembler`, `tools`, `llm`, `runtime`.
+
+The former `execution_policy` / `followup_resolver` / `response_repair_policy` agent seams were
+folded into existing seams:
+
+- tool policy → `ToolExecutorPlugin.evaluate_policy()` method (builtin `filesystem_aware` shows it)
+- follow-up resolution → `PatternPlugin.resolve_followup()` method override
+- empty-response repair → `PatternPlugin.repair_empty_response()` method override
 
 Registered builtin `type:` keys you can request via `overrides`:
 
@@ -78,14 +85,13 @@ Registered builtin `type:` keys you can request via `overrides`:
 | --- | --- |
 | `memory` | `buffer`, `window_buffer`, `chain`, `mem0` |
 | `pattern` | `react`, `plan_execute`, `reflexion` |
-| `tool_executor` | `safe`, `retry` |
-| `execution_policy` | `filesystem`, `composite`, `network_allowlist` |
+| `tool_executor` | `safe`, `retry`, `filesystem_aware` |
 | `context_assembler` | `truncating`, `head_tail`, `sliding_window`, `importance_weighted` |
-| `followup_resolver` | `basic`, `rule_based` |
-| `response_repair_policy` | `basic`, `strict_json` |
 | `tool` | `builtin_search`, `read_file`, `write_file`, `list_files`, `delete_file`, `grep_files`, `ripgrep`, `json_parse`, `text_transform`, `http_request`, `execute_command`, `get_env`, `set_env`, `current_time`, `date_parse`, `date_diff`, `random_int`, `random_choice`, `random_string`, `uuid`, `url_parse`, `url_build`, `query_param`, `host_lookup`, `calc`, `percentage`, `min_max`, `mcp` |
 
-Use `impl: "pkg.module.ClassName"` in an override when the caller wants a custom plugin class. `type` and `impl` are mutually exclusive per plugin ref.
+Use `impl: "pkg.module.ClassName"` in an override when the caller wants a custom plugin class
+(e.g. a custom `tool_executor` that combines filesystem + network policies — see
+`examples/research_analyst/app/executor.py`). `type` and `impl` are mutually exclusive per plugin ref.
 
 ## LLM Defaults (Important)
 

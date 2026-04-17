@@ -62,14 +62,8 @@ Agent capability seam：
 
 Agent execution seam：
 
-- `tool_executor`
-- `execution_policy`
+- `tool_executor`（tool 执行 + 权限判断，二合一）
 - `context_assembler`
-
-Agent semantic recovery seam：
-
-- `followup_resolver`
-- `response_repair_policy`
 
 App infrastructure seam：
 
@@ -82,7 +76,17 @@ App infrastructure seam：
   - `rich_console`（终端漂亮打印，需要 `[rich]` extra）
 - `skills`
 
-这些已经是当前代码里的正式扩展点。
+这些已经是当前代码里的正式扩展点，总共 **8 个**。
+
+> **Seam consolidation (2026-04-18)**：`execution_policy`、`followup_resolver`、
+> `response_repair_policy` 三个 seam 已被移除（11 → 8）。
+>
+> - Tool 权限判断改为 `ToolExecutorPlugin.evaluate_policy()` 方法（默认 allow-all），
+>   自定义实现可以覆写它（参考 builtin `filesystem_aware` executor）。
+> - Follow-up resolution 改为 `PatternPlugin.resolve_followup()` 方法（默认 abstain / None），
+>   subclass 想要本地短路答复时覆写即可。
+> - Empty-response repair 改为 `PatternPlugin.repair_empty_response()` 方法（默认 abstain），
+>   subclass 想要生成降级响应时覆写即可。
 
 ## 3. 问题 -> 推荐层
 
@@ -91,11 +95,10 @@ App infrastructure seam：
 | 改 agent loop | `pattern` |
 | 改 memory inject / writeback | `memory` |
 | 改 tool 本身能力 | `tool` |
-| 改 tool 的执行方式 | `tool_executor` |
-| 改 tool 的权限判断 | `execution_policy` |
+| 改 tool 的执行方式 / 权限判断 | `tool_executor`（覆写 `evaluate_policy()`） |
 | 改 transcript / artifact 装配 | `context_assembler` |
-| 回答“你刚做了什么” | `followup_resolver` |
-| 降级 bad response / empty response | `response_repair_policy` |
+| 回答“你刚做了什么” | `PatternPlugin.resolve_followup()` 覆写 |
+| 降级 bad response / empty response | `PatternPlugin.repair_empty_response()` 覆写 |
 | 发现/导入/执行 skill package | 顶层 `skills` 组件 |
 | 改 provider HTTP / SSE 适配 | `llm` provider |
 | 做 team、mailbox、scheduler | app / product 层，不进 SDK core |
@@ -106,7 +109,7 @@ App infrastructure seam：
 
 它回答的是：
 
-**这个 tool 应该怎么跑？**
+**这个 tool 应该怎么跑，以及能不能跑？**
 
 典型场景：
 
@@ -114,19 +117,13 @@ App infrastructure seam：
 - 参数校验
 - stream passthrough
 - 错误规范化
+- filesystem allowlist / deny-by-default tool set（覆写 `evaluate_policy()`）
+- 动态权限判断 / policy metadata
 
-### `execution_policy`
-
-它回答的是：
-
-**这个 tool call 能不能跑？**
-
-典型场景：
-
-- filesystem allowlist
-- deny-by-default tool set
-- 动态权限判断
-- policy metadata
+builtin：`safe`、`retry`、`filesystem_aware`。需要多策略组合（例如 filesystem + network
+allowlist）时，写一个 subclass 覆写 `evaluate_policy()` 并组合 `execution_policy/` 下的
+helper（`FilesystemExecutionPolicy`、`NetworkAllowlistExecutionPolicy`、`CompositePolicy`）。
+`examples/research_analyst/app/executor.py` 是参考实现。
 
 ### `context_assembler`
 
@@ -142,11 +139,13 @@ App infrastructure seam：
 - summary injection
 - task packet assembly
 
-### `followup_resolver`
+### `PatternPlugin.resolve_followup()`（pattern 方法，不是独立 seam）
 
 它回答的是：
 
 **这个 follow-up 能不能在本地回答，而不是再问一次模型？**
+
+默认返回 `None`（abstain），builtin `ReActPattern.execute()` 会先调用它短路。
 
 典型场景：
 
@@ -154,11 +153,16 @@ App infrastructure seam：
 - 读了哪些文件
 - 调了哪些工具
 
-### `response_repair_policy`
+参考 `examples/research_analyst/app/followup_pattern.py`、
+`examples/production_coding_agent/app/plugins.py`。
+
+### `PatternPlugin.repair_empty_response()`（pattern 方法，不是独立 seam）
 
 它回答的是：
 
 **provider 给了空响应或坏响应时，系统应该怎么降级？**
+
+默认返回 `None`（abstain），builtin patterns 会在 provider 给空串时调用它一次。
 
 典型场景：
 
@@ -195,10 +199,9 @@ App infrastructure seam：
 
 对很多复杂 single-agent 系统来说，最健康的架构是：
 
-- `pattern` 负责 loop
+- `pattern` 负责 loop（含 `resolve_followup` / `repair_empty_response` 两个可选覆写）
 - `memory` 负责记忆
-- `tool_executor` 负责 execution shape
-- `execution_policy` 负责 permission
+- `tool_executor` 负责 execution shape + permission（覆写 `evaluate_policy`）
 - `context_assembler` 负责 context entry
 - `skills` 负责 host-level skill package 的发现、预热、执行
 - app-defined protocol 放在 context carrier
@@ -207,23 +210,27 @@ App infrastructure seam：
 
 ## 7. Follow-up / Repair 状态语义
 
-这两个 seam 故意保持轻量状态树。
+这两个 pattern 方法故意保持轻量状态树。
 
-### `followup_resolver`
+### `PatternPlugin.resolve_followup()`
 
-推荐状态：
+返回类型：`FollowupResolution | None`。推荐 status：
 
-- `resolved`
-- `abstain`
-- `error`
+- `resolved`（直接使用 `output`）
+- `abstain`（继续走 LLM loop）
+- `error`（让调用方 raise）
 
-### `response_repair_policy`
+返回 `None` 等同于 abstain。
 
-推荐状态：
+### `PatternPlugin.repair_empty_response()`
 
-- `repaired`
-- `abstain`
-- `error`
+返回类型：`ResponseRepairDecision | None`。推荐 status：
+
+- `repaired`（直接使用 `output`）
+- `abstain`（让空响应继续传出）
+- `error`（让调用方 raise）
+
+返回 `None` 等同于 abstain。
 
 这是有意为之。  
 SDK 不应该替所有产品定义一棵庞大的语义恢复状态树。
@@ -250,11 +257,10 @@ SDK 不应该替所有产品定义一棵庞大的语义恢复状态树。
 
 应该往外拆：
 
-- execution shape -> `tool_executor`
-- permission -> `execution_policy`
+- execution shape + permission -> `tool_executor`（覆写 `evaluate_policy()`）
 - context entry -> `context_assembler`
-- follow-up fallback -> `followup_resolver`
-- provider degradation -> `response_repair_policy`
+- follow-up fallback -> 覆写 `PatternPlugin.resolve_followup()`（在 `PatternPlugin` 子类上）
+- provider degradation -> 覆写 `PatternPlugin.repair_empty_response()`（在 `PatternPlugin` 子类上）
 
 ### 反模式：一个巨大的无类型 state blob
 

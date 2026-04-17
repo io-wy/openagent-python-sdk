@@ -30,9 +30,13 @@ App / Product Protocols
     task envelopes, coding plans, review contracts, approvals, UI semantics
             |
             v
-SDK Runtime Seams
-    tool_executor, execution_policy, context_assembler,
-    followup_resolver, response_repair_policy
+SDK Runtime Seams（2026-04-18 seam 合并后共 8 个）
+    memory, pattern, tool, tool_executor, context_assembler,
+    runtime, session, events, skills
+（合并入其他 seam 的旧 seam：
+  execution_policy -> tool_executor.evaluate_policy
+  followup_resolver -> PatternPlugin.resolve_followup
+  response_repair_policy -> PatternPlugin.repair_empty_response）
             |
             v
 Kernel Protocols
@@ -95,17 +99,18 @@ Kernel Protocols
   - `pattern`
   - `tool`
 - execution seams:
-  - `tool_executor`
-  - `execution_policy`
+  - `tool_executor`（内含 `evaluate_policy()` 做权限判断）
   - `context_assembler`
-- semantic recovery seams:
-  - `followup_resolver`
-  - `response_repair_policy`
 - app infrastructure seams:
   - `runtime`
   - `session`
   - `events`
   - `skills`
+
+Pattern 子类方法覆写（2026-04-18 起不再是独立 seam）：
+
+- `PatternPlugin.resolve_followup()` — 本地 follow-up 短路
+- `PatternPlugin.repair_empty_response()` — 空响应/坏响应降级
 
 这些 seam 的作用不是承载所有产品语义，而是给 runtime 留出少量、清晰、可测试的控制缝。
 
@@ -326,16 +331,14 @@ OpenAgents **不会** 为每一种产品问题都发一个 seam。
 
 如果你的问题是：
 
-- “tool 应该怎么执行？”
-  - 用 `tool_executor`
-- “这个 tool 能不能执行？”
-  - 用 `execution_policy`
+- “tool 应该怎么执行 / 能不能执行？”
+  - 用 `tool_executor`（覆写 `evaluate_policy()` 做权限）
 - “这次 run 应该吃进什么上下文？”
   - 用 `context_assembler`
 - “这个 follow-up 能不能本地回答？”
-  - 用 `followup_resolver`
+  - 在 pattern 子类上覆写 `PatternPlugin.resolve_followup()`
 - “provider 坏响应应该怎么降级？”
-  - 用 `response_repair_policy`
+  - 在 pattern 子类上覆写 `PatternPlugin.repair_empty_response()`
 - “我的 coding agent 应该怎样表示 review task、work plan、product state？”
   - 在 kernel carrier 之上设计 app protocol
 

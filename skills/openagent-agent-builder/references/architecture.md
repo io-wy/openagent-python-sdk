@@ -6,12 +6,13 @@
 OpenAgents SDK (openagents/)
   = single-agent kernel
   = stable protocol (RunRequest / RunResult / RunContext / StopReason)
-  = pluggable seams loaded from AppConfig
+  = pluggable seams loaded from AppConfig (post 2026-04-18 consolidation: 8 seams)
         top-level: runtime, session, events, skills
         per-agent: memory, pattern, llm, tools,
-                   tool_executor, execution_policy,
-                   context_assembler, followup_resolver,
-                   response_repair_policy
+                   tool_executor (embeds evaluate_policy),
+                   context_assembler
+        pattern-subclass overrides (no longer seams):
+                   resolve_followup(), repair_empty_response()
 
 skills/openagent-agent-builder/src/openagent_agent_builder/  (this core)
   = normalize_input      -> validate + canonicalise
@@ -47,7 +48,7 @@ The builder always returns **one** single-agent spec (one `AppConfig.agents[0]`)
 
 3. **render_agent_spec** (`render.py`)
    - Filters archetype `tools` to the caller's `available_tools` (empty list = keep all).
-   - Emits a `filesystem` execution policy when `workspace_root` is set; writes `write_roots` only when a write-capable tool is present and `constraints.read_only` is not set.
+   - Swaps the archetype's `tool_executor` for a `filesystem_aware` executor when `workspace_root` is set; writes `write_roots` only when a write-capable tool is present and `constraints.read_only` is not set. (This replaces the pre-consolidation `execution_policy: filesystem` emission.)
    - Merges `constraints` into the agent's `runtime` options.
    - Deep-merges `overrides` per seam; replaces `tools` wholesale if `overrides["tools"]` is a list.
    - Emits the top-level bundle `{ version: "1.0", runtime, session, events, agents: [ ... ] }`. `skills` falls back to the schema default (`{type: "local"}`).
