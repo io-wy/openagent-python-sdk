@@ -36,7 +36,8 @@ from openagents.interfaces.session import SESSION_MANAGE
 from openagents.interfaces.skills import SkillsPlugin
 from openagents.interfaces.events import EVENT_EMIT, EVENT_SUBSCRIBE
 from openagents.errors.exceptions import CapabilityError, PluginLoadError
-from openagents.plugins.registry import get_builtin_plugin_class
+from openagents.errors.suggestions import near_match
+from openagents.plugins.registry import get_builtin_plugin_class, list_builtin_plugins
 
 
 @dataclass
@@ -61,16 +62,25 @@ class LoadedRuntimeComponents:
 
 def _import_symbol(path: str) -> Any:
     if "." not in path:
-        raise PluginLoadError(f"Invalid impl path: '{path}'")
+        raise PluginLoadError(
+            f"Invalid impl path: '{path}'",
+            hint="impl path must be 'module.path:Symbol' or 'module.path.Symbol'",
+        )
     module_name, attr_name = path.rsplit(".", 1)
     try:
         module = importlib.import_module(module_name)
     except Exception as exc:  # pragma: no cover - defensive
-        raise PluginLoadError(f"Failed to import module '{module_name}'") from exc
+        raise PluginLoadError(
+            f"Failed to import module '{module_name}'",
+            hint=f"check the spelling and that '{module_name}' is importable on this Python path",
+        ) from exc
     try:
         return getattr(module, attr_name)
     except AttributeError as exc:
-        raise PluginLoadError(f"Module '{module_name}' has no symbol '{attr_name}'") from exc
+        raise PluginLoadError(
+            f"Module '{module_name}' has no symbol '{attr_name}'",
+            hint=f"check the spelling of '{attr_name}' in module '{module_name}'",
+        ) from exc
 
 
 def _instantiate(factory: Any, config: dict[str, Any]) -> Any:
@@ -113,10 +123,24 @@ def _load_plugin_impl(kind: str, ref: PluginRef, *, required_methods: tuple[str,
             )
         plugin_cls = get_builtin_plugin_class(kind, ref.type)
         if plugin_cls is None:
-            raise PluginLoadError(f"Unknown {kind} plugin type: '{ref.type}'")
+            available = list_builtin_plugins(kind)
+            guess = near_match(ref.type, available)
+            if guess:
+                hint_text = (
+                    f"Did you mean '{guess}'? Available {kind} plugins: {available}"
+                )
+            else:
+                hint_text = f"Available {kind} plugins: {available}"
+            raise PluginLoadError(
+                f"Unknown {kind} plugin type: '{ref.type}'",
+                hint=hint_text,
+            )
         _validate_class_methods(plugin_cls, required_methods=required_methods, where=f"{kind} plugin")
         return _instantiate(plugin_cls, ref.config)
-    raise PluginLoadError(f"{kind} plugin must set one of 'type' or 'impl'")
+    raise PluginLoadError(
+        f"{kind} plugin must set one of 'type' or 'impl'",
+        hint="add 'type: \"<name>\"' for a builtin or 'impl: \"module.path:Class\"' for a custom plugin",
+    )
 
 
 def load_plugin(

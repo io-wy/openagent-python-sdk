@@ -10,6 +10,7 @@ from typing import Any
 from openagents.config.loader import load_config, load_config_dict
 from openagents.config.schema import AgentDefinition, AppConfig
 from openagents.errors.exceptions import ConfigError
+from openagents.errors.suggestions import near_match
 from openagents.interfaces.runtime import (
     RUN_STOP_FAILED,
     RunBudget,
@@ -97,6 +98,13 @@ class Runtime:
         config = load_config_dict(payload)
         return cls(config)
 
+    def _unknown_agent_hint(self, agent_id: str) -> str:
+        available = sorted(self._agents_by_id.keys())
+        guess = near_match(agent_id, available)
+        if guess:
+            return f"Did you mean '{guess}'? Available agent ids: {available}"
+        return f"Available agent ids: {available}"
+
     async def _invalidate_runtime_agent_cache(self, agent_ids: set[str] | None = None) -> None:
         """Invalidate runtime-level per-agent caches when config changes."""
         invalidate = getattr(self._runtime, "invalidate_llm_client", None)
@@ -120,7 +128,10 @@ class Runtime:
         if agent_id not in self._session_plugins[session_id]:
             agent = self._agents_by_id.get(agent_id)
             if agent is None:
-                raise ConfigError(f"Unknown agent id: '{agent_id}'")
+                raise ConfigError(
+                    f"Unknown agent id: '{agent_id}'",
+                    hint=self._unknown_agent_hint(agent_id),
+                )
             self._session_plugins[session_id][agent_id] = load_agent_plugins(agent)
 
         return self._session_plugins[session_id][agent_id]
@@ -146,7 +157,10 @@ class Runtime:
         """Execute an agent run and return structured runtime details."""
         agent = self._agents_by_id.get(request.agent_id)
         if agent is None:
-            raise ConfigError(f"Unknown agent id: '{request.agent_id}'")
+            raise ConfigError(
+                f"Unknown agent id: '{request.agent_id}'",
+                hint=self._unknown_agent_hint(request.agent_id),
+            )
 
         await self._prepare_skills_for_session(request.session_id)
         plugins = self._get_plugins_for_session(request.session_id, request.agent_id)
@@ -345,7 +359,10 @@ class Runtime:
         This will be used for new sessions. Existing sessions keep their plugins.
         """
         if agent_id not in self._agents_by_id:
-            raise ConfigError(f"Unknown agent id: '{agent_id}'")
+            raise ConfigError(
+                f"Unknown agent id: '{agent_id}'",
+                hint=self._unknown_agent_hint(agent_id),
+            )
 
         for session_plugins in self._session_plugins.values():
             if agent_id in session_plugins:

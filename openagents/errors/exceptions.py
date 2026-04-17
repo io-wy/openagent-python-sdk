@@ -6,18 +6,34 @@ from typing import Any, Literal, Self
 
 
 class OpenAgentsError(Exception):
-    """Base exception for SDK errors."""
+    """Base exception for SDK errors.
+
+    Subclasses inherit two optional kwargs in addition to context fields:
+
+    - ``hint``: a short human-readable suggestion explaining how to fix the
+      situation that triggered the error. Surfaced via ``str(exc)`` on the
+      ``hint:`` line and accessible as ``exc.hint``.
+    - ``docs_url``: an optional URL to documentation about the error.
+      Surfaced via ``str(exc)`` on the ``docs:`` line.
+
+    Both default to ``None`` so existing call sites remain byte-identical
+    in their formatting unless they opt in.
+    """
 
     agent_id: str | None
     session_id: str | None
     run_id: str | None
     tool_id: str | None
     step_number: int | None
+    hint: str | None
+    docs_url: str | None
 
     def __init__(
         self,
         message: str = "",
         *,
+        hint: str | None = None,
+        docs_url: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
         run_id: str | None = None,
@@ -30,6 +46,17 @@ class OpenAgentsError(Exception):
         self.run_id = run_id
         self.tool_id = tool_id
         self.step_number = step_number
+        self.hint = hint
+        self.docs_url = docs_url
+
+    def __str__(self) -> str:
+        msg = super().__str__()
+        parts = [msg] if msg else []
+        if self.hint:
+            parts.append(f"  hint: {self.hint}")
+        if self.docs_url:
+            parts.append(f"  docs: {self.docs_url}")
+        return "\n".join(parts)
 
     def with_context(self, **kwargs: str | int | None) -> Self:
         """Attach runtime identifiers to an existing exception."""
@@ -90,6 +117,8 @@ class BudgetExhausted(ExecutionError):
         kind: Literal["tool_calls", "duration", "steps", "cost"] | None = None,
         current: float | int | None = None,
         limit: float | int | None = None,
+        hint: str | None = None,
+        docs_url: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
         run_id: str | None = None,
@@ -98,6 +127,8 @@ class BudgetExhausted(ExecutionError):
     ) -> None:
         super().__init__(
             message,
+            hint=hint,
+            docs_url=docs_url,
             agent_id=agent_id,
             session_id=session_id,
             run_id=run_id,
@@ -123,6 +154,8 @@ class OutputValidationError(ExecutionError):
         output_type: Any = None,
         attempts: int = 0,
         last_validation_error: Any = None,
+        hint: str | None = None,
+        docs_url: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
         run_id: str | None = None,
@@ -131,6 +164,8 @@ class OutputValidationError(ExecutionError):
     ) -> None:
         super().__init__(
             message,
+            hint=hint,
+            docs_url=docs_url,
             agent_id=agent_id,
             session_id=session_id,
             run_id=run_id,
@@ -155,8 +190,20 @@ class ToolError(OpenAgentsError):
 
     tool_name: str
 
-    def __init__(self, message: str, tool_name: str = "") -> None:
-        super().__init__(message, tool_id=tool_name or None)
+    def __init__(
+        self,
+        message: str,
+        tool_name: str = "",
+        *,
+        hint: str | None = None,
+        docs_url: str | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            hint=hint,
+            docs_url=docs_url,
+            tool_id=tool_name or None,
+        )
         self.tool_name = tool_name
 
 
@@ -202,6 +249,8 @@ class ModelRetryError(LLMError):
         message: str = "",
         *,
         validation_error: Any = None,
+        hint: str | None = None,
+        docs_url: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
         run_id: str | None = None,
@@ -210,6 +259,8 @@ class ModelRetryError(LLMError):
     ) -> None:
         super().__init__(
             message,
+            hint=hint,
+            docs_url=docs_url,
             agent_id=agent_id,
             session_id=session_id,
             run_id=run_id,

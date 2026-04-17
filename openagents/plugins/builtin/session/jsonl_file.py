@@ -98,7 +98,12 @@ class JsonlFileSessionManager(SessionManagerPlugin):
                     try:
                         event = json.loads(line)
                     except json.JSONDecodeError:
-                        logger.warning("jsonl_file: skipped bad line %d in %s", idx, path)
+                        logger.warning(
+                            "jsonl_file: skipped bad line %d in %s "
+                            "(hint: inspect or back up this file; replay-skip continues)",
+                            idx,
+                            path,
+                        )
                         continue
                     kind = event.get("type")
                     data = event.get("data")

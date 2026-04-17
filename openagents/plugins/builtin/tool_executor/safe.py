@@ -30,7 +30,11 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
         if callable(validator):
             is_valid, error = validator(request.params or {})
             if not is_valid:
-                exc = ToolError(error or f"Invalid params for tool '{request.tool_id}'", tool_name=request.tool_id)
+                exc = ToolError(
+                    error or f"Invalid params for tool '{request.tool_id}'",
+                    tool_name=request.tool_id,
+                    hint=f"Inspect tool '{request.tool_id}' schema via tool.schema() to see required fields",
+                )
                 return ToolExecutionResult(
                     tool_id=request.tool_id,
                     success=False,

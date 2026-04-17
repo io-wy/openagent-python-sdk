@@ -128,7 +128,14 @@ class PatternPlugin(BasePlugin):
 
         ctx = self.context
         if tool_id not in ctx.tools:
-            raise KeyError(f"Tool '{tool_id}' is not registered")
+            from openagents.errors.suggestions import near_match
+
+            available = sorted(ctx.tools.keys())
+            guess = near_match(tool_id, available)
+            extra = f" Did you mean '{guess}'?" if guess else ""
+            raise KeyError(
+                f"Tool '{tool_id}' is not registered.{extra} Available tools: {available}"
+            )
         tool = ctx.tools[tool_id]
         await self.emit("tool.called", tool_id=tool_id, params=params or {})
         before_tool_calls = ctx.usage.tool_calls if ctx.usage is not None else None

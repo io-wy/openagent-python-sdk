@@ -322,7 +322,16 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
 
         agent = agents_by_id.get(request.agent_id)
         if agent is None:
-            raise ValueError(f"Unknown agent id: '{request.agent_id}'")
+            from openagents.errors.suggestions import near_match
+
+            available = sorted(agents_by_id.keys())
+            guess = near_match(request.agent_id, available)
+            extra = (
+                f" Did you mean '{guess}'?" if guess else ""
+            )
+            raise ValueError(
+                f"Unknown agent id: '{request.agent_id}'.{extra} Available: {available}"
+            )
 
         if agent_plugins is None:
             plugins = load_agent_plugins(agent)

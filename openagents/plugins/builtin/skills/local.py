@@ -164,7 +164,14 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
         packages = self._discover()
         package = packages.get(skill_name)
         if package is None:
-            raise KeyError(f"Unknown skill package: '{skill_name}'")
+            from openagents.errors.suggestions import near_match
+
+            available = sorted(packages.keys())
+            guess = near_match(skill_name, available)
+            extra = f" Did you mean '{guess}'?" if guess else ""
+            raise KeyError(
+                f"Unknown skill package: '{skill_name}'.{extra} Available: {available}"
+            )
 
         state = await session_manager.get_state(session_id)
         current = dict(state.get(self._STATE_KEY, {}))
@@ -194,9 +201,17 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
         import inspect
         import sys
 
-        package = self._discover().get(skill_name)
+        packages = self._discover()
+        package = packages.get(skill_name)
         if package is None:
-            raise KeyError(f"Unknown skill package: '{skill_name}'")
+            from openagents.errors.suggestions import near_match
+
+            available = sorted(packages.keys())
+            guess = near_match(skill_name, available)
+            extra = f" Did you mean '{guess}'?" if guess else ""
+            raise KeyError(
+                f"Unknown skill package: '{skill_name}'.{extra} Available: {available}"
+            )
 
         src_root = package["root"] / "src"
         entrypoint_module = f"{package['package_name']}.entrypoint"
