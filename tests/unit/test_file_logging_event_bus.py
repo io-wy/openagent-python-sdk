@@ -92,5 +92,31 @@ async def test_clear_history_passthrough(tmp_path: Path):
     assert (await bus.get_history()) == []
 
 
+@pytest.mark.asyncio
+async def test_max_history_forwarded_to_inner(tmp_path: Path):
+    """Wrapper's max_history must propagate to the inner async bus."""
+    bus = _make(tmp_path, max_history=3)
+    # Emit more events than the inner history should retain.
+    for i in range(5):
+        await bus.emit("tick", i=i)
+    history = await bus.get_history()
+    assert len(history) == 3
+    assert [e.payload["i"] for e in history] == [2, 3, 4]
+
+
+@pytest.mark.asyncio
+async def test_explicit_inner_max_history_wins(tmp_path: Path):
+    """If the inner config explicitly sets max_history, wrapper does not override."""
+    bus = FileLoggingEventBus(config={
+        "inner": {"type": "async", "config": {"max_history": 2}},
+        "log_path": str(tmp_path / "events.ndjson"),
+        "max_history": 100,
+    })
+    for i in range(4):
+        await bus.emit("tick", i=i)
+    history = await bus.get_history()
+    assert len(history) == 2
+
+
 def test_registered_as_builtin():
     assert get_builtin_plugin_class("events", "file_logging") is FileLoggingEventBus

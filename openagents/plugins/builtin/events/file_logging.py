@@ -44,7 +44,12 @@ class FileLoggingEventBus(EventBusPlugin):
         self._log_path = Path(cfg.log_path)
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
         self._include = set(cfg.include_events) if cfg.include_events is not None else None
-        self._inner = self._load_inner(cfg.inner)
+        inner_ref = dict(cfg.inner)
+        inner_cfg = dict(inner_ref.get("config") or {})
+        # Forward max_history to the inner bus unless it already specifies one.
+        inner_cfg.setdefault("max_history", cfg.max_history)
+        inner_ref["config"] = inner_cfg
+        self._inner = self._load_inner(inner_ref)
 
     def _load_inner(self, ref: dict[str, Any]) -> Any:
         from openagents.config.schema import EventBusRef
