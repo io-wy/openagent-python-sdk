@@ -195,3 +195,30 @@ YAML 输出 (`--format yaml`) 需要 optional 依赖：`pip install io-openagent
 - 内置插件现在通过 `TypedConfigPluginMixin` 校验 `self.config`。未知键
   不再静默丢弃，而是发一条 `received unknown config keys` 警告。审计你
   的 `agent.json` 时检查进程日志。下一个 major 版本会变成错误。
+
+## 0.3.x hardening pass: error hints, event taxonomy, concurrency
+
+- 所有 `OpenAgentsError` 子类现在支持可选的 `hint=` 和 `docs_url=` 两个
+  关键字参数，内置错误位点已经按需启用了它们。`str(exc)` 在带 hint /
+  docs_url 时会输出多行（首行仍然是原 message，hint / docs 各占一行带
+  缩进）。如果你解析错误文本，请直接读 `exc.hint` / `exc.docs_url`。
+
+- 事件分类现在记录在 `docs/event-taxonomy.md`，源数据在
+  `openagents/interfaces/event_taxonomy.py:EVENT_SCHEMAS`。`AsyncEventBus.emit`
+  在已声明的事件缺少必需 payload key 时会 `logger.warning`（从不 raise）。
+  自定义未声明事件不会被校验。`DefaultRuntime` 新增 8 个 lifecycle 事件：
+  `session.run.started/completed`、`context.assemble.started/completed`、
+  `memory.inject.started/completed`、`memory.writeback.started/completed`。
+  原有事件名 / payload 不变。订阅 `*` 通配符的处理器每次 run 会多收到约 8
+  条事件 - 建议改用具名订阅。
+
+- `JsonlFileSessionManager` / `FileLoggingEventBus` / `RetryToolExecutor` /
+  `ChainMemory` / `Runtime.run` 都通过了 7 项并发 / IO 失败的 stress 测试，
+  无需新增锁或重试包装；相应测试以回归门的形式入库。
+
+- 全部 ~40 个内置插件类的 docstring 现已统一为三段式 Google-style
+  （`What:` / `Usage:` / `Depends on:`）。新增的
+  `tests/unit/test_builtin_docstrings_are_three_section.py` 守住这一约束。
+
+- 覆盖率门槛从 90% 提升到 92%。配置 `pyproject.toml` 的
+  `[tool.coverage.report].fail_under`。

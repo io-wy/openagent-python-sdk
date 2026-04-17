@@ -514,7 +514,64 @@ class MyRetryExecutor:
 计划在后续版本移除。所有 in-tree combinator（`memory.chain`, `tool_executor.retry`,
 `execution_policy.composite`, `events.file_logging`）都已迁到公开 API。
 
-## 20. 继续阅读
+## 20. 三段式 Docstring（Spec B WP4）
+
+所有内置插件类必须在类 docstring 里包含三个段落：
+
+```python
+class MyMemory(MemoryPlugin):
+    """One-line summary ending with a period.
+
+    What:
+        2-4 sentences describing what this plugin does and why
+        (the user-facing behavior).
+
+    Usage:
+        Configuration shape and a 1-2 line example:
+        ``{"type": "my_memory", "config": {"key": "value"}}``
+
+    Depends on:
+        - ``RunContext.state`` for X
+        - sibling plugin ``baz``
+        - external resource Y
+    """
+```
+
+`tests/unit/test_builtin_docstrings_are_three_section.py` 强制这一格式。
+工具类的 Usage / Depends on 段落可以一行带过；非工具类建议写完整。
+
+## 21. 错误 hint / docs_url（Spec B WP1）
+
+`OpenAgentsError`（含子类）支持可选 `hint=` / `docs_url=` 关键字参数，
+建议在用户可能因为典型错误（拼写、缺配置、找不到 ID）触发的位置带上：
+
+```python
+from openagents.errors.exceptions import PluginLoadError
+from openagents.errors.suggestions import near_match
+
+available = sorted(known_plugins.keys())
+guess = near_match(requested, available)
+hint_text = (
+    f"Did you mean '{guess}'?" if guess else f"Available: {available}"
+)
+raise PluginLoadError(
+    f"Unknown plugin: '{requested}'",
+    hint=hint_text,
+)
+```
+
+`str(exc)` 会自动多出一行 `  hint: ...`；首行保持原 message 不变以保护
+日志聚合。
+
+## 22. 事件分类（Spec B WP2）
+
+发射的事件名建议在 `openagents/interfaces/event_taxonomy.py:EVENT_SCHEMAS`
+登记，并在 `docs/event-taxonomy.md` 同步描述（运行
+`uv run python -m openagents.tools.gen_event_doc` 生成）。`AsyncEventBus.emit`
+会对已登记事件做 advisory 校验：缺少必需 payload key 会 warning，从不
+raise。未登记的事件名直接放行。
+
+## 23. 继续阅读
 
 - [开发者指南](developer-guide.md)
 - [Seam 与扩展点](seams-and-extension-points.md)

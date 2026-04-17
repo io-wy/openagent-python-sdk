@@ -552,7 +552,17 @@ policy 输出：
 `openagents.plugins.loader._load_plugin` 仍保留为 deprecated 别名，
 会发 `DeprecationWarning`。
 
-## 14. 继续阅读
+## 14. 错误与诊断 helper（Spec B WP1 / WP2）
+
+| Symbol | Module | Purpose |
+| --- | --- | --- |
+| `OpenAgentsError(message, *, hint=None, docs_url=None, ...)` | `openagents.errors.exceptions` | 基类异常；新增可选 `hint` / `docs_url`。`str(exc)` 在被设置时会多输出 `  hint: ...` / `  docs: ...` 行，首行保持原 message 不变 |
+| `near_match(needle, candidates, *, cutoff=0.6)` | `openagents.errors.suggestions` | 轻量 "did you mean?" 包装，基于 `difflib.get_close_matches`；返回最近匹配或 `None` |
+| `EVENT_SCHEMAS` | `openagents.interfaces.event_taxonomy` | 已声明事件名 → `EventSchema(name, required_payload, optional_payload, description)` 的字典。`AsyncEventBus.emit` 在缺少必需 key 时 `logger.warning`，从不 raise |
+| `EventSchema` | `openagents.interfaces.event_taxonomy` | 单个事件 schema 的 frozen dataclass |
+| `gen_event_doc.render_doc()` / `write_doc(target)` / `main(argv)` | `openagents.tools.gen_event_doc` | 从 `EVENT_SCHEMAS` 重新生成 `docs/event-taxonomy.md` 的 helper |
+
+## 15. 继续阅读
 
 - [开发者指南](developer-guide.md)
 - [Seam 与扩展点](seams-and-extension-points.md)
