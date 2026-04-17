@@ -139,9 +139,15 @@ are migrated as follows:
 - `CompositeExecutionPolicy` (`composite.py`) currently uses `load_plugin("execution_policy", ...)`
   internally to load child policies. After removal of the seam, this becomes a utility
   class that composes the same helper classes directly. The `load_plugin` call is removed.
-- The `agent-builder` skill (`skills/openagent-agent-builder/src/.../render.py`) currently
-  emits `execution_policy:` config keys. It must be updated to emit an `executor:` config
-  with the policy embedded, or omit the policy key entirely if the default allow-all is sufficient.
+- A new builtin `FilesystemAwareExecutor` (`openagents/plugins/builtin/tool_executor/filesystem_aware.py`)
+  wraps the default executor and implements `evaluate_policy` using the filesystem/allowlist
+  logic extracted from `FilesystemExecutionPolicy`. Its config accepts `allow_tools`,
+  `read_roots`, and `write_roots` — the same fields currently emitted by
+  `_build_execution_policy()` in `render.py`.
+- The `agent-builder` skill (`skills/openagent-agent-builder/src/.../render.py`) is updated
+  to emit `tool_executor: {type: filesystem_aware, allow_tools: [...], read_roots: [...], write_roots: [...]}`
+  instead of the separate `execution_policy:` key. The `followup_resolver` and
+  `response_repair_policy` keys are dropped from both the initial build and the overrides loop.
 
 User-defined standalone `execution_policy` / `followup_resolver` / `response_repair_policy`
 plugins can be adapted by subclassing the relevant plugin and delegating to the old
@@ -159,7 +165,7 @@ plugin object. Each adapter is under 10 lines.
 | `runtime` / `session` / `skills` | keep | app infrastructure |
 | `execution_policy` | **removed** | absorbed into `ToolExecutorPlugin.evaluate_policy()` |
 | `followup_resolver` | **removed** | absorbed into `PatternPlugin.resolve_followup()` |
-| `response_repair_policy` | **removed** | absorbed into `PatternPlugin.repair_response()` |
+| `response_repair_policy` | **removed** | absorbed into `PatternPlugin.repair_empty_response()` |
 
 Seam count: 11 → 8.
 
