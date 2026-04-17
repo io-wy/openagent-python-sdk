@@ -81,19 +81,7 @@ class ToolExecutorRef(PluginRef):
     pass
 
 
-class ExecutionPolicyRef(PluginRef):
-    pass
-
-
 class ContextAssemblerRef(PluginRef):
-    pass
-
-
-class FollowupResolverRef(PluginRef):
-    pass
-
-
-class ResponseRepairPolicyRef(PluginRef):
     pass
 
 
@@ -190,10 +178,7 @@ class AgentDefinition(BaseModel):
     pattern: PatternRef
     llm: LLMOptions | None = None
     tool_executor: ToolExecutorRef | None = None
-    execution_policy: ExecutionPolicyRef | None = None
     context_assembler: ContextAssemblerRef | None = None
-    followup_resolver: FollowupResolverRef | None = None
-    response_repair_policy: ResponseRepairPolicyRef | None = None
     tools: list[ToolRef] = Field(default_factory=list)
     runtime: RuntimeOptions = Field(default_factory=RuntimeOptions)
 
@@ -218,10 +203,7 @@ class AgentDefinition(BaseModel):
 
         optional_refs = {
             "tool_executor": self.tool_executor,
-            "execution_policy": self.execution_policy,
             "context_assembler": self.context_assembler,
-            "followup_resolver": self.followup_resolver,
-            "response_repair_policy": self.response_repair_policy,
         }
         for field_name, ref in optional_refs.items():
             if ref is not None:

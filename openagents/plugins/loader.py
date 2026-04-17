@@ -10,13 +10,10 @@ from typing import Any
 from openagents.config.schema import (
     AgentDefinition,
     ContextAssemblerRef,
-    ExecutionPolicyRef,
     EventBusRef,
-    FollowupResolverRef,
     MemoryRef,
     PatternRef,
     PluginRef,
-    ResponseRepairPolicyRef,
     RuntimeRef,
     SkillsRef,
     SessionRef,
@@ -45,10 +42,7 @@ class LoadedAgentPlugins:
     memory: Any
     pattern: Any
     tool_executor: Any | None
-    execution_policy: Any | None
     context_assembler: Any | None
-    followup_resolver: Any | None
-    response_repair_policy: Any | None
     tools: dict[str, Any]
 
 
@@ -152,8 +146,8 @@ def load_plugin(
     """Load a child plugin from a PluginRef.
 
     Public entry point used by combinator builtins that compose other
-    plugins (memory.chain, tool_executor.retry, execution_policy.composite,
-    events.file_logging) and by external custom combinators.
+    plugins (memory.chain, tool_executor.retry, events.file_logging) and
+    by external custom combinators.
     """
     return _load_plugin_impl(kind, ref, required_methods=required_methods)
 
@@ -235,17 +229,6 @@ def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
     return plugin
 
 
-def load_execution_policy_plugin(ref: ExecutionPolicyRef | None) -> Any | None:
-    if ref is None:
-        return None
-    plugin = _load_plugin_impl("execution_policy", ref, required_methods=("evaluate",))
-    if not callable(getattr(plugin, "evaluate", None)):
-        raise CapabilityError(
-            f"execution policy '{type(plugin).__name__}' must implement 'evaluate'"
-        )
-    return plugin
-
-
 def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None:
     if ref is None:
         return None
@@ -261,35 +244,11 @@ def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None
     return plugin
 
 
-def load_followup_resolver_plugin(ref: FollowupResolverRef | None) -> Any | None:
-    if ref is None:
-        return None
-    plugin = _load_plugin_impl("followup_resolver", ref, required_methods=("resolve",))
-    if not callable(getattr(plugin, "resolve", None)):
-        raise CapabilityError(
-            f"follow-up resolver '{type(plugin).__name__}' must implement 'resolve'"
-        )
-    return plugin
-
-
-def load_response_repair_policy_plugin(ref: ResponseRepairPolicyRef | None) -> Any | None:
-    if ref is None:
-        return None
-    plugin = _load_plugin_impl("response_repair_policy", ref, required_methods=("repair_empty_response",))
-    if not callable(getattr(plugin, "repair_empty_response", None)):
-        raise CapabilityError(
-            f"response repair policy '{type(plugin).__name__}' must implement 'repair_empty_response'"
-        )
-    return plugin
-
 def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
     memory = load_memory_plugin(agent.memory)
     pattern = load_pattern_plugin(agent.pattern)
     tool_executor = load_tool_executor_plugin(agent.tool_executor)
-    execution_policy = load_execution_policy_plugin(agent.execution_policy)
     context_assembler = load_context_assembler_plugin(agent.context_assembler)
-    followup_resolver = load_followup_resolver_plugin(agent.followup_resolver)
-    response_repair_policy = load_response_repair_policy_plugin(agent.response_repair_policy)
 
     tools: dict[str, Any] = {}
     for tool_ref in agent.tools:
@@ -301,10 +260,7 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
         memory=memory,
         pattern=pattern,
         tool_executor=tool_executor,
-        execution_policy=execution_policy,
         context_assembler=context_assembler,
-        followup_resolver=followup_resolver,
-        response_repair_policy=response_repair_policy,
         tools=tools,
     )
 
