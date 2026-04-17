@@ -347,3 +347,17 @@ queue、approval、orchestration、UI workflow 应该在 kernel 之上。
 - [插件开发](plugin-development.md)
 - [API 参考](api-reference.md)
 - [示例说明](examples.md)
+
+## 新增 builtin (0.3.x)
+
+| seam | type key | 说明 |
+| --- | --- | --- |
+| `tool_executor` | `retry` | 包裹另一个 executor；按错误类别做指数退避重试 |
+| `execution_policy` | `composite` | AND / OR 组合子 policy 列表 |
+| `execution_policy` | `network_allowlist` | 对 `http_request` 类工具做 host/scheme 白名单 |
+| `followup_resolver` | `rule_based` | 基于 regex → 模板的本地跟进回答（替代走模型）|
+| `session` | `jsonl_file` | append-only NDJSON 落盘；重启可重放 |
+| `events` | `file_logging` | 包裹内层事件总线 + 把每条事件追加进 NDJSON 审计日志 |
+| `response_repair_policy` | `strict_json` | 从 markdown fenced / 裸 JSON 片段里抢救结构化输出，miss 时可 fallback 到 `basic` |
+
+完整示例见 [`examples/research_analyst/`](../examples/research_analyst/README.md)，对应集成测试在 `tests/integration/test_research_analyst_example.py`。

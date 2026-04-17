@@ -58,6 +58,30 @@ Benchmark：
 uv run python examples/production_coding_agent/run_benchmark.py
 ```
 
+### `research_analyst/`
+
+Offline research-agent example exercising all 7 new builtins added in 0.3.x:
+
+- `retry` tool executor (wraps `safe`; retries on `ToolTimeoutError` / `RetryableToolError`)
+- `composite` execution policy (AND-combines `filesystem` + `network_allowlist`)
+- `network_allowlist` execution policy (host/scheme allowlist for `http_request`)
+- `rule_based` follow-up resolver (regex → template; short-circuits without the LLM)
+- `jsonl_file` session manager (append-only NDJSON persistence under the `sessions` directory)
+- `file_logging` event bus (wraps `async` + appends every event to `sessions/events.ndjson`)
+- `strict_json` response repair policy (salvages JSON from fenced / bare text)
+
+Runs entirely against an in-process aiohttp stub server — no internet required. The stub's `/pages/flaky` route sleeps past the `retry` executor's 200 ms timeout on the first two attempts, so `ToolTimeoutError` fires for real and `retry_tool_executor` actually retries.
+
+```bash
+uv run python examples/research_analyst/run_demo.py
+```
+
+Verify:
+
+```bash
+uv run pytest -q tests/integration/test_research_analyst_example.py
+```
+
 ## 配合文档一起看
 
 建议配合：
