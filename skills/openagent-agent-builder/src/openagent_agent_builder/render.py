@@ -85,11 +85,23 @@ def render_agent_spec(payload: OpenAgentSkillInput, archetype: dict[str, Any]) -
     if isinstance(overrides.get("tools"), list):
         agent_config["tools"] = deepcopy(overrides["tools"])
 
+    # Drop optional per-agent seams that resolved to None; AppConfig defaults handle them.
+    for optional_key in (
+        "tool_executor",
+        "execution_policy",
+        "context_assembler",
+        "followup_resolver",
+        "response_repair_policy",
+    ):
+        if agent_config.get(optional_key) is None:
+            agent_config.pop(optional_key, None)
+
     sdk_config = {
         "version": "1.0",
         "runtime": {"type": "default", "config": {}},
         "session": {"type": "in_memory"},
         "events": {"type": "async"},
+        "skills": {"type": "local"},
         "agents": [agent_config],
     }
 
