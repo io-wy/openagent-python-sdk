@@ -117,3 +117,41 @@ def run_agent_with_dict(
     """Synchronous agent execution directly from a Python config dict."""
     runtime = Runtime.from_dict(payload)
     return runtime.run_sync(agent_id=agent_id, session_id=session_id, input_text=input_text, deps=deps)
+
+
+def stream_agent_with_dict(
+    payload: dict[str, Any],
+    *,
+    request: RunRequest,
+):
+    """Synchronous streaming from a pre-loaded config dict.
+
+    Yields :class:`RunStreamChunk` objects. Uses an asyncio event loop
+    under the hood; safe to call from non-async contexts but not from
+    inside a running loop.
+    """
+    from openagents.interfaces.runtime import RunStreamChunk  # noqa: F401
+
+    runtime = Runtime.from_dict(payload)
+
+    async def _collect() -> list:
+        chunks = []
+        async for chunk in runtime.run_stream(request=request):
+            chunks.append(chunk)
+        return chunks
+
+    for chunk in asyncio.run(_collect()):
+        yield chunk
+
+
+def stream_agent_with_config(
+    config_path: str | Path,
+    *,
+    request: RunRequest,
+):
+    """Synchronous streaming from a config file path."""
+    import json
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    yield from stream_agent_with_dict(payload, request=request)
