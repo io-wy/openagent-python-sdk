@@ -1,5 +1,25 @@
 {
   "version": "1.0",
+  "logging": {
+    "auto_configure": true,
+    "pretty": true,
+    "level": "INFO",
+    "per_logger_levels": {
+      "openagents.llm": "DEBUG",
+      "openagents.events": "WARNING",
+      "openagents.session": "WARNING"
+    },
+    "include_prefixes": ["openagents"],
+    "redact_keys": [
+      "api_key",
+      "authorization",
+      "token",
+      "secret",
+      "password",
+      "cookie"
+    ],
+    "max_value_length": 300
+  },
   "runtime": {
     "type": "default",
     "config": {

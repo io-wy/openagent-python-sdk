@@ -95,6 +95,11 @@ class RichConsoleEventBus(EventBusPlugin):
             return True
         return _matches_any(event_name, self._include)
 
+    @property
+    def history(self) -> list[RuntimeEvent]:
+        """Transparent pass-through to the inner bus's history buffer."""
+        return getattr(self._inner, "history", [])
+
     def subscribe(self, event_name: str, handler: Callable[[RuntimeEvent], Awaitable[None] | None]) -> None:
         self._inner.subscribe(event_name, handler)
 

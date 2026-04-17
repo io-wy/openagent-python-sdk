@@ -1,9 +1,23 @@
 {
   "version": "1.0",
+  "events": {
+    "type": "rich_console",
+    "config": {
+      "inner": {"type": "async"},
+      "include_events": ["tool.called", "tool.succeeded", "llm.succeeded"],
+      "show_payload": false,
+      "redact_keys": ["api_key", "authorization"]
+    }
+  },
   "logging": {
     "auto_configure": true,
     "pretty": true,
-    "level": "INFO"
+    "level": "INFO",
+    "per_logger_levels": {
+      "openagents.llm": "DEBUG"
+    },
+    "redact_keys": ["api_key", "authorization", "token"],
+    "max_value_length": 500
   },
   "agents": [
     {

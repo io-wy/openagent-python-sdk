@@ -18,6 +18,7 @@ from openagents.observability.filters import (
 
 _LOGGER_ROOT = "openagents"
 _OBS_LOGGER = logging.getLogger("openagents.observability.logging")
+_OVERRIDDEN_LOGGERS: set[str] = set()
 
 
 def configure(config: LoggingConfig | None = None) -> None:
@@ -39,6 +40,15 @@ def configure(config: LoggingConfig | None = None) -> None:
     root.setLevel(_name_to_level(config.level))
     # Prevent double-emission when an application also configures root handlers.
     root.propagate = False
+
+    # Per-logger level overrides must be applied on the named loggers themselves;
+    # without this Python's logger gate drops records below the root level before
+    # they ever reach the handler-side filters.
+    for name, level_name in config.per_logger_levels.items():
+        if name != _LOGGER_ROOT and not name.startswith(_LOGGER_ROOT + "."):
+            continue
+        logging.getLogger(name).setLevel(_name_to_level(level_name))
+        _OVERRIDDEN_LOGGERS.add(name)
 
     handler = _build_handler(config)
     handler.addFilter(
@@ -63,9 +73,9 @@ def reset_logging() -> None:
     """Restore the openagents logger to its pre-configure() state.
 
     Removes handlers tagged ``_openagents_installed=True``, restores
-    ``propagate`` to True, and clears the level back to NOTSET so a
-    subsequent configure() starts from a neutral baseline. Third-party
-    handlers (no tag) are left untouched.
+    ``propagate`` to True, clears the root level back to NOTSET, and
+    resets any child-logger levels that a prior configure() set via
+    ``per_logger_levels``. Third-party handlers (no tag) are left untouched.
     """
     root = logging.getLogger(_LOGGER_ROOT)
     to_remove = [h for h in root.handlers if getattr(h, "_openagents_installed", False)]
@@ -73,6 +83,9 @@ def reset_logging() -> None:
         root.removeHandler(handler)
     root.propagate = True
     root.setLevel(logging.NOTSET)
+    for name in list(_OVERRIDDEN_LOGGERS):
+        logging.getLogger(name).setLevel(logging.NOTSET)
+    _OVERRIDDEN_LOGGERS.clear()
 
 
 def _warn_on_foreign_loggers(config: LoggingConfig) -> None:

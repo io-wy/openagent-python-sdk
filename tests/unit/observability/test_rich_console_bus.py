@@ -89,6 +89,15 @@ async def test_inner_history_delegated() -> None:
     assert len(history) == 1
 
 
+@pytest.mark.asyncio
+async def test_history_property_passthrough() -> None:
+    bus, _ = _make_bus()
+    await bus.emit("tool.called", x=1)
+    await bus.emit("tool.succeeded", x=1)
+    # Property delegates to inner bus's sync .history buffer (same list, same ordering)
+    assert [e.name for e in bus.history] == ["tool.called", "tool.succeeded"]
+
+
 def test_registered_in_builtin_registry() -> None:
     from openagents.plugins.registry import get_builtin_plugin_class
 

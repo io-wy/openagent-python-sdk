@@ -58,6 +58,46 @@ class TestIdempotence:
         assert root.level == logging.NOTSET
         assert root.propagate is True
 
+    def test_reset_restores_per_logger_levels(self) -> None:
+        configure(
+            LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"})
+        )
+        assert logging.getLogger("openagents.llm").level == logging.DEBUG
+        reset_logging()
+        assert logging.getLogger("openagents.llm").level == logging.NOTSET
+
+
+class TestPerLoggerLevelsEndToEnd:
+    """Per-logger level overrides must actually produce output, not just
+    satisfy an in-isolation filter check. Python's logger gate drops DEBUG
+    records before they reach handler-side filters unless the named logger
+    itself has a low-enough level. This test attaches a probe handler to
+    capture records directly (caplog can't see through propagate=False).
+    """
+
+    def test_per_logger_debug_bypasses_root_info_gate(self) -> None:
+        configure(
+            LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"})
+        )
+        captured: list[logging.LogRecord] = []
+
+        class _Probe(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured.append(record)
+
+        probe = _Probe()
+        probe.setLevel(logging.DEBUG)
+        logging.getLogger("openagents").addHandler(probe)
+        try:
+            logging.getLogger("openagents.llm.anthropic").debug("reached handler")
+            logging.getLogger("openagents.events").debug("dropped at source")
+        finally:
+            logging.getLogger("openagents").removeHandler(probe)
+
+        debug_records = [r for r in captured if r.levelno == logging.DEBUG]
+        assert any(r.name == "openagents.llm.anthropic" for r in debug_records)
+        assert not any(r.name == "openagents.events" for r in debug_records)
+
 
 class TestNamespaceIsolation:
     def test_does_not_touch_root_logger(self) -> None:
