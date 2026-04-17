@@ -13,7 +13,9 @@ EXPECTED: list[tuple[str, str]] = [
     ("execution_policy", "network_allowlist"),
     ("followup_resolver", "rule_based"),
     ("session", "jsonl_file"),
+    ("session", "sqlite"),
     ("events", "file_logging"),
+    ("events", "otel_bridge"),
     ("response_repair_policy", "strict_json"),
 ]
 
