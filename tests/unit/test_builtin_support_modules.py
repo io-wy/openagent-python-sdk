@@ -213,7 +213,16 @@ async def test_config_watcher_detects_file_changes_and_can_be_stopped(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_hotreload_server_falls_back_without_aiohttp_and_stops_cleanly(tmp_path):
+async def test_hotreload_server_falls_back_without_aiohttp_and_stops_cleanly(
+    tmp_path, monkeypatch
+):
+    # Force the ``from aiohttp import web`` inside HotReloadServer.start
+    # to raise ImportError so we exercise the fallback (CLI-mode) branch
+    # rather than starting an actual HTTP server.
+    import sys
+
+    monkeypatch.setitem(sys.modules, "aiohttp", None)
+
     config_path = tmp_path / "agent.json"
     config_path.write_text("{}", encoding="utf-8")
     runtime = _DummyRuntime()
@@ -221,6 +230,7 @@ async def test_hotreload_server_falls_back_without_aiohttp_and_stops_cleanly(tmp
 
     await server.start()
     assert server._watcher is not None
+    assert server._server is None  # fallback path leaves _server unset
 
     await server.stop()
     assert server._watcher._task is None

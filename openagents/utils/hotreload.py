@@ -101,7 +101,14 @@ class HotReloadServer:
         self._web_module: Any = None  # Store aiohttp web module for handlers
 
     async def start(self) -> None:
-        """Start the server with config watching."""
+        """Start the server with config watching.
+
+        Uses ``aiohttp.AppRunner`` + ``TCPSite`` so ``start()`` returns
+        immediately after the server is bound. ``web._run_app`` was
+        previously used here but it blocks until the server stops,
+        which makes ``start()`` impossible to await in any program that
+        wants to do anything else.
+        """
         # Start config watcher
         self._watcher = ConfigWatcher(self.runtime, self.config_path)
         await self._watcher.start()
@@ -109,19 +116,23 @@ class HotReloadServer:
         # Try to use aiohttp if available, otherwise simple fallback
         try:
             from aiohttp import web
-
-            self._web_module = web  # Store for use in handlers
-            app = web.Application()
-            app.router.add_post("/run", self._handle_run)
-            app.router.add_post("/reload", self._handle_reload)
-            app.router.add_get("/agents", self._handle_list_agents)
-
-            self._server = await web._run_app(app, host=self.host, port=self.port)
         except ImportError:
-            # Fallback: just start the watcher without HTTP
             print(f"[HotReloadServer] aiohttp not available, running in CLI mode")
             print(f"[HotReloadServer] Config file: {self.config_path}")
             print(f"[HotReloadServer] Hot reload enabled - edit config to trigger reload")
+            return
+
+        self._web_module = web  # Store for use in handlers
+        app = web.Application()
+        app.router.add_post("/run", self._handle_run)
+        app.router.add_post("/reload", self._handle_reload)
+        app.router.add_get("/agents", self._handle_list_agents)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host=self.host, port=self.port)
+        await site.start()
+        self._server = runner
 
     async def _handle_run(self, request: Any) -> Any:
         """Handle /run endpoint."""
@@ -152,6 +163,6 @@ class HotReloadServer:
         """Stop the server."""
         if self._watcher:
             await self._watcher.stop()
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
+        if self._server is not None:
+            await self._server.cleanup()
+            self._server = None

@@ -12,6 +12,9 @@ from openagents.runtime.runtime import Runtime
 
 @pytest.mark.asyncio
 async def test_quickstart_builtin_echo_flow(monkeypatch):
+    monkeypatch.setenv("LLM_API_BASE", "http://stub.invalid")
+    monkeypatch.setenv("LLM_API_KEY", "stub-key")
+    monkeypatch.setenv("LLM_MODEL", "stub-model")
     config = load_config(Path("examples/quickstart/agent.json"))
     monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: MockLLMClient())
     runtime = Runtime(config)
@@ -31,6 +34,9 @@ async def test_quickstart_builtin_echo_flow(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_builtin_react_tool_call_flow(monkeypatch):
+    monkeypatch.setenv("LLM_API_BASE", "http://stub.invalid")
+    monkeypatch.setenv("LLM_API_KEY", "stub-key")
+    monkeypatch.setenv("LLM_MODEL", "stub-model")
     config = load_config(Path("examples/quickstart/agent.json"))
     monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: MockLLMClient())
     runtime = Runtime(config)
