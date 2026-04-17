@@ -14,12 +14,12 @@ from .run_context import RunContext
 from .tool import ToolExecutionResult
 
 if TYPE_CHECKING:
-    from .followup import FollowupResolution, FollowupResolverPlugin
+    from .followup import FollowupResolution
     from .events import EventBusPlugin
-    from .response_repair import ResponseRepairDecision, ResponseRepairPolicyPlugin
+    from .response_repair import ResponseRepairDecision
     from .session import SessionArtifact
     from .runtime import RunArtifact, RunRequest, RunUsage
-    from .tool import ExecutionPolicy, ToolExecutor
+    from .tool import ToolExecutor
 
 
 ExecutionContext = RunContext[Any]
@@ -67,9 +67,6 @@ class PatternPlugin(BasePlugin):
         assembly_metadata: dict[str, Any] | None = None,
         run_request: "RunRequest | None" = None,
         tool_executor: "ToolExecutor | None" = None,
-        execution_policy: "ExecutionPolicy | None" = None,
-        followup_resolver: "FollowupResolverPlugin | None" = None,
-        response_repair_policy: "ResponseRepairPolicyPlugin | None" = None,
         usage: "RunUsage | None" = None,
         artifacts: list["RunArtifact"] | None = None,
     ) -> None:
@@ -93,9 +90,6 @@ class PatternPlugin(BasePlugin):
             assembly_metadata=dict(assembly_metadata or {}),
             run_request=run_request,
             tool_executor=tool_executor,
-            execution_policy=execution_policy,
-            followup_resolver=followup_resolver,
-            response_repair_policy=response_repair_policy,
             usage=usage,
             artifacts=artifacts or [],
         )

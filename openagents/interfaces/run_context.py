@@ -40,9 +40,6 @@ class RunContext(BaseModel, Generic[DepsT]):
     assembly_metadata: dict[str, Any] = Field(default_factory=dict)
     run_request: "RunRequest | None" = None
     tool_executor: Any | None = None
-    execution_policy: Any | None = None
-    followup_resolver: Any | None = None
-    response_repair_policy: Any | None = None
     usage: "RunUsage | None" = None
     artifacts: list["RunArtifact"] = Field(default_factory=list)
 
