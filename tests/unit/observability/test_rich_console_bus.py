@@ -87,3 +87,10 @@ async def test_inner_history_delegated() -> None:
     await bus.emit("tool.called", x=1)
     history = await bus.get_history()
     assert len(history) == 1
+
+
+def test_registered_in_builtin_registry() -> None:
+    from openagents.plugins.registry import get_builtin_plugin_class
+
+    cls = get_builtin_plugin_class("events", "rich_console")
+    assert cls is RichConsoleEventBus
