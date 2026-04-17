@@ -66,6 +66,34 @@ class Runtime:
             self._events = components.events
             self._skills = components.skills
 
+        self._maybe_auto_configure_logging(config)
+
+    @staticmethod
+    def _maybe_auto_configure_logging(config: AppConfig) -> None:
+        """Opt-in hook: apply observability.configure() when the config requests it.
+
+        Library etiquette: never auto-configure unless the config explicitly
+        sets ``logging.auto_configure: true`` (or ``OPENAGENTS_LOG_AUTOCONFIGURE=1``
+        overrides it).
+        """
+        from openagents.observability.config import merge_env_overrides
+        from openagents.observability.logging import configure
+
+        logging_cfg = config.logging
+        if logging_cfg is None:
+            # Still honor env-var-only activation.
+            from openagents.observability.config import load_from_env
+
+            env_cfg = load_from_env()
+            if env_cfg is None or not env_cfg.auto_configure:
+                return
+            configure(env_cfg)
+            return
+        effective = merge_env_overrides(logging_cfg)
+        if not effective.auto_configure:
+            return
+        configure(effective)
+
     @property
     def event_bus(self) -> Any:
         """Access the event bus instance."""

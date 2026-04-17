@@ -75,7 +75,11 @@ App infrastructure seam：
 
 - `runtime`
 - `session`
-- `events`
+- **`events`**：
+  - `async`（默认，内存）
+  - `file_logging`（NDJSON 落盘）
+  - `otel_bridge`（OpenTelemetry span，需要 `[otel]` extra）
+  - `rich_console`（终端漂亮打印，需要 `[rich]` extra）
 - `skills`
 
 这些已经是当前代码里的正式扩展点。

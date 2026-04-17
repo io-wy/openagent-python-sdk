@@ -31,3 +31,19 @@ def tmp_path() -> Path:
         yield path
     finally:
         shutil.rmtree(path, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def _reset_openagents_logging() -> None:
+    """Reset the 'openagents' logger after every test.
+
+    Any code path that invokes Runtime.from_config/from_dict with
+    ``logging.auto_configure: true`` installs handlers on the
+    'openagents' logger and flips ``propagate`` to False. Without a
+    reset, those side effects leak into unrelated tests and break
+    ``caplog``-based assertions on warnings.
+    """
+    yield
+    from openagents.observability.logging import reset_logging
+
+    reset_logging()

@@ -25,12 +25,12 @@ async def main() -> None:
     demo_dir = Path(__file__).parent
     load_env(demo_dir / ".env")
 
-    if not os.environ.get("MINIMAX_API_KEY"):
-        print("[ERROR] MINIMAX_API_KEY not set!")
-        print("        Copy .env.example to .env and add your MiniMax API key.")
+    if not os.environ.get("LLM_API_KEY"):
+        print("[ERROR] LLM_API_KEY not set!")
+        print("        Copy .env.example to .env and fill in LLM_API_KEY, LLM_API_BASE, LLM_MODEL.")
         return
 
-    print("[INFO] Using MiniMax LLM (Anthropic-compatible protocol)\n")
+    print(f"[INFO] Using model={os.environ.get('LLM_MODEL')} at {os.environ.get('LLM_API_BASE')}\n")
 
     config_path = demo_dir / "agent.json"
     runtime = Runtime.from_config(config_path)

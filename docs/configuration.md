@@ -192,6 +192,24 @@ OTel API 会 no-op，bridge 等于零成本。
 
 - `local`
 
+### `logging`（可选）
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `auto_configure` | bool | `false` | 是否让 `Runtime.__init__` 自动调 `configure()` |
+| `level` | str | `"INFO"` | `openagents.*` 根 level |
+| `per_logger_levels` | dict[str, str] | `{}` | 按 logger 名覆盖 level，如 `{"openagents.llm": "DEBUG"}` |
+| `pretty` | bool | `false` | 启用 rich 渲染（需要 `[rich]` extra） |
+| `stream` | `"stdout"` \| `"stderr"` | `"stderr"` | 输出流 |
+| `include_prefixes` | list[str] \| null | `null` | logger 白名单（`null` = 允许所有） |
+| `exclude_prefixes` | list[str] | `[]` | logger 黑名单 |
+| `redact_keys` | list[str] | `["api_key", "authorization", "token", "secret", "password"]` | 脱敏 key 名（大小写不敏感） |
+| `max_value_length` | int | `500` | 字符串 value 截断长度 |
+| `show_time` | bool | `true` | 是否显示时间列（rich 模式） |
+| `show_path` | bool | `false` | 是否显示代码路径（rich 模式） |
+
+如果该 section 缺失或 `auto_configure=false`，SDK 不会修改任何 logging 配置。
+
 ## 4. AgentDefinition
 
 一个 agent 定义大概长这样：

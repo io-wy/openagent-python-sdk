@@ -28,9 +28,9 @@ async def main() -> None:
     root = Path(__file__).parent
     load_env(root / ".env")
 
-    if not os.environ.get("MINIMAX_API_KEY"):
-        print("[ERROR] MINIMAX_API_KEY not set.")
-        print("        Copy .env.example to .env and add your key.")
+    if not os.environ.get("LLM_API_KEY"):
+        print("[ERROR] LLM_API_KEY not set.")
+        print("        Copy .env.example to .env and fill in LLM_API_KEY, LLM_API_BASE, LLM_MODEL.")
         return
 
     runtime = Runtime.from_config(root / "agent.json")

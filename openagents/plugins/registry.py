@@ -20,6 +20,7 @@ from openagents.decorators import (
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
 from openagents.plugins.builtin.events.file_logging import FileLoggingEventBus
 from openagents.plugins.builtin.events.otel_bridge import OtelEventBusBridge
+from openagents.plugins.builtin.events.rich_console import RichConsoleEventBus
 from openagents.plugins.builtin.skills.local import LocalSkillsManager
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
 from openagents.plugins.builtin.context.head_tail import HeadTailContextAssembler
@@ -124,6 +125,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "async": AsyncEventBus,
         "file_logging": FileLoggingEventBus,
         "otel_bridge": OtelEventBusBridge,
+        "rich_console": RichConsoleEventBus,
     },
     "skills": {
         "local": LocalSkillsManager,

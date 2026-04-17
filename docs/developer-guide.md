@@ -361,3 +361,69 @@ queue、approval、orchestration、UI workflow 应该在 kernel 之上。
 | `response_repair_policy` | `strict_json` | 从 markdown fenced / 裸 JSON 片段里抢救结构化输出，miss 时可 fallback 到 `basic` |
 
 完整示例见 [`examples/research_analyst/`](../examples/research_analyst/README.md)，对应集成测试在 `tests/integration/test_research_analyst_example.py`。
+
+## 调试与可观测性
+
+SDK 提供两条调试输出通道，分别对应"代码执行日志"和"运行时事件流"：
+
+### 1. Python stdlib 日志（`openagents.*` 命名空间）
+
+通过 `openagents.observability.configure()` 统一装配 handler/filter。默认**不自动生效** —— 嵌入宿主 app 时不会污染宿主的 logging 配置。
+
+**启用方式**：
+
+```python
+from openagents.observability import configure, LoggingConfig
+
+configure(LoggingConfig(level="DEBUG", pretty=True))
+```
+
+或在 `agent.json` 里配：
+
+```json
+{
+  "logging": {
+    "auto_configure": true,
+    "level": "INFO",
+    "per_logger_levels": {"openagents.llm": "DEBUG"},
+    "pretty": true,
+    "redact_keys": ["api_key", "authorization"]
+  }
+}
+```
+
+**环境变量覆盖**（CI / 临时调试）：
+
+| 变量 | 示例 |
+|---|---|
+| `OPENAGENTS_LOG_AUTOCONFIGURE` | `1` |
+| `OPENAGENTS_LOG_LEVEL` | `DEBUG` |
+| `OPENAGENTS_LOG_LEVELS` | `openagents.llm=DEBUG,openagents.events=INFO` |
+| `OPENAGENTS_LOG_PRETTY` | `1` |
+| `OPENAGENTS_LOG_STREAM` | `stderr` |
+| `OPENAGENTS_LOG_INCLUDE` | `openagents.llm,openagents.events` |
+| `OPENAGENTS_LOG_EXCLUDE` | `openagents.events.file_logging` |
+| `OPENAGENTS_LOG_REDACT` | `api_key,authorization` |
+| `OPENAGENTS_LOG_MAX_VALUE_LENGTH` | `500` |
+
+**`pretty: true` 要求装 `[rich]` extra**：`pip install io-openagent-sdk[rich]`。没装会抛 `RichNotInstalledError`。
+
+### 2. 运行时事件流
+
+除了已有的 `file_logging`（写 NDJSON）和 `otel_bridge`（导出 OTel span），现在还可以用 `rich_console` 把事件直接在终端漂亮打印：
+
+```json
+{
+  "events": {
+    "type": "rich_console",
+    "config": {
+      "inner": {"type": "async"},
+      "include_events": ["tool.*", "llm.succeeded"],
+      "show_payload": true,
+      "redact_keys": ["api_key"]
+    }
+  }
+}
+```
+
+三者都是 `EventBusPlugin` 包装器，可以通过 `inner` 字段叠加（例如先 `rich_console` 再 `file_logging` 再 `async`）。

@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator, model_validator
 
 from openagents.errors import ConfigValidationError
+from openagents.observability.config import LoggingConfig
 
 
 def _require_dict(value: Any, field_name: str) -> dict[str, Any]:
@@ -244,6 +245,7 @@ class AppConfig(BaseModel):
     session: SessionRef = Field(default_factory=lambda: SessionRef(type="in_memory"))
     events: EventBusRef = Field(default_factory=lambda: EventBusRef(type="async"))
     skills: SkillsRef = Field(default_factory=lambda: SkillsRef(type="local"))
+    logging: LoggingConfig | None = None
 
     @model_validator(mode="before")
     @classmethod

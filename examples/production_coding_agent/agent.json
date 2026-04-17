@@ -64,9 +64,9 @@
       },
       "llm": {
         "provider": "anthropic",
-        "api_base": "https://api.minimax.chat/anthropic/v1",
-        "api_key_env": "MINIMAX_API_KEY",
-        "model": "MiniMax-M2.7",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
         "temperature": 0.1,
         "max_tokens": 2048,
         "timeout_ms": 60000
@@ -93,7 +93,7 @@
       ],
       "runtime": {
         "max_steps": 8,
-        "step_timeout_ms": 30000,
+        "step_timeout_ms": 60000,
         "session_queue_size": 1000,
         "event_queue_size": 2000
       }
