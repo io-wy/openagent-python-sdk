@@ -51,6 +51,13 @@ class TestIdempotence:
         reset_logging()
         assert _installed_handlers() == []
 
+    def test_reset_restores_level_and_propagate(self) -> None:
+        configure(LoggingConfig(level="DEBUG"))
+        reset_logging()
+        root = logging.getLogger("openagents")
+        assert root.level == logging.NOTSET
+        assert root.propagate is True
+
 
 class TestNamespaceIsolation:
     def test_does_not_touch_root_logger(self) -> None:

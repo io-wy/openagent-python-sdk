@@ -60,13 +60,19 @@ def configure_from_env() -> None:
 
 
 def reset_logging() -> None:
-    """Remove all handlers tagged _openagents_installed=True from the openagents logger."""
+    """Restore the openagents logger to its pre-configure() state.
+
+    Removes handlers tagged ``_openagents_installed=True``, restores
+    ``propagate`` to True, and clears the level back to NOTSET so a
+    subsequent configure() starts from a neutral baseline. Third-party
+    handlers (no tag) are left untouched.
+    """
     root = logging.getLogger(_LOGGER_ROOT)
     to_remove = [h for h in root.handlers if getattr(h, "_openagents_installed", False)]
     for handler in to_remove:
         root.removeHandler(handler)
-    # Reset propagate so messages can reach caplog/parent handlers
     root.propagate = True
+    root.setLevel(logging.NOTSET)
 
 
 def _warn_on_foreign_loggers(config: LoggingConfig) -> None:

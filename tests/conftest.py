@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import shutil
 import sys
 from uuid import uuid4
@@ -48,4 +47,3 @@ def _reset_openagents_logging() -> None:
     from openagents.observability.logging import reset_logging
 
     reset_logging()
-    logging.getLogger("openagents").setLevel(logging.NOTSET)

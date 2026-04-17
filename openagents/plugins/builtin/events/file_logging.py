@@ -96,10 +96,10 @@ class FileLoggingEventBus(EventBusPlugin):
         event = await self._inner.emit(event_name, **payload)
         if self._should_log(event_name):
             try:
-                rendered_payload = (
-                    redact(payload, keys=self._redact_keys, max_value_length=self._max_value_length)
-                    if self._redact_keys or self._max_value_length
-                    else payload
+                rendered_payload = redact(
+                    payload,
+                    keys=self._redact_keys,
+                    max_value_length=self._max_value_length,
                 )
                 line = json.dumps(
                     {
