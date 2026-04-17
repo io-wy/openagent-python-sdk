@@ -18,6 +18,7 @@ from openagents.decorators import (
     _TOOL_EXECUTOR_REGISTRY,
 )
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
+from openagents.plugins.builtin.events.file_logging import FileLoggingEventBus
 from openagents.plugins.builtin.skills.local import LocalSkillsManager
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
 from openagents.plugins.builtin.context.head_tail import HeadTailContextAssembler
@@ -117,6 +118,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     },
     "events": {
         "async": AsyncEventBus,
+        "file_logging": FileLoggingEventBus,
     },
     "skills": {
         "local": LocalSkillsManager,
