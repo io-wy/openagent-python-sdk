@@ -49,10 +49,7 @@ def run(argv: list[str]) -> int:
                 "memory",
                 "pattern",
                 "tool_executor",
-                "execution_policy",
                 "context_assembler",
-                "followup_resolver",
-                "response_repair_policy",
             ):
                 ref = getattr(agent, seam_name, None)
                 if ref is not None and ref.type and not ref.impl:
@@ -71,8 +68,7 @@ def run(argv: list[str]) -> int:
     seams_configured = 0
     for agent in cfg.agents:
         for seam_name in (
-            "memory", "pattern", "tool_executor", "execution_policy",
-            "context_assembler", "followup_resolver", "response_repair_policy",
+            "memory", "pattern", "tool_executor", "context_assembler",
         ):
             if getattr(agent, seam_name, None) is not None:
                 seams_configured += 1
