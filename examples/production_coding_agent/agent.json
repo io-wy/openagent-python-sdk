@@ -20,6 +20,14 @@
     ],
     "max_value_length": 300
   },
+  "events": {
+    "type": "rich_console",
+    "config": {
+      "inner": { "type": "async" },
+      "show_payload": true,
+      "stream": "stderr"
+    }
+  },
   "runtime": {
     "type": "default",
     "config": {
