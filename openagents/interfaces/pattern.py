@@ -14,9 +14,9 @@ from .run_context import RunContext
 from .tool import ToolExecutionResult
 
 if TYPE_CHECKING:
-    from .followup import FollowupResolverPlugin
+    from .followup import FollowupResolution, FollowupResolverPlugin
     from .events import EventBusPlugin
-    from .response_repair import ResponseRepairPolicyPlugin
+    from .response_repair import ResponseRepairDecision, ResponseRepairPolicyPlugin
     from .session import SessionArtifact
     from .runtime import RunArtifact, RunRequest, RunUsage
     from .tool import ExecutionPolicy, ToolExecutor
@@ -364,6 +364,24 @@ class PatternPlugin(BasePlugin):
                 self._format_validation_error(exc),
                 validation_error=exc,
             )
+
+    async def resolve_followup(
+        self, *, context: "RunContext[Any]"
+    ) -> "FollowupResolution | None":
+        """Override to answer follow-ups locally. Return None to abstain (call LLM)."""
+        return None
+
+    async def repair_empty_response(
+        self,
+        *,
+        context: "RunContext[Any]",
+        messages: list[dict[str, Any]],
+        assistant_content: list[dict[str, Any]],
+        stop_reason: str | None,
+        retries: int,
+    ) -> "ResponseRepairDecision | None":
+        """Override to handle bad LLM responses. Return None to abstain (propagate)."""
+        return None
 
     def _format_validation_error(self, exc: "ValidationError") -> str:
         lines = ["The output did not match the expected schema:"]
