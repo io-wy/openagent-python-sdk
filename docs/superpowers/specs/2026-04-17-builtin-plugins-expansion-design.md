@@ -386,3 +386,25 @@ Single PR-shape, single plan. Order of implementation will be established by the
 2. Registry wiring after each builtin so tests can import via `type` key.
 3. Example wired last, once all seven builtins are in place.
 4. Docs last.
+
+## 13. Implementation errata
+
+Two deviations from the original spec were accepted during implementation. Both are traceable to SDK-level constraints rather than gaps in the changeset, and are documented here so future readers can reason about the observable-behavior envelope.
+
+### 13.1 Integration test §8.2 Case 3 not written
+
+The third integration test (`test_research_analyst_strict_json_repair`) was not added. Driving `StrictJsonResponseRepairPolicy` through `Runtime.run_detailed` would require the LLM to return an empty `assistant_content` after all internal retry fallbacks, a state that is hard to synthesize with a plain scripted `LLMClient` without monkeypatching internal pattern machinery.
+
+**Mitigation:** `tests/unit/test_strict_json_response_repair.py` covers every salvage branch directly (fenced / bare / mixed-case fence / fallback-to-basic / abstain-when-flag-false / `min_text_length` floor). The builtin is wired into `examples/research_analyst/agent.json` and loads successfully at runtime.
+
+### 13.2 `retry_attempts >= 2` assertion in `events.ndjson` replaced with indirect proof
+
+`RetryToolExecutor.execute` stamps `metadata.retry_attempts` onto `ToolExecutionResult`, but `_BoundTool.invoke` in `openagents/plugins/builtin/runtime/default_runtime.py` returns only `result.data` when feeding the result into the ReAct loop — the metadata is discarded before any `tool.*` event is emitted. Surfacing executor metadata in events would require an SDK-internal change to widen the bound-tool → event-payload path, which is out of scope for this changeset.
+
+**Mitigation:** `test_research_analyst_end_to_end` proves retry fired indirectly. The stub's `/pages/flaky` route sleeps past the 200 ms executor timeout on the first two attempts; `report.md` can only be written if `RetryToolExecutor` actually retried the timed-out call on its third attempt (at which point the stub returns `_FLAKY_OK`). The inline comment in the test makes this causal chain explicit.
+
+### 13.3 Follow-up for a future changeset
+
+- Add a public re-export of `_load_plugin` in `openagents/plugins/loader.py` (e.g. `load_child_plugin(seam, ref)`). There are now four external callers (`memory/chain.py`, `tool_executor/retry.py`, `execution_policy/composite.py`, `events/file_logging.py`) reaching into a private symbol; a thin public wrapper would remove the underscore-violation and preserve the call pattern.
+- Consider widening `_BoundTool`'s boundary so `ToolExecutionResult.metadata` is surfaced to `tool.*` events, which would enable direct `retry_attempts` assertions and give observability to other executor-layer diagnostics.
+- Consider aligning pre-existing builtins (`SafeToolExecutor`, `FilesystemExecutionPolicy`) to the `class Config(BaseModel)` / `model_validate` pattern that the 0.3.x additions established, so the new convention does not leave the old code stylistically behind.
