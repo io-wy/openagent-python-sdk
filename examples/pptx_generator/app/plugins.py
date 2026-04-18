@@ -187,9 +187,16 @@ class ResearchPattern(PatternPlugin):
         )
 
     async def _search_one(self, query: str) -> dict[str, Any]:
-        """MCP first, REST fallback on any exception."""
+        """MCP first, REST fallback on any exception.
+
+        MCP tools expect ``{"tool": "<server-tool-name>", "arguments": {...}}``;
+        the REST fallback takes the Tavily args directly.
+        """
         try:
-            result = await self.call_tool("tavily_mcp", {"query": query})
+            result = await self.call_tool(
+                "tavily_mcp",
+                {"tool": "tavily-search", "arguments": {"query": query, "max_results": 5}},
+            )
         except Exception:
             result = await self.call_tool("tavily_fallback", {"query": query})
         data = getattr(result, "data", result)
