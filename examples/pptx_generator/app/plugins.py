@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import ValidationError
@@ -22,7 +23,7 @@ from pydantic import ValidationError
 from openagents.interfaces.capabilities import PATTERN_EXECUTE
 from openagents.interfaces.pattern import PatternPlugin
 
-from ..state import FontPairing, IntentReport, Palette, ResearchFindings, SlideOutline, ThemeSelection
+from ..state import FontPairing, IntentReport, Palette, ResearchFindings, SlideIR, SlideOutline, ThemeSelection
 
 _INTENT_SYSTEM = """You are a presentation planning assistant.
 Extract an IntentReport as JSON only. Required fields:
@@ -263,6 +264,7 @@ class OutlinePattern(PatternPlugin):
 # ---------------------------------------------------------------------------
 
 from .catalog import FONT_PAIRINGS, PALETTES  # noqa: E402
+from .slot_schemas import SLOT_MODELS  # noqa: E402
 
 _THEME_SYSTEM = """Given an IntentReport and the catalogs of PALETTES and FONT_PAIRINGS
 (each has a unique 'name'), select exactly one palette_name and one font_pairing_name
@@ -336,4 +338,104 @@ class ThemePattern(PatternPlugin):
             return theme
         raise RuntimeError(
             f"ThemePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Stage 6: SlideGenPattern
+# ---------------------------------------------------------------------------
+
+_SLIDEGEN_SYSTEM_TMPL = """You are filling a slide template of type {slide_type}.
+Return a JSON object matching the {slide_type} slot schema exactly.
+No markdown fencing, JSON only."""
+
+
+class SlideGenPattern(PatternPlugin):
+    """Stage 6: generate one SlideIR from a spec + theme.
+
+    Per-slide payload comes in via ``ctx.input_text`` as JSON:
+    ``{"target_spec": {...}, "theme": {...}}``.
+
+    Strategy:
+      1. Look up the slot schema for ``spec.type``.
+      2. If schema exists: LLM fills slots, we validate, retry on failure.
+      3. After ``max_retries`` schema failures: fall back to ``freeform``
+         if ``allow_freeform_fallback`` is True, else raise.
+      4. If spec.type is unknown: fall back to ``freeform`` directly.
+    """
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        self.max_retries = int((config or {}).get("max_retries", 2))
+        self.allow_freeform = bool((config or {}).get("allow_freeform_fallback", True))
+
+    async def execute(self) -> SlideIR:
+        ctx = self.context
+        if ctx is None:
+            raise RuntimeError("SlideGenPattern.context is not set")
+
+        try:
+            payload = json.loads(ctx.input_text or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        spec = payload.get("target_spec") or {}
+        theme = payload.get("theme") or {}
+        slide_type = spec.get("type", "content")
+        model = SLOT_MODELS.get(slide_type)
+        if model is None:
+            return self._freeform(spec, reason=f"unknown type {slide_type}")
+
+        system = _SLIDEGEN_SYSTEM_TMPL.format(slide_type=slide_type)
+        user_content = json.dumps({"spec": spec, "theme": theme}, ensure_ascii=False)
+        last_raw = ""
+
+        for attempt in range(self.max_retries + 1):
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_content},
+            ]
+            raw = await ctx.llm_client.complete(messages=messages)
+            last_raw = str(raw or "")
+            choice = _try_parse_json_dict(last_raw)
+            if choice is None:
+                user_content = user_content + f"\n\nPrevious output not JSON:\n{last_raw}\nRetry."
+                continue
+            try:
+                slots_model = model.model_validate(choice)
+            except ValidationError as exc:
+                user_content = user_content + f"\n\nSchema invalid: {exc.errors()}\nRetry."
+                continue
+            slide = SlideIR(
+                index=int(spec.get("index", 1)),
+                type=slide_type,  # type: ignore[arg-type]
+                slots=slots_model.model_dump(),
+                generated_at=datetime.now(timezone.utc),
+            )
+            return slide
+
+        if not self.allow_freeform:
+            raise RuntimeError(
+                f"SlideGenPattern failed for slide {spec.get('index')} after {self.max_retries + 1} tries; "
+                f"last raw: {last_raw[:200]}"
+            )
+        return self._freeform(spec, reason=f"schema-retry-exhausted: {last_raw[:80]}")
+
+    def _freeform(self, spec: dict[str, Any], *, reason: str) -> SlideIR:
+        placeholder_js = (
+            f"// FREEFORM fallback for slide index={spec.get('index')} reason={reason!r}\n"
+            "function createSlide(pres, theme) {\n"
+            "  const slide = pres.addSlide();\n"
+            "  slide.background = { color: theme.bg };\n"
+            f"  slide.addText({json.dumps(spec.get('title', 'Untitled'))}, {{ x: 0.5, y: 2.4, w: 9, h: 0.8, "
+            "fontSize: 32, fontFace: 'Arial', color: theme.primary, bold: true, align: 'center' }});\n"
+            "  return slide;\n"
+            "}\n"
+            "module.exports = { createSlide };\n"
+        )
+        return SlideIR(
+            index=int(spec.get("index", 1)),
+            type="freeform",
+            slots={},
+            freeform_js=placeholder_js,
+            generated_at=datetime.now(timezone.utc),
         )
