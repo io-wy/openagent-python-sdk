@@ -22,7 +22,7 @@ from pydantic import ValidationError
 from openagents.interfaces.capabilities import PATTERN_EXECUTE
 from openagents.interfaces.pattern import PatternPlugin
 
-from ..state import IntentReport, ResearchFindings
+from ..state import IntentReport, ResearchFindings, SlideOutline
 
 _INTENT_SYSTEM = """You are a presentation planning assistant.
 Extract an IntentReport as JSON only. Required fields:
@@ -195,3 +195,64 @@ class ResearchPattern(PatternPlugin):
         if not isinstance(data, dict):
             return {"query": query, "results": []}
         return data
+
+
+# ---------------------------------------------------------------------------
+# Stage 4: OutlinePattern
+# ---------------------------------------------------------------------------
+
+_OUTLINE_SYSTEM = """Produce a SlideOutline JSON matching the SlideOutline pydantic schema.
+Each slide must have: index (1..N, unique), type (cover|agenda|content|transition|closing|freeform),
+title, key_points (may be empty), sources_cited (indexes into research.sources).
+Output ONLY JSON; no markdown fencing."""
+
+
+def _try_parse_outline(raw: str) -> tuple[SlideOutline | None, str | None]:
+    text = _extract_json_block(raw)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return None, f"JSON parse failed: {exc.msg}"
+    try:
+        return SlideOutline.model_validate(data), None
+    except ValidationError as exc:
+        return None, f"Schema validation failed: {exc.errors()}"
+
+
+class OutlinePattern(PatternPlugin):
+    """Stage 4: produce a SlideOutline from intent + research.
+
+    Retries ``max_steps`` times on JSON/schema failure. Stores result
+    in ``state['outline']`` on success.
+    """
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        self.max_steps = int((config or {}).get("max_steps", 3))
+
+    async def execute(self) -> SlideOutline:
+        ctx = self.context
+        if ctx is None:
+            raise RuntimeError("OutlinePattern.context is not set")
+        intent = ctx.state.get("intent") or {}
+        research = ctx.state.get("research") or {}
+        user_content = json.dumps({"intent": intent, "research": research}, ensure_ascii=False)
+
+        last_raw = ""
+        for _step in range(1, self.max_steps + 1):
+            messages = [
+                {"role": "system", "content": _OUTLINE_SYSTEM},
+                {"role": "user", "content": user_content},
+            ]
+            raw = await ctx.llm_client.complete(messages=messages)
+            last_raw = str(raw or "")
+            parsed, reason = _try_parse_outline(last_raw)
+            if parsed is not None:
+                ctx.state["outline"] = parsed.model_dump(mode="json")
+                return parsed
+            user_content = user_content + (
+                f"\n\nPrevious attempt failed ({reason}). Raw output was:\n{last_raw}\nRetry with valid JSON."
+            )
+        raise RuntimeError(
+            f"OutlinePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
+        )
