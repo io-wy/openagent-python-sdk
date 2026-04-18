@@ -142,6 +142,7 @@ async def run_wizard(
                 name="markitdown",
                 install_hint="pip install 'markitdown[all]'",
                 get_url="https://pypi.org/project/markitdown/",
+                required=False,
             ),
             EnvVarCheck(
                 name="LLM_API_KEY",
