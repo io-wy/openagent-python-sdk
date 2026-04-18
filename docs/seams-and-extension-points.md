@@ -58,7 +58,7 @@ kernel 会变糊，产品功能也会误伤 SDK 边界。
 
 | Seam | 内建实现 |
 |---|---|
-| `memory` | `buffer`（默认）、`window_buffer`、`chain`、`mem0`（需要 `[mem0]` extra）|
+| `memory` | `buffer`（默认）、`window_buffer`、`chain`、`mem0`（需要 `[mem0]` extra）、`markdown_memory`（可读的文件型长期记忆；跨会话持久化到 `MEMORY.md` 索引 + section 子文件）|
 | `pattern` | `react`（默认）、`plan_execute`、`reflexion` |
 | `tool` | 无内建（应用自行注册）|
 
@@ -225,6 +225,7 @@ class MyReAct(ReActPattern):
 - 滑动窗口（`window_buffer`）
 - 链式记忆（`chain`：先问 buffer，再问长期存储）
 - 向量/语义检索记忆（`mem0`，需要 `[mem0]` extra）
+- 可读的文件型长期记忆（`markdown_memory`：用户目标 / 反馈 / 决策 / 引用，跨会话持久化到 `MEMORY.md` 索引 + section 子文件）
 
 Config 示例：
 

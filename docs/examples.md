@@ -150,6 +150,15 @@ pattern 层用的是 `FollowupFirstReActPattern`（`examples/research_analyst/ap
 - **`HttpRequestTool` 对 5xx 不抛**：工具内部吞掉了 HTTP 错误码并返回 `{"success": false, "error": "..."}`，`SafeToolExecutor` 不会看到异常——所以"503 → 重试"走不通。示例的 stub 改为前两次 **sleep** 超过执行器超时，才真正触发 `ToolTimeoutError`，让 `retry` builtin 实际生效。
 - **ReAct 每轮只调一次工具**：builtin `react` pattern 一轮只允许一个 tool_call；多工具编排需要在 app 层的 pattern 里自己做。
 
+## pptx-agent（生产级 PPT 生成 CLI）
+
+位置：`examples/pptx_generator/`。7 阶段交互式向导（意图 → 环境 → 研究 → 大纲 → 主题 → 切片 → 编译QA），基于 Rich + questionary 的 TUI，默认通过 Tavily MCP 联网研究。
+
+- 安装：`uv add "io-openagent-sdk[pptx]"`
+- 运行：`pptx-agent new --topic "..."` 或 `pptx-agent resume <slug>`
+- 查看已保存的用户偏好：`pptx-agent memory`
+- 详细 CLI 说明：`docs/pptx-agent-cli.md`
+
 ## 继续阅读
 
 - [开发者指南](developer-guide.md)

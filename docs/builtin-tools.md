@@ -1097,6 +1097,33 @@
 
 ---
 
+## 新增内建（0.4.0）
+
+### `shell_exec`
+
+受限 shell 命令执行工具：`asyncio.create_subprocess_exec` + allowlist + timeout。
+
+配置：
+- `cwd`: 工作目录
+- `env_passthrough`: 允许从父进程继承的环境变量白名单
+- `command_allowlist`: 允许执行的命令 argv[0] 白名单（`None` = 不限）
+- `default_timeout_ms`: 默认超时（毫秒）
+- `capture_bytes`: stdout/stderr 各自上限
+
+调用：`{"command": str | list[str], "cwd"?, "timeout_ms"?, "env"?}` → `{"exit_code", "stdout", "stderr", "timed_out", "truncated"}`。
+
+### `tavily_search`
+
+Tavily REST 搜索工具（Tavily MCP 的 fallback 路径）。API key 从 `TAVILY_API_KEY` 读取。
+
+调用：`{"query": str, "max_results"?, "search_depth"?, "include_domains"?, "exclude_domains"?}` → `{"query", "results", "search_depth"}`。
+
+### `remember_preference`
+
+与 `markdown_memory` 配套的工具：把 `{category, rule, reason}` 推入 `context.state['_pending_memory_writes']`，由 `markdown_memory.writeback` 持久化。
+
+---
+
 ## 相关文档
 
 - [配置参考](configuration.md) — tool 和 tool_executor 的完整 JSON schema

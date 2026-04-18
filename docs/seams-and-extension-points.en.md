@@ -51,7 +51,7 @@ These should generally **not** become SDK seams.
 
 | Seam | Builtin implementations |
 |---|---|
-| `memory` | `buffer` (default), `window_buffer`, `chain`, `mem0` (requires `[mem0]` extra) |
+| `memory` | `buffer` (default), `window_buffer`, `chain`, `mem0` (requires `[mem0]` extra), `markdown_memory` (human-readable file-backed long-term memory; persisted across sessions as `MEMORY.md` index + per-section files) |
 | `pattern` | `react` (default), `plan_execute`, `reflexion` |
 | `tool` | No builtins (apps register their own tools) |
 
@@ -216,6 +216,7 @@ Typical scenarios:
 - Sliding window (`window_buffer`)
 - Chained memory (`chain`: buffer first, then long-term storage)
 - Vector/semantic retrieval (`mem0`, requires `[mem0]` extra)
+- Human-readable file-backed long-term memory (`markdown_memory`: user goals / feedback / decisions / references, persisted across sessions as `MEMORY.md` index + per-section files)
 
 Config example:
 

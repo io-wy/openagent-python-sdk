@@ -147,6 +147,15 @@ The pattern layer uses `FollowupFirstReActPattern` (`examples/research_analyst/a
 - **`HttpRequestTool` does not raise on 5xx**: The tool swallows HTTP error codes internally and returns `{"success": false, "error": "..."}`. `SafeToolExecutor` never sees an exception — so "503 → retry" won't trigger. The example stub instead makes the first two calls **sleep** past the executor timeout so that `ToolTimeoutError` is actually raised, causing the `retry` builtin to take effect.
 - **ReAct allows only one tool call per turn**: The builtin `react` pattern allows a single tool call per turn. Multi-tool orchestration requires your own logic in an app-layer pattern.
 
+## pptx-agent (Production-Grade PPT Generator CLI)
+
+Located at `examples/pptx_generator/`. 7-stage interactive wizard (intent → env → research → outline → theme → slides → compile/QA), built on Rich + questionary, using Tavily MCP for research by default.
+
+- Install: `uv add "io-openagent-sdk[pptx]"`
+- Run: `pptx-agent new --topic "..."` or `pptx-agent resume <slug>`
+- View saved preferences: `pptx-agent memory`
+- CLI guide: `docs/pptx-agent-cli.en.md`
+
 ## Further Reading
 
 - [Developer Guide](developer-guide.md)

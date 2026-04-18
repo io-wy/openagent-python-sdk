@@ -1097,6 +1097,33 @@ A representative `agent.json` using several builtin tools together:
 
 ---
 
+## New builtins (0.4.0)
+
+### `shell_exec`
+
+Allowlist-aware shell command execution: `asyncio.create_subprocess_exec` + timeout + argv[0] allowlist.
+
+Config:
+- `cwd`: working directory
+- `env_passthrough`: allowlist of env var names inherited from parent
+- `command_allowlist`: allowlist of argv[0] values (`None` = unrestricted)
+- `default_timeout_ms`: default timeout (milliseconds)
+- `capture_bytes`: max bytes captured for stdout/stderr
+
+Invoke: `{"command": str | list[str], "cwd"?, "timeout_ms"?, "env"?}` → `{"exit_code", "stdout", "stderr", "timed_out", "truncated"}`.
+
+### `tavily_search`
+
+Tavily REST search tool (fallback for Tavily MCP). API key read from `TAVILY_API_KEY`.
+
+Invoke: `{"query": str, "max_results"?, "search_depth"?, "include_domains"?, "exclude_domains"?}` → `{"query", "results", "search_depth"}`.
+
+### `remember_preference`
+
+Companion to `markdown_memory`: queues `{category, rule, reason}` into `context.state['_pending_memory_writes']`, which `markdown_memory.writeback` drains to disk.
+
+---
+
 ## Related Documentation
 
 - [Configuration Reference](configuration.md) — Full JSON schema for `tool` and `tool_executor`
