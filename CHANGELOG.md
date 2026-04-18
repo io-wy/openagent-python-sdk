@@ -2,16 +2,27 @@
 
 ## [0.4.0] - 2026-04-19
 
-*Draft stub; final entries land in the release commit.*
-
 ### Added
 
-- TBD (shell_exec, tavily_search, markdown_memory, remember_preference, env_doctor, cli/wizard, pptx-agent example — see plan docs/superpowers/plans/2026-04-18-pptx-agent.md).
+- New builtin tool `shell_exec`: allowlist-aware `asyncio.create_subprocess_exec` wrapper with cwd/env/timeout/capture-bytes controls. (`openagents/plugins/builtin/tool/shell_exec.py`)
+- New builtin tool `tavily_search`: REST fallback for Tavily MCP. Reads `TAVILY_API_KEY` from env. (`openagents/plugins/builtin/tool/tavily_search.py`)
+- New builtin memory `markdown_memory`: human-readable file-backed long-term memory (MEMORY.md index + per-section files) for user goals / feedback / decisions / references. Supports `capture / forget / list_entries / inject / writeback / retrieve`. (`openagents/plugins/builtin/memory/markdown_memory.py`)
+- New builtin tool `remember_preference`: companion to `markdown_memory` for agent-side preference capture via `context.state["_pending_memory_writes"]`. (`openagents/plugins/builtin/tool/memory_tools.py`)
+- New utility `openagents.utils.env_doctor`: reusable environment check framework with built-in Python/Node/npm/CLI/EnvVar checks and atomic dotenv persistence. (`openagents/utils/env_doctor.py`)
+- New CLI helper `openagents.cli.wizard`: Rich + questionary `Wizard` component for building multi-step interactive CLIs with Protocol-based `WizardStep`. (`openagents/cli/wizard.py`)
+- New example app `examples/pptx_generator/`: production-grade 7-stage interactive PPT generator CLI (`pptx-agent`). Includes 5 agent patterns (intent / research / outline / theme / slide-generator), 7 wizard steps, 5 PptxGenJS slide templates, and the vendored pptx-generator skill as reference.
 
 ### Changed
 
-- Version bump 0.3.0 → 0.4.0.
-- New `pptx` optional-dependency group.
+- Bumped `version` to 0.4.0.
+- New `pptx` optional-dependency group: `questionary`, `python-dotenv`, `httpx`, plus the `rich` and `mcp` extras.
+- Registered 4 new builtins in `plugins/registry.py` (`markdown_memory`, `shell_exec`, `tavily_search`, `remember_preference`).
+- Added new console script: `pptx-agent = "examples.pptx_generator.cli:main_sync"`.
+
+### Docs
+
+- Added `docs/pptx-agent-cli.md` (Chinese) + `docs/pptx-agent-cli.en.md` (English).
+- Updated `docs/examples.md`, `docs/seams-and-extension-points.md`, `docs/builtin-tools.md` (and their English mirrors).
 
 ## 0.3.0 — 2026-04-16
 
