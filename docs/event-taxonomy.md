@@ -43,7 +43,8 @@ and stateless:
 |---|---|
 | event_name | span name `openagents.<event_name>` (e.g. `openagents.tool.succeeded`) |
 | `payload[key]` = `value` | span attribute `oa.<key>` with the string-coerced or JSON-serialized value |
-| value longer than `max_attribute_chars` (default 4096) | truncated to that length plus the literal suffix `...[truncated]` |
+| value longer than `max_attribute_chars` (default 4096) | truncated to that length plus the literal suffix
+`...[truncated]` |
 | `include_events` filter (fnmatch) | only matching events produce spans; non-matches still go through the inner bus |
 
 Spans are one-shot: nothing happens inside the `with` block beyond setting
