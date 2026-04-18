@@ -1,0 +1,221 @@
+{
+  "version": "1.0",
+  "logging": {
+    "auto_configure": true,
+    "pretty": true,
+    "level": "INFO",
+    "include_prefixes": ["openagents", "examples.pptx_generator"],
+    "redact_keys": ["api_key", "authorization", "token", "secret", "password"]
+  },
+  "events": {
+    "type": "rich_console",
+    "config": {
+      "inner": { "type": "async" },
+      "show_payload": false,
+      "stream": "stderr"
+    }
+  },
+  "runtime": {
+    "type": "default",
+    "config": {
+      "tool_executor": {
+        "type": "safe",
+        "config": { "default_timeout_ms": 30000 }
+      }
+    }
+  },
+  "agents": [
+    {
+      "id": "intent-analyst",
+      "name": "Intent Analyst",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            { "type": "window_buffer", "config": { "window_size": 12 } },
+            {
+              "type": "markdown_memory",
+              "config": { "memory_dir": "~/.config/pptx-agent/memory" }
+            }
+          ]
+        }
+      },
+      "pattern": {
+        "impl": "examples.pptx_generator.app.plugins.IntentAnalystPattern",
+        "config": { "max_steps": 3 }
+      },
+      "context_assembler": {
+        "type": "truncating",
+        "config": { "max_messages": 8 }
+      },
+      "llm": {
+        "provider": "anthropic",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
+        "temperature": 0.3,
+        "max_tokens": 1500,
+        "timeout_ms": 60000
+      },
+      "tools": [
+        { "id": "remember", "type": "remember_preference" }
+      ]
+    },
+    {
+      "id": "research-agent",
+      "name": "Research Agent",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            { "type": "window_buffer", "config": { "window_size": 12 } },
+            {
+              "type": "markdown_memory",
+              "config": { "memory_dir": "~/.config/pptx-agent/memory" }
+            }
+          ]
+        }
+      },
+      "pattern": {
+        "impl": "examples.pptx_generator.app.plugins.ResearchPattern",
+        "config": { "max_steps": 6 }
+      },
+      "context_assembler": {
+        "type": "truncating",
+        "config": { "max_messages": 12 }
+      },
+      "llm": {
+        "provider": "anthropic",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
+        "temperature": 0.2,
+        "max_tokens": 2000,
+        "timeout_ms": 60000
+      },
+      "tools": [
+        {
+          "id": "tavily_mcp",
+          "type": "mcp",
+          "config": {
+            "command": "npx",
+            "args": ["-y", "tavily-mcp@latest"],
+            "env": { "TAVILY_API_KEY": "${TAVILY_API_KEY}" }
+          }
+        },
+        { "id": "tavily_fallback", "type": "tavily_search" },
+        { "id": "http", "type": "http_request" },
+        { "id": "remember", "type": "remember_preference" }
+      ]
+    },
+    {
+      "id": "outliner",
+      "name": "Outliner",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            { "type": "window_buffer", "config": { "window_size": 12 } },
+            {
+              "type": "markdown_memory",
+              "config": { "memory_dir": "~/.config/pptx-agent/memory" }
+            }
+          ]
+        }
+      },
+      "pattern": {
+        "impl": "examples.pptx_generator.app.plugins.OutlinePattern",
+        "config": { "max_steps": 3 }
+      },
+      "context_assembler": {
+        "type": "truncating",
+        "config": { "max_messages": 8 }
+      },
+      "llm": {
+        "provider": "anthropic",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
+        "temperature": 0.4,
+        "max_tokens": 2500,
+        "timeout_ms": 60000
+      },
+      "tools": []
+    },
+    {
+      "id": "theme-selector",
+      "name": "Theme Selector",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            { "type": "window_buffer", "config": { "window_size": 12 } },
+            {
+              "type": "markdown_memory",
+              "config": { "memory_dir": "~/.config/pptx-agent/memory" }
+            }
+          ]
+        }
+      },
+      "pattern": {
+        "impl": "examples.pptx_generator.app.plugins.ThemePattern",
+        "config": { "max_steps": 2 }
+      },
+      "context_assembler": {
+        "type": "truncating",
+        "config": { "max_messages": 6 }
+      },
+      "llm": {
+        "provider": "anthropic",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
+        "temperature": 0.2,
+        "max_tokens": 1000,
+        "timeout_ms": 60000
+      },
+      "tools": []
+    },
+    {
+      "id": "slide-generator",
+      "name": "Slide Generator",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            { "type": "window_buffer", "config": { "window_size": 12 } },
+            {
+              "type": "markdown_memory",
+              "config": { "memory_dir": "~/.config/pptx-agent/memory" }
+            }
+          ]
+        }
+      },
+      "pattern": {
+        "impl": "examples.pptx_generator.app.plugins.SlideGenPattern",
+        "config": { "max_steps": 2, "max_retries": 2 }
+      },
+      "context_assembler": {
+        "type": "truncating",
+        "config": { "max_messages": 6 }
+      },
+      "llm": {
+        "provider": "anthropic",
+        "api_base": "${LLM_API_BASE}",
+        "api_key_env": "LLM_API_KEY",
+        "model": "${LLM_MODEL}",
+        "temperature": 0.3,
+        "max_tokens": 2000,
+        "timeout_ms": 60000
+      },
+      "tools": [
+        { "id": "remember", "type": "remember_preference" }
+      ]
+    }
+  ]
+}
