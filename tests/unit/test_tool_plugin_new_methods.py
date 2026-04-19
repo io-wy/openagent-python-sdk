@@ -120,3 +120,24 @@ def test_before_and_after_invoke_default_no_op():
     tool = _DummyTool()
     asyncio.run(tool.before_invoke({}, context=None))
     asyncio.run(tool.after_invoke({}, context=None, result={"ok": True}))
+
+
+from openagents.interfaces.tool import ToolExecutorPlugin, ToolExecutionResult
+
+
+def test_tool_executor_plugin_default_execute_batch_is_sequential():
+    class _Recording(ToolExecutorPlugin):
+        def __init__(self):
+            super().__init__(config={}, capabilities=set())
+            self.calls: list[str] = []
+
+        async def execute(self, request):
+            self.calls.append(request.tool_id)
+            return ToolExecutionResult(tool_id=request.tool_id, success=True, data=request.tool_id)
+
+    exec_plugin = _Recording()
+    reqs = [ToolExecutionRequest(tool_id=f"t{i}", tool=None) for i in range(3)]
+    results = asyncio.run(exec_plugin.execute_batch(reqs))
+    assert [r.tool_id for r in results] == ["t0", "t1", "t2"]
+    assert [r.success for r in results] == [True, True, True]
+    assert exec_plugin.calls == ["t0", "t1", "t2"]

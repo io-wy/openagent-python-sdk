@@ -140,6 +140,11 @@ class ToolExecutor(Protocol):
         request: ToolExecutionRequest,
     ) -> AsyncIterator[dict[str, Any]]: ...
 
+    async def execute_batch(
+        self,
+        requests: list[ToolExecutionRequest],
+    ) -> list[ToolExecutionResult]: ...
+
 
 class ToolExecutorPlugin(BasePlugin):
     """Optional base class for tool executors."""
@@ -186,6 +191,16 @@ class ToolExecutorPlugin(BasePlugin):
             raise ToolError(msg, tool_name=request.tool_id)
         async for chunk in request.tool.invoke_stream(request.params or {}, request.context):
             yield chunk
+
+    async def execute_batch(
+        self,
+        requests: list[ToolExecutionRequest],
+    ) -> list[ToolExecutionResult]:
+        """Default: sequential. Builtins (ConcurrentBatchExecutor) override for parallelism."""
+        results: list[ToolExecutionResult] = []
+        for req in requests:
+            results.append(await self.execute(req))
+        return results
 
 
 class ToolPlugin(BasePlugin):
