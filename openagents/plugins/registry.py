@@ -76,6 +76,7 @@ from openagents.plugins.builtin.tool.text_ops import (
     RipgrepTool,
     TextTransformTool,
 )
+from openagents.plugins.builtin.tool_executor.concurrent_batch import ConcurrentBatchExecutor
 from openagents.plugins.builtin.tool_executor.filesystem_aware import FilesystemAwareExecutor
 from openagents.plugins.builtin.tool_executor.retry import RetryToolExecutor
 from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
@@ -127,6 +128,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "safe": SafeToolExecutor,
         "retry": RetryToolExecutor,
         "filesystem_aware": FilesystemAwareExecutor,
+        "concurrent_batch": ConcurrentBatchExecutor,
     },
     "context_assembler": {
         "truncating": TruncatingContextAssembler,
