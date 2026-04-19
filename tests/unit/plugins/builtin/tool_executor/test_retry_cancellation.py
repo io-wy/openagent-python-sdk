@@ -41,7 +41,7 @@ async def test_cancel_during_backoff_raises_cancelled_error():
     inner = _AlwaysFailExecutor()
     executor = RetryToolExecutor(
         config={
-            "inner": {"impl": "tests.unit.test_retry_executor_cancellation._AlwaysFailExecutor"},
+            "inner": {"impl": "tests.unit.plugins.builtin.tool_executor.test_retry_cancellation._AlwaysFailExecutor"},
             "max_attempts": 5,
             "initial_delay_ms": 200,
             "backoff_multiplier": 2.0,

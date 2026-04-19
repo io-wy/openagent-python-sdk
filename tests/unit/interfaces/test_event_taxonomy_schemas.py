@@ -14,7 +14,7 @@ import pytest
 
 from openagents.interfaces.event_taxonomy import EVENT_SCHEMAS
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _PACKAGE_ROOT = _REPO_ROOT / "openagents"
 
 

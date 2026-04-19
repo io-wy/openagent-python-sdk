@@ -8,7 +8,7 @@ from pathlib import Path
 from openagents.interfaces.event_taxonomy import EVENT_SCHEMAS
 from openagents.tools.gen_event_doc import render_doc
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _DOC_PATH = _REPO_ROOT / "docs" / "event-taxonomy.md"
 
 

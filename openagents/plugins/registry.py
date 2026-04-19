@@ -51,8 +51,6 @@ from openagents.plugins.builtin.tool.http_ops import HttpRequestTool
 from openagents.plugins.builtin.tool.math_tools import CalcTool, MinMaxTool, PercentageTool
 from openagents.plugins.builtin.tool.mcp_tool import McpTool
 from openagents.plugins.builtin.tool.memory_tools import RememberPreferenceTool
-from openagents.plugins.builtin.tool.shell_exec import ShellExecTool
-from openagents.plugins.builtin.tool.tavily_search import TavilySearchTool
 from openagents.plugins.builtin.tool.network_tools import (
     HostLookupTool,
     QueryParamTool,
@@ -65,11 +63,13 @@ from openagents.plugins.builtin.tool.random_tools import (
     RandomStringTool,
     UUIDTool,
 )
+from openagents.plugins.builtin.tool.shell_exec import ShellExecTool
 from openagents.plugins.builtin.tool.system_ops import (
     ExecuteCommandTool,
     GetEnvTool,
     SetEnvTool,
 )
+from openagents.plugins.builtin.tool.tavily_search import TavilySearchTool
 from openagents.plugins.builtin.tool.text_ops import (
     GrepFilesTool,
     JsonParseTool,

@@ -74,7 +74,7 @@ def test_model_retry_error_carries_validation_error():
 
 def test_errors_module_imports_when_typing_self_is_unavailable():
     module_path = (
-        Path(__file__).resolve().parents[2] / "openagents" / "errors" / "exceptions.py"
+        Path(__file__).resolve().parents[3] / "openagents" / "errors" / "exceptions.py"
     )
     script = textwrap.dedent(
         f"""

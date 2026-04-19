@@ -3,7 +3,7 @@
 Covers the new ``_McpSessionCoordinator`` and ``_SessionMcpPool`` types
 plus the shared-pool branch in ``McpTool._PooledStrategy.call``. No real
 MCP subprocess — the same ``_FakeStdioCM`` / ``_FakeSession`` fakes that
-``tests/unit/test_mcp_tool.py`` relies on are imported here.
+``tests/unit/plugins/builtin/tool/test_mcp_tool.py`` relies on are imported here.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 
 pytest.importorskip("mcp", reason="mcp extra not installed")
 
-from tests.unit.test_mcp_tool import (  # noqa: E402  re-use sibling fakes
+from tests.unit.plugins.builtin.tool.test_mcp_tool import (  # noqa: E402  re-use sibling fakes
     _FakeSession,
     _FakeStdioCM,
     _patch_mcp,

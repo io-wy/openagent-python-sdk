@@ -416,10 +416,10 @@ def test_reasoning_tokens_does_not_collide_with_cached_tokens():
 
 @pytest.mark.asyncio
 async def test_generate_maps_tool_calls_finish_reason_to_tool_use(monkeypatch):
-    from tests.unit.test_openai_compatible_client import (
+    from tests.unit.llm.providers.test_openai_compatible import (
         _FakeResponse as _TFR,
     )
-    from tests.unit.test_openai_compatible_client import (
+    from tests.unit.llm.providers.test_openai_compatible import (
         _install_fake_httpx as _install,
     )
     resp = _TFR(
@@ -460,10 +460,10 @@ async def test_generate_maps_tool_calls_finish_reason_to_tool_use(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_generate_preserves_length_finish_reason_unchanged(monkeypatch):
-    from tests.unit.test_openai_compatible_client import (
+    from tests.unit.llm.providers.test_openai_compatible import (
         _FakeResponse as _TFR,
     )
-    from tests.unit.test_openai_compatible_client import (
+    from tests.unit.llm.providers.test_openai_compatible import (
         _install_fake_httpx as _install,
     )
     resp = _TFR(
