@@ -104,6 +104,48 @@ def test_max_concurrency_bounds_parallelism():
     asyncio.run(run())
 
 
+def test_pattern_call_tool_batch_groups_by_tool_id_and_preserves_order():
+    from openagents.interfaces.pattern import PatternPlugin
+    from openagents.interfaces.run_context import RunContext
+    from openagents.plugins.builtin.runtime.default_runtime import _BoundTool
+
+    class _StubEventBus:
+        def __init__(self):
+            self.emitted: list[tuple[str, dict]] = []
+
+        async def emit(self, name, **payload):
+            self.emitted.append((name, payload))
+
+    async def run():
+        tool_a = _SleepTool(concurrency_safe=True, sleep_s=0.01)
+        tool_b = _SleepTool(concurrency_safe=True, sleep_s=0.01)
+        executor = ConcurrentBatchExecutor(config={})
+        bound_a = _BoundTool(tool_id="a", tool=tool_a, executor=executor)
+        bound_b = _BoundTool(tool_id="b", tool=tool_b, executor=executor)
+
+        pattern = PatternPlugin()
+        event_bus = _StubEventBus()
+        pattern.context = RunContext(
+            agent_id="ag",
+            session_id="se",
+            run_id="r",
+            input_text="",
+            event_bus=event_bus,
+            tools={"a": bound_a, "b": bound_b},
+        )
+        results = await pattern.call_tool_batch([
+            ("a", {"i": 1}),
+            ("b", {"i": 2}),
+            ("a", {"i": 3}),
+        ])
+        assert results == [1, 2, 3]
+        names = [n for n, _ in event_bus.emitted]
+        assert "tool.batch.started" in names
+        assert "tool.batch.completed" in names
+
+    asyncio.run(run())
+
+
 def test_bound_tool_invoke_batch_preserves_order_and_item_ids():
     from openagents.interfaces.tool import BatchItem, BatchResult
     from openagents.plugins.builtin.runtime.default_runtime import _BoundTool

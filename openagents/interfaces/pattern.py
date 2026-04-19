@@ -112,6 +112,73 @@ class PatternPlugin(BasePlugin):
             **payload,
         )
 
+    async def call_tool_batch(
+        self,
+        requests: list[tuple[str, dict[str, Any]]],
+    ) -> list[Any]:
+        """Batch-dispatch N tool calls through the bound-tool layer.
+
+        Groups calls by ``tool_id`` so each tool's ``invoke_batch`` can optimize
+        (MCP bulk calls, multi-file reads, pipelined HTTP). Results are returned
+        in the same order as ``requests``. Emits ``tool.batch.started`` /
+        ``tool.batch.completed`` events.
+        """
+        import time
+        from uuid import uuid4
+
+        from .tool import BatchItem
+
+        ctx = self.context
+        if ctx is None:
+            raise RuntimeError("PatternPlugin.call_tool_batch requires setup() first")
+
+        call_ids: list[str] = [uuid4().hex for _ in requests]
+        batch_id = uuid4().hex
+        await self.emit(
+            "tool.batch.started",
+            batch_id=batch_id,
+            call_ids=list(call_ids),
+            concurrent_count=len(requests),
+        )
+
+        groups: dict[str, list[tuple[int, BatchItem]]] = {}
+        for idx, (tool_id, params) in enumerate(requests):
+            item = BatchItem(params=params or {}, item_id=call_ids[idx])
+            groups.setdefault(tool_id, []).append((idx, item))
+
+        results: list[Any] = [None] * len(requests)
+        successes = 0
+        failures = 0
+        started = time.perf_counter()
+        try:
+            for tool_id, pairs in groups.items():
+                if tool_id not in ctx.tools:
+                    failures += len(pairs)
+                    err = KeyError(f"Tool '{tool_id}' is not registered")
+                    for idx, _ in pairs:
+                        results[idx] = err
+                    continue
+                tool = ctx.tools[tool_id]
+                items = [it for _, it in pairs]
+                batch_results = await tool.invoke_batch(items, ctx)
+                for (idx, _), br in zip(pairs, batch_results):
+                    if br.success:
+                        successes += 1
+                        results[idx] = br.data
+                    else:
+                        failures += 1
+                        results[idx] = br.exception or RuntimeError(br.error or "batch item failed")
+        finally:
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            await self.emit(
+                "tool.batch.completed",
+                batch_id=batch_id,
+                successes=successes,
+                failures=failures,
+                duration_ms=duration_ms,
+            )
+        return results
+
     async def call_tool(
         self,
         tool_id: str,
