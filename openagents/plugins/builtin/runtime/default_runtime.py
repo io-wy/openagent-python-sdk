@@ -360,6 +360,55 @@ class _BoundTool:
                 )
         return out
 
+    async def invoke_background(self, params, context):
+        """Submit a long-running job via the wrapped tool.
+
+        Background jobs bypass the executor cancel/timeout race — their lifecycle
+        is owned by the tool implementation. ``before_invoke`` / ``after_invoke``
+        still run so hook-based instrumentation works.
+        """
+        before = getattr(self._tool, "before_invoke", None)
+        if callable(before):
+            await before(params or {}, context)
+        handle = None
+        exception: BaseException | None = None
+        try:
+            handle = await self._tool.invoke_background(params or {}, context)
+            event_bus = getattr(context, "event_bus", None)
+            if event_bus is not None and callable(getattr(event_bus, "emit", None)):
+                try:
+                    scratch = getattr(context, "scratch", None)
+                    call_id = (
+                        scratch.get("__current_call_id__")
+                        if isinstance(scratch, dict)
+                        else None
+                    )
+                    await event_bus.emit(
+                        "tool.background.submitted",
+                        tool_id=self._tool_id,
+                        call_id=call_id or handle.job_id,
+                        job_id=handle.job_id,
+                    )
+                except Exception:
+                    pass
+            return handle
+        except BaseException as exc:
+            exception = exc
+            raise
+        finally:
+            after = getattr(self._tool, "after_invoke", None)
+            if callable(after):
+                try:
+                    await after(params or {}, context, handle, exception)
+                except Exception:
+                    pass
+
+    async def poll_job(self, handle, context):
+        return await self._tool.poll_job(handle, context)
+
+    async def cancel_job(self, handle, context):
+        return await self._tool.cancel_job(handle, context)
+
     async def fallback(self, error: Exception, params: dict[str, Any], context: Any) -> Any:
         fallback = getattr(self._tool, "fallback", None)
         if callable(fallback):
