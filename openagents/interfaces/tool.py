@@ -39,7 +39,7 @@ class ToolExecutionSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     concurrency_safe: bool = False
-    interrupt_behavior: str = "block"
+    interrupt_behavior: str = "cancel"
     side_effects: str = "unknown"
     approval_mode: str = "inherit"
     default_timeout_ms: int | None = None
