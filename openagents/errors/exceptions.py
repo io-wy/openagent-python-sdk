@@ -225,6 +225,26 @@ class ToolNotFoundError(PermanentToolError):
     """Raised when a requested tool is not registered."""
 
 
+class ToolValidationError(PermanentToolError):
+    """Tool parameters failed schema or semantic validation. Not retryable."""
+
+
+class ToolAuthError(PermanentToolError):
+    """Tool authentication or authorization failed. Not retryable without new creds."""
+
+
+class ToolRateLimitError(RetryableToolError):
+    """Third-party rate-limited us. Retryable with backoff."""
+
+
+class ToolUnavailableError(RetryableToolError):
+    """Transient unreachability (DNS, TCP, 5xx). Retryable."""
+
+
+class ToolCancelledError(PermanentToolError):
+    """Tool invocation was cancelled mid-execution via cancel_event. Not retryable."""
+
+
 class LLMError(OpenAgentsError):
     """Base exception for LLM/provider failures."""
 
