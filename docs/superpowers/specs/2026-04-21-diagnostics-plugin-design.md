@@ -41,10 +41,16 @@ DiagnosticsPlugin（接口）
 | 文件 | 改动内容 |
 |------|---------|
 | `openagents/interfaces/diagnostics.py` | 新增接口 + 数据类 |
-| `openagents/plugins/loader.py` | 注册 `diagnostics` seam 加载逻辑 |
-| `openagents/llm/providers/_http_base.py` | 注入 timing，将 `LLMCallMetrics` 附加到事件 payload |
+| `openagents/interfaces/capabilities.py` | 新增 `DIAG_METRICS`、`DIAG_ERROR`、`DIAG_EXPORT` 常量 |
+| `openagents/interfaces/event_taxonomy.py` | `llm.succeeded` / `llm.failed` schema 新增可选字段 `_metrics` |
+| `openagents/config/schema.py` | 新增 `DiagnosticsRef`；`AppConfig` 添加 `diagnostics` 字段 |
+| `openagents/plugins/loader.py` | 新增 `load_diagnostics_plugin()`；在 `load_runtime_components()` 中调用 |
+| `openagents/plugins/registry.py` | 注册四个内置 diagnostics 实现（null/rich/langfuse/phoenix） |
+| `openagents/llm/providers/anthropic.py` | 流式响应中记录 TTFT，将 `LLMCallMetrics` 附加到 `llm.succeeded` payload |
+| `openagents/llm/providers/openai_compatible.py` | 同上 |
 | `openagents/plugins/builtin/runtime/default_runtime.py` | 在失败和 run 结束时调用 DiagnosticsPlugin |
 | `openagents/interfaces/runtime.py` — `RunUsage` | 新增 `ttft_ms`、`llm_latency_p50_ms`、`llm_latency_p95_ms`、`llm_retry_count` |
+| `pyproject.toml` | 新增 `langfuse` 和 `phoenix` optional extras；更新 `all` extra |
 
 ---
 
@@ -83,27 +89,35 @@ class ErrorSnapshot:
     captured_at: str                # ISO 8601 UTC
 
 class DiagnosticsPlugin:
-    """diagnostics seam 基类，所有方法默认 no-op。"""
+    """diagnostics seam 基类，所有方法默认 no-op。
 
-    DIAG_METRICS = "diagnostics.metrics"
-    DIAG_ERROR   = "diagnostics.error"
-    DIAG_EXPORT  = "diagnostics.export"
+    生命周期：process 级别（全局单例）。内部以 run_id 为 key 隔离各次 run 的数据，
+    on_run_complete() 结束后按 run_id 清理，防止内存泄漏。
+    能力常量定义在 openagents/interfaces/capabilities.py。
+    """
 
-    def record_llm_call(self, metrics: LLMCallMetrics) -> None:
-        """收到一次 LLM 调用的计时数据。"""
+    def record_llm_call(self, run_id: str, metrics: LLMCallMetrics) -> None:
+        """收到一次 LLM 调用的计时数据。以 run_id 归属。"""
 
     def capture_error_snapshot(
-        self, ctx: RunContext, exc: BaseException
+        self,
+        *,
+        run_id: str,
+        agent_id: str,
+        session_id: str,
+        exc: BaseException,
+        ctx: RunContext | None = None,   # 可选：except 块中 RunContext 不一定存在
+        usage: RunUsage | None = None,
     ) -> ErrorSnapshot:
-        """在失败时构造并返回 ErrorSnapshot。"""
+        """在失败时构造并返回 ErrorSnapshot。ctx 为 None 时优雅降级（空调用链/transcript）。"""
 
     def on_run_complete(
         self, result: RunResult, snapshot: ErrorSnapshot | None
     ) -> None:
-        """run 结束时调用（成功或失败）。负责回填 RunUsage 并触发导出。"""
+        """run 结束时调用（成功或失败）。负责回填 RunUsage 并触发导出，之后清理 run_id 数据。"""
 
-    def get_session_metrics(self) -> dict[str, Any]:
-        """返回本次 session 累积的指标摘要（供调试查询）。"""
+    def get_run_metrics(self, run_id: str) -> dict[str, Any]:
+        """返回指定 run 的已收集指标摘要（供调试查询）。"""
         return {}
 ```
 
@@ -115,11 +129,11 @@ class DiagnosticsPlugin:
 
 **触发点 1 — `tool.failed` 事件订阅（实时）**：`DiagnosticsPlugin` 初始化时订阅该事件。工具最终失败时立即记录当前 tool_call_chain 快照，RunContext 仍然有效。
 
-**触发点 2 — `default_runtime.py` 顶层 except 块（运行结束）**：捕获到异常时调用 `capture_error_snapshot(ctx, exc)`，将 `ErrorSnapshot` 附加到 `RunResult.metadata["error_snapshot"]`。
+**触发点 2 — `default_runtime.py` 顶层 except 块（运行结束）**：捕获到异常时调用 `capture_error_snapshot()`。**RunContext 在 except 块中不一定可用**（当异常发生在 RunContext 创建之前，即 checkpoint 加载阶段），因此 `ctx` 参数设计为可选；缺失时 `tool_call_chain` 和 `last_transcript` 降级为空列表。`ErrorSnapshot` 附加到 `RunResult.metadata["error_snapshot"]`。
 
 ### tool_call_chain 维护
 
-`DiagnosticsPlugin` 内部订阅 `tool.called` 事件，按时序累积本次 run 的调用序列（`{tool_id, params, call_id}`）。`on_run_complete()` 结束后清空，下次 run 重新开始。不侵入 `RunContext`。
+`DiagnosticsPlugin` 内部订阅 `tool.called` 事件，以 `run_id` 为 key 按时序累积调用序列（`{tool_id, params, call_id}`）。`on_run_complete()` 结束后按 `run_id` 清理，不侵入 `RunContext`。由于 DiagnosticsPlugin 是 process 级别，多次并发 run 通过 `run_id` 隔离，不会串扰。
 
 ### 数据安全
 
@@ -137,17 +151,19 @@ class DiagnosticsPlugin:
 
 ### 采集位置
 
-`openagents/llm/providers/_http_base.py`，在已有 HTTP 请求封装层包裹 timing，不改动各 provider 业务逻辑。
+**各 provider 的流式/非流式完成方法**（`anthropic.py` 和 `openai_compatible.py`），而非 `_http_base.py` 基类。原因：`llm.succeeded` 事件在 `pattern.py` 中发出（调查确认），`_http_base.py` 本身没有事件发出点；TTFT 需要在实际 yield 第一个 chunk 处计时，只有各 provider 实现才能感知流式响应边界。
 
 ### 采集逻辑
 
 ```python
+# anthropic.py / openai_compatible.py 各自的流式完成方法中
 t_start = time.monotonic()
 first_chunk_time: float | None = None
 
-# 流式：在 yield 第一个 chunk 前记录 TTFT
-if streaming and first_chunk_time is None:
-    first_chunk_time = time.monotonic()
+async for chunk in response_stream:
+    if first_chunk_time is None:
+        first_chunk_time = time.monotonic()   # 首个 chunk：记录 TTFT
+    yield chunk
 
 t_end = time.monotonic()
 
@@ -164,7 +180,7 @@ metrics = LLMCallMetrics(
 
 ### 解耦方式
 
-`_http_base.py` 不持有 `DiagnosticsPlugin` 引用（避免循环依赖）。改为将 `LLMCallMetrics` 附加到 `llm.succeeded` / `llm.failed` 事件 payload 的 `_metrics` 字段。`DiagnosticsPlugin` 订阅这两个事件，从 payload 取出后调用 `record_llm_call()`。
+各 provider 不持有 `DiagnosticsPlugin` 引用（避免循环依赖）。将 `LLMCallMetrics` 作为 `_metrics` 附加到已有的 `llm.succeeded` / `llm.failed` 事件 payload 中（`AsyncEventBus` 的 schema 校验只检查 `required_payload`，不拒绝额外字段，调查已确认）。`DiagnosticsPlugin` 订阅这两个事件，从 payload 取出后调用 `record_llm_call(run_id, metrics)`。
 
 ### RunUsage 扩展
 
@@ -259,15 +275,17 @@ diagnostics:
 ```
 tests/unit/interfaces/test_diagnostics.py
   — LLMCallMetrics / ErrorSnapshot 数据类构造与序列化
+  — capture_error_snapshot 在 ctx=None 时优雅降级（空调用链/transcript）
 
 tests/unit/plugins/builtin/diagnostics/
-  test_null_plugin.py      — 全部方法 no-op，get_session_metrics() 返回空字典
+  test_null_plugin.py      — 全部方法 no-op，get_run_metrics() 返回空字典
   test_rich_plugin.py      — 渲染不报错，stderr 有输出（mock Console）
   test_langfuse_plugin.py  — mock langfuse client，验证 trace 结构和 span 层级
   test_phoenix_plugin.py   — mock OTLP exporter，验证 span tree
 
 tests/unit/observability/test_llm_metrics.py
   — TTFT 计算、p50/p95 聚合逻辑、retry_count 累计、RunUsage 回填
+  — 多 run_id 并发不串扰（验证 process 级别隔离）
 ```
 
 ### 集成测试
@@ -277,9 +295,11 @@ tests/integration/test_diagnostics_integration.py
   — mock LLM + mock DiagnosticsPlugin，验证：
     1. tool.failed 触发 capture_error_snapshot
     2. ErrorSnapshot 正确附加到 RunResult.metadata["error_snapshot"]
-    3. RunUsage 包含 llm_latency_p95_ms
-    4. on_run_complete 被调用且参数类型正确
-    5. NullDiagnosticsPlugin 不破坏现有 run 流程
+    3. ctx=None 时 ErrorSnapshot.tool_call_chain 为空列表（降级验证）
+    4. RunUsage 包含 llm_latency_p95_ms
+    5. on_run_complete 被调用且参数类型正确
+    6. NullDiagnosticsPlugin 不破坏现有 run 流程
+    7. on_run_complete 后 run_id 数据被清理（无内存泄漏）
 ```
 
 ### 覆盖规则
