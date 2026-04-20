@@ -60,11 +60,13 @@ async def start_stub_server(flaky_slow_ms: int = 500) -> AsyncIterator[str]:
     """
     state = _Flaky()
     app = web.Application()
-    app.add_routes([
-        web.get("/pages/topic-a", _topic_a),
-        web.get("/pages/topic-b", _topic_b),
-        web.get("/pages/flaky", _flaky_handler(state, slow_ms=flaky_slow_ms)),
-    ])
+    app.add_routes(
+        [
+            web.get("/pages/topic-a", _topic_a),
+            web.get("/pages/topic-b", _topic_b),
+            web.get("/pages/flaky", _flaky_handler(state, slow_ms=flaky_slow_ms)),
+        ]
+    )
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)

@@ -42,9 +42,7 @@ class SessionCheckpoint(BaseModel):
     state: dict[str, Any]
     transcript_length: int = 0
     artifact_count: int = 0
-    created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SessionCheckpoint":
@@ -169,6 +167,14 @@ class SessionManagerPlugin(BasePlugin):
         if raw is None:
             return None
         return SessionCheckpoint.from_dict(dict(raw))
+
+    async def list_checkpoints(self, session_id: str) -> list[str]:
+        """List checkpoint ids for a session, in insertion order."""
+        state = await self.get_state(session_id)
+        checkpoints = state.get(_CHECKPOINTS_KEY, {})
+        if isinstance(checkpoints, dict):
+            return list(checkpoints.keys())
+        return []
 
     async def close(self) -> None:
         """Cleanup session manager resources."""

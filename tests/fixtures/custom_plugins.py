@@ -35,8 +35,15 @@ class CustomPattern:
         self.context = None
 
     async def setup(
-        self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any],
-        tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any,
+        self,
+        agent_id: str,
+        session_id: str,
+        input_text: str,
+        state: dict[str, Any],
+        tools: dict[str, Any],
+        llm_client: Any,
+        llm_options: Any,
+        event_bus: Any,
     ) -> None:
         """Setup pattern with runtime data."""
         self.context = RunContext[Any](
@@ -107,8 +114,15 @@ class BadPatternNoCapability:
         self.capabilities = set()
 
     async def setup(
-        self, agent_id: str, session_id: str, input_text: str, state: dict[str, Any],
-        tools: dict[str, Any], llm_client: Any, llm_options: Any, event_bus: Any,
+        self,
+        agent_id: str,
+        session_id: str,
+        input_text: str,
+        state: dict[str, Any],
+        tools: dict[str, Any],
+        llm_client: Any,
+        llm_options: Any,
+        event_bus: Any,
     ) -> None:
         pass
 
@@ -151,14 +165,18 @@ class CustomToolExecutor:
 
     async def execute(self, request: Any) -> Any:
         data = await request.tool.invoke(request.params or {}, request.context)
-        return type("Result", (), {
-            "tool_id": request.tool_id,
-            "success": True,
-            "data": {"executor": self.config.get("name", "custom"), "data": data},
-            "error": None,
-            "exception": None,
-            "metadata": {},
-        })()
+        return type(
+            "Result",
+            (),
+            {
+                "tool_id": request.tool_id,
+                "success": True,
+                "data": {"executor": self.config.get("name", "custom"), "data": data},
+                "error": None,
+                "exception": None,
+                "metadata": {},
+            },
+        )()
 
     async def execute_stream(self, request: Any):
         yield {"type": "result", "data": {"executor": self.config.get("name", "custom")}}
@@ -171,11 +189,15 @@ class CustomExecutionPolicy:
 
     async def evaluate(self, request: Any) -> Any:
         allowed = request.tool_id not in self._deny_tools
-        return type("Decision", (), {
-            "allowed": allowed,
-            "reason": "" if allowed else f"Denied {request.tool_id}",
-            "metadata": {},
-        })()
+        return type(
+            "Decision",
+            (),
+            {
+                "allowed": allowed,
+                "reason": "" if allowed else f"Denied {request.tool_id}",
+                "metadata": {},
+            },
+        )()
 
 
 class CustomContextAssembler:

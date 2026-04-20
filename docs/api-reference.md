@@ -429,6 +429,7 @@ answer: Answer = result.final_output
 | `max_tool_calls` | `int \| None` | `None` | 最大工具调用次数 |
 | `max_validation_retries` | `int \| None` | `3` | 结构化输出校验最大重试次数 |
 | `max_cost_usd` | `float \| None` | `None` | 最大成本上限（美元） |
+| `max_resume_attempts` | `int \| None` | `3` | durable run 的最大自动恢复次数（0.4.x 新增） |
 
 ### `RunArtifact`
 
@@ -467,6 +468,51 @@ run 的 usage 聚合：
 - `budget: RunBudget | None`
 - `deps: Any`
 - `output_type: type[BaseModel] | None` — 结构化输出目标类型（0.3.0 新增）
+- `durable: bool = False` — 开启 durable execution：每个 step 边界自动 checkpoint，retryable 错误自动从最近 checkpoint 恢复（0.4.x 新增）
+- `resume_from_checkpoint: str | None = None` — 显式从给定 checkpoint 恢复一个新 run；`DefaultRuntime` 会跳过 `context_assembler.assemble()` 和 `memory.inject()`，直接从 checkpoint 的 transcript / artifacts / usage 重建状态（0.4.x 新增）
+
+### Durable execution
+
+Durable execution 是 runtime 层面的容错机制，不是新 seam。开启方式：
+
+```python
+from openagents.interfaces.runtime import RunBudget, RunRequest
+
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    durable=True,  # 自动 checkpoint + 自动 resume
+    budget=RunBudget(max_resume_attempts=3),
+)
+result = await runtime.run_detailed(request=request)
+```
+
+**checkpoint 粒度**：每次成功的 `llm.succeeded` / `tool.succeeded` 事件后写一个 checkpoint，`checkpoint_id = f"{run_id}:step:{n}"`。批量工具调用（`call_tool_batch`）整体算一个 step。
+
+**retryable 错误分类**：`LLMRateLimitError`、`LLMConnectionError`、`ToolRateLimitError`、`ToolUnavailableError` 会触发自动 resume；其余错误（`PermanentToolError`、`ConfigError`、`BudgetExhausted`、`OutputValidationError`）直接终止 run。
+
+**显式恢复**：若进程崩溃，可以用持久化的 session backend（`jsonl_file` / `sqlite`）跨进程恢复：
+
+```python
+# 在新进程里
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    resume_from_checkpoint="abc123:step:7",  # 从第 7 步继续
+)
+```
+
+**事件**：durable execution 会发出五个新事件：
+- `run.checkpoint_saved` — 每次成功 checkpoint 后
+- `run.checkpoint_failed` — create_checkpoint 抛错（run 继续，不失败）
+- `run.resume_attempted` — 捕获 retryable 错误后准备 resume
+- `run.resume_succeeded` — resume 状态重建完成
+- `run.resume_exhausted` — 达到 `max_resume_attempts` 上限
+- `run.durable_idempotency_warning` — 工具声明 `durable_idempotent=False` 时一次性提示（每 (run, tool) 只发一次）
+
+**ToolPlugin.durable_idempotent**（类属性，默认 `True`）：写文件、发 HTTP、shell 子进程等有副作用的工具应声明为 `False`，在 durable run 中被调用时 runtime 会发出一次性警告。内建工具中 `WriteFileTool`、`DeleteFileTool`、`HttpRequestTool`、`ShellExecTool`、`ExecuteCommandTool`、`SetEnvTool` 已默认标为 `False`。
 
 ### `RunResult[T]`
 

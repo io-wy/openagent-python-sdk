@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from openagents.errors.exceptions import ToolCancelledError, ToolTimeoutError
 from openagents.interfaces.tool import (
     ToolExecutionRequest,
@@ -87,9 +85,7 @@ def test_interrupt_behavior_block_waits_for_natural_completion():
         executor = SafeToolExecutor(config={"default_timeout_ms": 5000})
         ev = asyncio.Event()
         spec = ToolExecutionSpec(interrupt_behavior="block")
-        req = ToolExecutionRequest(
-            tool_id="blocking", tool=tool, execution_spec=spec, cancel_event=ev
-        )
+        req = ToolExecutionRequest(tool_id="blocking", tool=tool, execution_spec=spec, cancel_event=ev)
 
         async def fire():
             await asyncio.sleep(0.05)
@@ -107,8 +103,8 @@ def test_interrupt_behavior_block_waits_for_natural_completion():
 def test_cancel_event_is_injected_into_bound_tool_request():
     """When ctx.scratch['__cancel_event__'] is populated, _BoundTool.invoke must
     thread it into the ToolExecutionRequest so SafeToolExecutor can race on it."""
-    from openagents.plugins.builtin.runtime.default_runtime import _BoundTool
     from openagents.interfaces.tool import ToolExecutionResult
+    from openagents.plugins.builtin.runtime.default_runtime import _BoundTool
 
     class _CapturingExecutor:
         def __init__(self):

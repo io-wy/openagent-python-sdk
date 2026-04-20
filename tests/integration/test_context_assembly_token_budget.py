@@ -16,12 +16,8 @@ def _payload(assembler_type: str, max_tokens: int = 120) -> dict:
             {
                 "id": "assistant",
                 "name": "context-budget-e2e",
-                "memory": {
-                    "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                },
-                "pattern": {
-                    "impl": "tests.fixtures.runtime_plugins.ContextAwarePattern"
-                },
+                "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
+                "pattern": {"impl": "tests.fixtures.runtime_plugins.ContextAwarePattern"},
                 "context_assembler": {
                     "type": assembler_type,
                     "config": {
@@ -44,9 +40,7 @@ def _payload(assembler_type: str, max_tokens: int = 120) -> dict:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "assembler", ["head_tail", "sliding_window", "importance_weighted"]
-)
+@pytest.mark.parametrize("assembler", ["head_tail", "sliding_window", "importance_weighted"])
 async def test_token_budget_assembler_end_to_end(assembler):
     runtime = Runtime(load_config_dict(_payload(assembler)))
     for idx in range(10):

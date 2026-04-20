@@ -54,9 +54,7 @@ def test_list_plugins_json_roundtrip(capsys):
     assert code == 0
     captured = capsys.readouterr()
     rows = json.loads(captured.out)
-    assert any(
-        r["seam"] == "context_assembler" and r["name"] == "truncating" for r in rows
-    )
+    assert any(r["seam"] == "context_assembler" and r["name"] == "truncating" for r in rows)
 
 
 def test_validate_accepts_minimal_config(tmp_path, capsys):
@@ -69,9 +67,7 @@ def test_validate_accepts_minimal_config(tmp_path, capsys):
                     {
                         "id": "a",
                         "name": "x",
-                        "memory": {
-                            "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                        },
+                        "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                         "pattern": {"type": "react"},
                         "llm": {"provider": "mock", "model": "m"},
                         "tools": [],
@@ -111,9 +107,7 @@ def test_validate_strict_flags_unresolved_plugin(tmp_path, capsys):
                     {
                         "id": "a",
                         "name": "x",
-                        "memory": {
-                            "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                        },
+                        "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                         "pattern": {"type": "react"},
                         "llm": {"provider": "mock", "model": "m"},
                         "tools": [],

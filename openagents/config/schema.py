@@ -169,9 +169,7 @@ class LLMOptions(BaseModel):
             if not isinstance(key, str) or not key.strip():
                 raise ValueError("'llm.extra_headers' keys must be non-empty strings")
             if not isinstance(val, str):
-                raise ValueError(
-                    f"'llm.extra_headers[{key!r}]' must be a string"
-                )
+                raise ValueError(f"'llm.extra_headers[{key!r}]' must be a string")
             cleaned[key] = val
         return cleaned or None
 
@@ -200,13 +198,9 @@ class LLMOptions(BaseModel):
     def _validate_llm_rules(self) -> "LLMOptions":
         allowed = {"anthropic", "mock", "openai_compatible"}
         if self.provider not in allowed:
-            raise ConfigValidationError(
-                f"'llm.provider' must be one of {sorted(allowed)}"
-            )
+            raise ConfigValidationError(f"'llm.provider' must be one of {sorted(allowed)}")
         if self.provider == "openai_compatible" and not self.api_base:
-            raise ConfigValidationError(
-                "'llm.api_base' is required for provider 'openai_compatible'"
-            )
+            raise ConfigValidationError("'llm.api_base' is required for provider 'openai_compatible'")
         if self.temperature is not None and not 0.0 <= self.temperature <= 2.0:
             raise ConfigValidationError("'llm.temperature' must be between 0.0 and 2.0")
         return self

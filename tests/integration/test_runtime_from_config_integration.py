@@ -46,9 +46,7 @@ async def test_runtime_from_custom_plugin_config_file(tmp_path):
                 "memory": {"impl": "tests.fixtures.custom_plugins.CustomMemory"},
                 "pattern": {"impl": "tests.fixtures.custom_plugins.CustomPattern"},
                 "llm": {"provider": "mock"},
-                "tools": [
-                    {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
-                ],
+                "tools": [{"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}],
                 "runtime": {"max_steps": 8, "step_timeout_ms": 1000},
             }
         ],

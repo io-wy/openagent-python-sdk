@@ -65,9 +65,7 @@ def test_async_event_bus_warns_on_unknown_config_keys(caplog):
         AsyncEventBus({"totally_unknown": 1})
 
     assert any(
-        "unknown config keys" in r.message
-        and "AsyncEventBus" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "AsyncEventBus" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )
 
@@ -90,9 +88,7 @@ async def test_config_watcher_detects_file_changes_and_can_be_stopped(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_hotreload_server_falls_back_without_aiohttp_and_stops_cleanly(
-    tmp_path, monkeypatch
-):
+async def test_hotreload_server_falls_back_without_aiohttp_and_stops_cleanly(tmp_path, monkeypatch):
     # Force the ``from aiohttp import web`` inside HotReloadServer.start
     # to raise ImportError so we exercise the fallback (CLI-mode) branch
     # rather than starting an actual HTTP server.

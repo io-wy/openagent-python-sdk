@@ -95,10 +95,7 @@ class IntentAnalystPattern(PatternPlugin):
         priors = "\n".join(f"- {e.get('rule', '')}" for e in (goals + feedback))
         user_prompt = ctx.input_text or ""
 
-        user_content = (
-            f"Known user preferences:\n{priors or '(none)'}\n\n"
-            f"User request:\n{user_prompt}"
-        )
+        user_content = f"Known user preferences:\n{priors or '(none)'}\n\nUser request:\n{user_prompt}"
 
         last_raw = ""
         for step in range(1, self.max_steps + 1):
@@ -115,9 +112,7 @@ class IntentAnalystPattern(PatternPlugin):
             user_content = user_content + (
                 f"\n\nPrevious attempt failed ({reason}). Raw output was:\n{last_raw}\nTry again with valid output."
             )
-        raise RuntimeError(
-            f"IntentAnalystPattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
-        )
+        raise RuntimeError(f"IntentAnalystPattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}")
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +186,7 @@ class ResearchPattern(PatternPlugin):
             user_content = user_content + (
                 f"\n\nPrevious attempt failed ({reason}). Raw output was:\n{last_raw}\nRetry with valid JSON."
             )
-        raise RuntimeError(
-            f"ResearchPattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
-        )
+        raise RuntimeError(f"ResearchPattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}")
 
     async def _search_one(self, query: str) -> dict[str, Any]:
         """MCP first, REST fallback on any exception.
@@ -270,9 +263,7 @@ class OutlinePattern(PatternPlugin):
             user_content = user_content + (
                 f"\n\nPrevious attempt failed ({reason}). Raw output was:\n{last_raw}\nRetry with valid JSON."
             )
-        raise RuntimeError(
-            f"OutlinePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
-        )
+        raise RuntimeError(f"OutlinePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}")
 
 
 # ---------------------------------------------------------------------------
@@ -314,12 +305,15 @@ class ThemePattern(PatternPlugin):
 
         intent = ctx.state.get("intent") or {}
         decisions = ctx.memory_view.get("decisions", []) if hasattr(ctx, "memory_view") else []
-        user_content = json.dumps({
-            "intent": intent,
-            "palette_catalog": PALETTES,
-            "font_catalog": FONT_PAIRINGS,
-            "prior_decisions": [e.get("rule") for e in decisions],
-        }, ensure_ascii=False)
+        user_content = json.dumps(
+            {
+                "intent": intent,
+                "palette_catalog": PALETTES,
+                "font_catalog": FONT_PAIRINGS,
+                "prior_decisions": [e.get("rule") for e in decisions],
+            },
+            ensure_ascii=False,
+        )
 
         last_raw = ""
         for _step in range(1, self.max_steps + 1):
@@ -332,9 +326,7 @@ class ThemePattern(PatternPlugin):
             parsed = _try_parse_json_dict(last_raw)
             entries = parsed.get("candidates") if parsed else None
             if not isinstance(entries, list):
-                user_content = user_content + (
-                    f"\n\nPrevious output lacked a 'candidates' list:\n{last_raw}\nRetry."
-                )
+                user_content = user_content + (f"\n\nPrevious output lacked a 'candidates' list:\n{last_raw}\nRetry.")
                 continue
             candidates: list[ThemeSelection] = []
             failures: list[str] = []
@@ -371,9 +363,7 @@ class ThemePattern(PatternPlugin):
                 continue
             ctx.state["theme_candidates"] = bundle.model_dump(mode="json")
             return bundle
-        raise RuntimeError(
-            f"ThemePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}"
-        )
+        raise RuntimeError(f"ThemePattern exhausted {self.max_steps} retries; last raw: {last_raw[:200]}")
 
 
 # ---------------------------------------------------------------------------

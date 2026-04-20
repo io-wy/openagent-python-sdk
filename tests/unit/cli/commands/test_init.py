@@ -77,13 +77,78 @@ def test_init_placeholder_substitution_happens(workdir):
     assert "anthropic" in readme
 
 
+def test_pptx_wizard_scaffold_reflects_real_example(workdir):
+    """``init --template pptx-wizard`` emits a multi-agent slice of the real pptx example.
+
+    Per `builtin-cli` spec delta, the scaffold must:
+      - declare ≥ 2 agents (intent-analyst + slide-generator)
+      - use chain memory with markdown_memory
+      - reference only builtin plugin types (no impl: paths)
+      - load cleanly via ``openagents.config.loader.load_config``
+      - README must point at ``examples/pptx_generator/``
+    """
+    from openagents.config.loader import load_config
+
+    proj = workdir / "pptx_scaffold_check"
+    code = cli_main(
+        [
+            "init",
+            str(proj),
+            "--template",
+            "pptx-wizard",
+            "--provider",
+            "mock",
+            "--yes",
+        ]
+    )
+    assert code == 0
+
+    agent = proj / "agent.json"
+    data = json.loads(agent.read_text(encoding="utf-8"))
+    agents = data.get("agents") or []
+    assert len(agents) >= 2, "pptx-wizard scaffold must declare at least 2 agents"
+    ids = {a.get("id") for a in agents}
+    assert {"intent-analyst", "slide-generator"}.issubset(ids)
+
+    for agent_cfg in agents:
+        memory = agent_cfg.get("memory") or {}
+        assert memory.get("type") == "chain", "each agent must use chain memory"
+        inner = (memory.get("config") or {}).get("memories") or []
+        assert any(m.get("type") == "markdown_memory" for m in inner), (
+            "chain memory must include a markdown_memory layer for cross-session recall"
+        )
+        assert any(m.get("type") == "window_buffer" for m in inner), (
+            "chain memory must include a window_buffer layer for recent turns"
+        )
+
+        # Reject any impl: reference that would pull in non-openagents code.
+        def _walk(obj):
+            if isinstance(obj, dict):
+                if "impl" in obj:
+                    assert obj["impl"].startswith("openagents."), (
+                        f"scaffold must not reference non-builtin impl: {obj['impl']}"
+                    )
+                for v in obj.values():
+                    _walk(v)
+            elif isinstance(obj, list):
+                for v in obj:
+                    _walk(v)
+
+        _walk(agent_cfg)
+
+    # Full load via load_config must succeed — placeholders resolved, structure valid.
+    cfg = load_config(agent)
+    assert len(cfg.agents) >= 2
+
+    readme = (proj / "README.md").read_text(encoding="utf-8")
+    assert "examples/pptx_generator" in readme, "pptx-wizard scaffold README must point users at the full example"
+
+
 def test_init_refuses_non_empty_directory_without_force(workdir, capsys):
     proj = workdir / "existing"
     proj.mkdir()
     (proj / "file.txt").write_text("existing content")
-    code = cli_main(
-        ["init", str(proj), "--template", "minimal", "--provider", "mock", "--yes"]
-    )
+    code = cli_main(["init", str(proj), "--template", "minimal", "--provider", "mock", "--yes"])
     assert code == 1
     assert "not empty" in capsys.readouterr().err
 
@@ -113,9 +178,7 @@ def test_init_force_overwrites_existing_directory(workdir):
 def test_init_refuses_when_path_is_a_file(workdir, capsys):
     conflict = workdir / "conflict.txt"
     conflict.write_text("not a dir", encoding="utf-8")
-    code = cli_main(
-        ["init", str(conflict), "--template", "minimal", "--provider", "mock", "--yes"]
-    )
+    code = cli_main(["init", str(conflict), "--template", "minimal", "--provider", "mock", "--yes"])
     assert code == 1
     assert "not a directory" in capsys.readouterr().err
 
@@ -123,9 +186,7 @@ def test_init_refuses_when_path_is_a_file(workdir, capsys):
 def test_init_empty_existing_directory_is_allowed(workdir):
     proj = workdir / "empty_existing"
     proj.mkdir()
-    code = cli_main(
-        ["init", str(proj), "--template", "minimal", "--provider", "mock", "--yes"]
-    )
+    code = cli_main(["init", str(proj), "--template", "minimal", "--provider", "mock", "--yes"])
     assert code == 0
 
 
@@ -146,9 +207,7 @@ def test_default_api_key_env_helper():
 
 def test_render_substitutes_multiple_occurrences():
     text = "Project {{ project_name }} uses {{ provider }} via {{ project_name }}"
-    out = init_cmd._render(
-        text, {"project_name": "demo", "provider": "mock"}
-    )
+    out = init_cmd._render(text, {"project_name": "demo", "provider": "mock"})
     assert out == "Project demo uses mock via demo"
 
 
@@ -158,8 +217,6 @@ def test_init_interactive_fallback_when_questionary_missing(workdir, monkeypatch
     monkeypatch.setattr(init_cmd, "require_or_hint", lambda name: None)
     proj = workdir / "interactive_fallback"
     # Invoke directly without --yes.
-    code = cli_main(
-        ["init", str(proj), "--template", "minimal", "--provider", "mock"]
-    )
+    code = cli_main(["init", str(proj), "--template", "minimal", "--provider", "mock"])
     assert code == 0
     assert (proj / "agent.json").exists()

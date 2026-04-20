@@ -50,15 +50,11 @@ def configure(config: LoggingConfig | None = None) -> None:
         _OVERRIDDEN_LOGGERS.add(name)
 
     handler = _build_handler(config)
-    handler.addFilter(
-        PrefixFilter(include=config.include_prefixes, exclude=config.exclude_prefixes)
-    )
+    handler.addFilter(PrefixFilter(include=config.include_prefixes, exclude=config.exclude_prefixes))
     if config.per_logger_levels:
         handler.addFilter(LevelOverrideFilter(config.per_logger_levels))
     if config.redact_keys:
-        handler.addFilter(
-            RedactFilter(keys=config.redact_keys, max_value_length=config.max_value_length)
-        )
+        handler.addFilter(RedactFilter(keys=config.redact_keys, max_value_length=config.max_value_length))
     root.addHandler(handler)
 
 
@@ -89,9 +85,7 @@ def reset_logging() -> None:
 
 def _warn_on_foreign_loggers(config: LoggingConfig) -> None:
     foreign = [
-        name
-        for name in config.per_logger_levels
-        if name != _LOGGER_ROOT and not name.startswith(_LOGGER_ROOT + ".")
+        name for name in config.per_logger_levels if name != _LOGGER_ROOT and not name.startswith(_LOGGER_ROOT + ".")
     ]
     for name in foreign:
         _OBS_LOGGER.warning(
@@ -113,9 +107,7 @@ def _build_handler(config: LoggingConfig) -> logging.Handler:
 
     stream = sys.stderr if config.stream == "stderr" else sys.stdout
     handler = logging.StreamHandler(stream=stream)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)-7s %(name)s - %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s - %(message)s"))
     handler._openagents_installed = True  # type: ignore[attr-defined]
     return handler
 

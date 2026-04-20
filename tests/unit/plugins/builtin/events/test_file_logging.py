@@ -123,11 +123,13 @@ async def test_max_history_forwarded_to_inner(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_explicit_inner_max_history_wins(tmp_path: Path):
     """If the inner config explicitly sets max_history, wrapper does not override."""
-    bus = FileLoggingEventBus(config={
-        "inner": {"type": "async", "config": {"max_history": 2}},
-        "log_path": str(tmp_path / "events.ndjson"),
-        "max_history": 100,
-    })
+    bus = FileLoggingEventBus(
+        config={
+            "inner": {"type": "async", "config": {"max_history": 2}},
+            "log_path": str(tmp_path / "events.ndjson"),
+            "max_history": 100,
+        }
+    )
     for i in range(4):
         await bus.emit("tick", i=i)
     history = await bus.get_history()

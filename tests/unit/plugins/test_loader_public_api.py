@@ -38,9 +38,9 @@ def test_deprecated_alias_emits_deprecation_warning_and_returns_same_instance():
 
     assert type(plugin).__name__ == "BufferMemory"
     deprecations = [w for w in recorded if issubclass(w.category, DeprecationWarning)]
-    assert any(
-        "_load_plugin is deprecated" in str(w.message) for w in deprecations
-    ), f"Expected DeprecationWarning, got: {[str(w.message) for w in recorded]}"
+    assert any("_load_plugin is deprecated" in str(w.message) for w in deprecations), (
+        f"Expected DeprecationWarning, got: {[str(w.message) for w in recorded]}"
+    )
 
 
 def test_deprecated_alias_and_public_api_produce_equivalent_classes():

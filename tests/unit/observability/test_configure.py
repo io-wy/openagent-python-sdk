@@ -59,9 +59,7 @@ class TestIdempotence:
         assert root.propagate is True
 
     def test_reset_restores_per_logger_levels(self) -> None:
-        configure(
-            LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"})
-        )
+        configure(LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"}))
         assert logging.getLogger("openagents.llm").level == logging.DEBUG
         reset_logging()
         assert logging.getLogger("openagents.llm").level == logging.NOTSET
@@ -76,9 +74,7 @@ class TestPerLoggerLevelsEndToEnd:
     """
 
     def test_per_logger_debug_bypasses_root_info_gate(self) -> None:
-        configure(
-            LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"})
-        )
+        configure(LoggingConfig(level="INFO", per_logger_levels={"openagents.llm": "DEBUG"}))
         captured: list[logging.LogRecord] = []
 
         class _Probe(logging.Handler):
@@ -106,17 +102,9 @@ class TestNamespaceIsolation:
         root_after = list(logging.getLogger().handlers)
         assert root_before == root_after
 
-    def test_ignores_per_logger_levels_outside_openagents(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        configure(
-            LoggingConfig(
-                per_logger_levels={"openagents.llm": "DEBUG", "third_party": "DEBUG"}
-            )
-        )
-        assert any(
-            "third_party" in rec.message and "ignored" in rec.message for rec in caplog.records
-        )
+    def test_ignores_per_logger_levels_outside_openagents(self, caplog: pytest.LogCaptureFixture) -> None:
+        configure(LoggingConfig(per_logger_levels={"openagents.llm": "DEBUG", "third_party": "DEBUG"}))
+        assert any("third_party" in rec.message and "ignored" in rec.message for rec in caplog.records)
 
 
 class TestPrettyGuard:

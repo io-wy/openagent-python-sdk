@@ -84,8 +84,7 @@ complete -F _openagents_completion openagents
 
 def _zsh_script(root_flags: list[str], subcommands: list[str], sub_flags: dict[str, list[str]]) -> str:
     cmd_lines = "\n".join(
-        f"      {name}) _arguments {' '.join(repr(f) for f in flags)} ;;"
-        for name, flags in sub_flags.items()
+        f"      {name}) _arguments {' '.join(repr(f) for f in flags)} ;;" for name, flags in sub_flags.items()
     )
     sub_list = " ".join(subcommands)
     root_list = " ".join(root_flags)
@@ -111,9 +110,7 @@ compdef _openagents openagents
 
 def _fish_script(root_flags: list[str], subcommands: list[str], sub_flags: dict[str, list[str]]) -> str:
     lines: list[str] = ["# fish completion for openagents"]
-    lines.append(
-        f"complete -c openagents -n '__fish_use_subcommand' -a '{' '.join(subcommands)}'"
-    )
+    lines.append(f"complete -c openagents -n '__fish_use_subcommand' -a '{' '.join(subcommands)}'")
     for flag in root_flags:
         lines.append(f"complete -c openagents -n '__fish_use_subcommand' -l {flag.lstrip('-')}")
     for name, flags in sub_flags.items():
@@ -122,9 +119,7 @@ def _fish_script(root_flags: list[str], subcommands: list[str], sub_flags: dict[
             if not name_clean:
                 continue
             flag_kind = "l" if flag.startswith("--") else "s"
-            lines.append(
-                f"complete -c openagents -n '__fish_seen_subcommand_from {name}' -{flag_kind} {name_clean}"
-            )
+            lines.append(f"complete -c openagents -n '__fish_seen_subcommand_from {name}' -{flag_kind} {name_clean}")
     return "\n".join(lines) + "\n"
 
 

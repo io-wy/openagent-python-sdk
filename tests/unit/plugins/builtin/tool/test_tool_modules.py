@@ -347,9 +347,7 @@ def test_safe_tool_executor_warns_on_unknown_config_keys(caplog):
 
     assert executor._default_timeout_ms == 100
     assert any(
-        "unknown config keys" in r.message
-        and "SafeToolExecutor" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "SafeToolExecutor" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )
 
@@ -362,8 +360,6 @@ def test_http_request_tool_warns_on_unknown_config_keys(caplog):
 
     assert tool._timeout == 60
     assert any(
-        "unknown config keys" in r.message
-        and "HttpRequestTool" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "HttpRequestTool" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )

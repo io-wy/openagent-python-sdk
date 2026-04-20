@@ -71,4 +71,3 @@ class BasePlugin:
             config=config or {},
             capabilities=normalize_capabilities(capabilities),
         )
-

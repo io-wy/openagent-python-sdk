@@ -66,9 +66,7 @@ def create_llm_client(llm: LLMOptions | None) -> LLMClient | None:
             reasoning_model=llm.reasoning_model,
             seed=seed if isinstance(seed, int) else None,
             top_p=float(top_p) if isinstance(top_p, (int, float)) else None,
-            parallel_tool_calls=(
-                bool(parallel_tool_calls) if isinstance(parallel_tool_calls, bool) else None
-            ),
+            parallel_tool_calls=(bool(parallel_tool_calls) if isinstance(parallel_tool_calls, bool) else None),
             api_style=llm.openai_api_style,
         )
 
@@ -86,4 +84,3 @@ def build_llm_client_from_options(options: LLMOptions) -> LLMClient:
     if client is None:  # pragma: no cover - defensive; options is required
         raise ConfigError("LLMOptions is required to build an LLM client")
     return client
-

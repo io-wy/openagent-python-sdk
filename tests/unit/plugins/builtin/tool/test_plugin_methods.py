@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from openagents.interfaces.tool import (
@@ -10,6 +12,10 @@ from openagents.interfaces.tool import (
     JobHandle,
     JobStatus,
     ToolExecutionRequest,
+    ToolExecutionResult,
+    ToolExecutionSpec,
+    ToolExecutorPlugin,
+    ToolPlugin,
 )
 
 
@@ -40,6 +46,7 @@ def test_job_status_optional_progress():
 
 def test_tool_execution_request_accepts_cancel_event():
     import asyncio
+
     ev = asyncio.Event()
     req = ToolExecutionRequest(tool_id="t", tool=None, cancel_event=ev)
     assert req.cancel_event is ev
@@ -48,11 +55,6 @@ def test_tool_execution_request_accepts_cancel_event():
 def test_tool_execution_request_cancel_event_defaults_none():
     req = ToolExecutionRequest(tool_id="t", tool=None)
     assert req.cancel_event is None
-
-
-import asyncio
-
-from openagents.interfaces.tool import ToolPlugin, ToolExecutionSpec
 
 
 class _DummyTool(ToolPlugin):
@@ -120,9 +122,6 @@ def test_before_and_after_invoke_default_no_op():
     tool = _DummyTool()
     asyncio.run(tool.before_invoke({}, context=None))
     asyncio.run(tool.after_invoke({}, context=None, result={"ok": True}))
-
-
-from openagents.interfaces.tool import ToolExecutorPlugin, ToolExecutionResult
 
 
 def test_tool_executor_plugin_default_execute_batch_is_sequential():

@@ -70,6 +70,8 @@ class WriteFileTool(ToolPlugin):
     Depends on: local filesystem.
     """
 
+    durable_idempotent = False
+
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
 
@@ -138,6 +140,8 @@ class DeleteFileTool(ToolPlugin):
     Depends on: local filesystem.
     """
 
+    durable_idempotent = False
+
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
 
@@ -159,6 +163,7 @@ class DeleteFileTool(ToolPlugin):
                 return {"path": path, "type": "file", "deleted": True}
             elif p.is_dir():
                 import shutil
+
                 shutil.rmtree(p)
                 return {"path": path, "type": "directory", "deleted": True}
         except Exception as e:

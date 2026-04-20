@@ -123,9 +123,13 @@ def test_load_agent_plugins_full_path():
 def test_load_agent_plugins_validation_error():
     """Test loading agent plugins with invalid config raises ConfigError."""
     # Config with invalid memory impl (not existing path)
-    config = load_config_dict(_config_with_agent({
-        "memory": {"impl": "nonexistent.module.Class"},
-    }))
+    config = load_config_dict(
+        _config_with_agent(
+            {
+                "memory": {"impl": "nonexistent.module.Class"},
+            }
+        )
+    )
     agent = config.agents[0]
 
     with pytest.raises(PluginLoadError):
@@ -253,11 +257,9 @@ def test_load_pattern_plugin_missing_capability():
 
 def test_load_agent_plugins_with_tools():
     """Test loading agent with tools."""
-    config = load_config_dict(_config_with_agent({
-        "tools": [
-            {"id": "calc", "impl": "openagents.plugins.builtin.tool.math_tools.CalcTool"}
-        ]
-    }))
+    config = load_config_dict(
+        _config_with_agent({"tools": [{"id": "calc", "impl": "openagents.plugins.builtin.tool.math_tools.CalcTool"}]})
+    )
     agent = config.agents[0]
 
     plugins = load_agent_plugins(agent)

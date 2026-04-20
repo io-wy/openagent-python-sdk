@@ -35,9 +35,7 @@ async def test_resolver_resolves_when_rule_matches(tmp_path):
             "requires_history": True,
         }
     ]
-    pattern = FollowupFirstReActPattern(
-        config={"rules_file": str(_write_rules(tmp_path, rules))}
-    )
+    pattern = FollowupFirstReActPattern(config={"rules_file": str(_write_rules(tmp_path, rules))})
     ctx = _ctx(
         input_text="which tools were used",
         memory_view={
@@ -68,9 +66,7 @@ async def test_resolver_none_when_no_rule_matches(tmp_path):
             "requires_history": False,
         }
     ]
-    pattern = FollowupFirstReActPattern(
-        config={"rules_file": str(_write_rules(tmp_path, rules))}
-    )
+    pattern = FollowupFirstReActPattern(config={"rules_file": str(_write_rules(tmp_path, rules))})
     ctx = _ctx(input_text="hello world")
     res = await pattern.resolve_followup(context=ctx)
     assert res is None
@@ -86,9 +82,7 @@ async def test_resolver_abstains_when_history_required_but_missing(tmp_path):
             "requires_history": True,
         }
     ]
-    pattern = FollowupFirstReActPattern(
-        config={"rules_file": str(_write_rules(tmp_path, rules))}
-    )
+    pattern = FollowupFirstReActPattern(config={"rules_file": str(_write_rules(tmp_path, rules))})
     ctx = _ctx(input_text="followup question", memory_view={})
     res = await pattern.resolve_followup(context=ctx)
     assert res is not None

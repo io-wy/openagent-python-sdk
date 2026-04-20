@@ -8,7 +8,6 @@ MCP subprocess — the same ``_FakeStdioCM`` / ``_FakeSession`` fakes that
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import patch
 
@@ -18,10 +17,8 @@ pytest.importorskip("mcp", reason="mcp extra not installed")
 
 from tests.unit.plugins.builtin.tool.test_mcp_tool import (  # noqa: E402  re-use sibling fakes
     _FakeSession,
-    _FakeStdioCM,
     _patch_mcp,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,9 +33,7 @@ class _ScratchCtx:
 
 
 def _result(payload: str = "ok"):
-    return type(
-        "R", (), {"content": [type("C", (), {"text": payload})()], "isError": False}
-    )()
+    return type("R", (), {"content": [type("C", (), {"text": payload})()], "isError": False})()
 
 
 # ---------------------------------------------------------------------------
@@ -61,12 +56,8 @@ async def test_two_tools_same_identifier_share_one_subprocess():
         pool = _SessionMcpPool("sess-A")
         ctx = _ScratchCtx({"__mcp_session_pool__": pool})
 
-        t1 = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
-        t2 = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        t1 = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
+        t2 = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         # Same server.identifier() (both "echo") → same shared conn.
         await t1.invoke({"tool": "ping"}, context=ctx)
         await t2.invoke({"tool": "ping"}, context=ctx)
@@ -95,12 +86,8 @@ async def test_two_tools_different_identifier_get_separate_conns():
         pool = _SessionMcpPool("sess-B")
         ctx = _ScratchCtx({"__mcp_session_pool__": pool})
 
-        t1 = McpTool(
-            config={"server": {"command": "cmd_A"}, "connection_mode": "pooled"}
-        )
-        t2 = McpTool(
-            config={"server": {"command": "cmd_B"}, "connection_mode": "pooled"}
-        )
+        t1 = McpTool(config={"server": {"command": "cmd_A"}, "connection_mode": "pooled"})
+        t2 = McpTool(config={"server": {"command": "cmd_B"}, "connection_mode": "pooled"})
         await t1.invoke({"tool": "ping"}, context=ctx)
         await t2.invoke({"tool": "ping"}, context=ctx)
 
@@ -129,19 +116,13 @@ async def test_shared_pool_survives_across_runs_on_same_session():
     with _patch_mcp(log, session_factory=session_factory):
         # First "run" — get the pool and invoke once.
         pool_run_1 = await coord.get_or_create("sess-X")
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
-        await tool.invoke(
-            {"tool": "ping"}, context=_ScratchCtx({"__mcp_session_pool__": pool_run_1})
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
+        await tool.invoke({"tool": "ping"}, context=_ScratchCtx({"__mcp_session_pool__": pool_run_1}))
 
         # Second "run" — same session_id → same pool instance.
         pool_run_2 = await coord.get_or_create("sess-X")
         assert pool_run_1 is pool_run_2
-        await tool.invoke(
-            {"tool": "ping"}, context=_ScratchCtx({"__mcp_session_pool__": pool_run_2})
-        )
+        await tool.invoke({"tool": "ping"}, context=_ScratchCtx({"__mcp_session_pool__": pool_run_2}))
 
         await coord.close_all()
 
@@ -163,18 +144,14 @@ async def test_shared_conn_marked_stale_on_failure_rebuilt_next_call():
     def session_factory(reader, writer, **_kw):
         calls["n"] += 1
         if calls["n"] == 1:
-            return _FakeSession(
-                reader, writer, log, raise_on_call=RuntimeError("dead")
-            )
+            return _FakeSession(reader, writer, log, raise_on_call=RuntimeError("dead"))
         return _FakeSession(reader, writer, log, call_result=_result("recovered"))
 
     with _patch_mcp(log, session_factory=session_factory):
         pool = _SessionMcpPool("sess-recover")
         ctx = _ScratchCtx({"__mcp_session_pool__": pool})
 
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         with pytest.raises(RuntimeError, match="dead"):
             await tool.invoke({"tool": "ping"}, context=ctx)
 
@@ -198,7 +175,9 @@ async def test_tools_cache_populated_from_shared_entry():
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(
-            reader, writer, log,
+            reader,
+            writer,
+            log,
             tools=fake_tool_list,
             call_result=_result(),
         )
@@ -206,9 +185,7 @@ async def test_tools_cache_populated_from_shared_entry():
     with _patch_mcp(log, session_factory=session_factory):
         pool = _SessionMcpPool("sess-tc")
         ctx = _ScratchCtx({"__mcp_session_pool__": pool})
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         await tool.invoke({"tool": "ping"}, context=ctx)
         assert tool._last_available_tools is not None
         assert tool._last_available_tools[0]["name"] == "ping"
@@ -271,12 +248,8 @@ async def test_warmup_eager_skips_non_eager_tools():
         return _FakeSession(reader, writer, log, call_result=_result())
 
     with _patch_mcp(log, session_factory=session_factory):
-        lazy_pooled = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
-        per_call = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "per_call"}
-        )
+        lazy_pooled = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
+        per_call = McpTool(config={"server": {"command": "echo"}, "connection_mode": "per_call"})
         coord = _McpSessionCoordinator()
         pool = await coord.get_or_create("sess-off")
         await coord.warmup_eager(pool, [lazy_pooled, per_call])
@@ -424,9 +397,7 @@ async def test_coordinator_release_session_closes_just_that_pool():
     with _patch_mcp(log, session_factory=session_factory):
         for sid in ("keep", "drop"):
             pool = await coord.get_or_create(sid)
-            tool = McpTool(
-                config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-            )
+            tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
             await tool.invoke(
                 {"tool": "ping"},
                 context=_ScratchCtx({"__mcp_session_pool__": pool}),
@@ -463,9 +434,7 @@ async def test_lru_eviction_closes_oldest_when_at_cap():
 
     async def _run_once(sid: str) -> None:
         pool = await coord.get_or_create(sid)
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         await tool.invoke(
             {"tool": "ping"},
             context=_ScratchCtx({"__mcp_session_pool__": pool}),
@@ -512,9 +481,7 @@ async def test_idle_eviction_drops_stale_pools_on_get_or_create(monkeypatch):
     coord = _McpSessionCoordinator(max_idle_seconds=10.0)
     with _patch_mcp(log, session_factory=session_factory):
         pool_a = await coord.get_or_create("idle_A")
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         await tool.invoke(
             {"tool": "ping"},
             context=_ScratchCtx({"__mcp_session_pool__": pool_a}),
@@ -523,7 +490,7 @@ async def test_idle_eviction_drops_stale_pools_on_get_or_create(monkeypatch):
         # Move clock forward past max_idle_seconds.
         fake_clock["now"] += 30.0
         # Any coord.get_or_create call triggers the idle purge.
-        pool_b = await coord.get_or_create("idle_B")
+        await coord.get_or_create("idle_B")
         assert "idle_A" not in coord.list_session_ids()
         assert "idle_B" in coord.list_session_ids()
         assert log.count("stdio:exit(None)") == 1  # pool_a's conn drained
@@ -570,20 +537,20 @@ async def test_default_runtime_close_drains_mcp_pools():
     }
     config = load_config_dict(payload)
 
-    with _patch_mcp(log, session_factory=session_factory), patch.object(
-        llm_registry, "create_llm_client", lambda llm: MockLLMClient()
+    with (
+        _patch_mcp(log, session_factory=session_factory),
+        patch.object(llm_registry, "create_llm_client", lambda llm: MockLLMClient()),
     ):
         # Ensure `shutil.which` approves the command so preflight passes.
         import shutil as _shutil
+
         real_which = _shutil.which
         _shutil.which = lambda cmd: "/fake/echo" if cmd == "echo" else real_which(cmd)
         try:
             runtime = Runtime(config)
             from openagents.interfaces.runtime import RunRequest
 
-            await runtime.run_detailed(
-                request=RunRequest(agent_id="a1", session_id="live-sess", input_text="hi")
-            )
+            await runtime.run_detailed(request=RunRequest(agent_id="a1", session_id="live-sess", input_text="hi"))
             # After the run, the pool must still exist (cross-run survival).
             assert runtime._runtime._mcp_coordinator.list_session_ids() == ["live-sess"]
             assert log.count("stdio:enter") == 1
@@ -634,10 +601,12 @@ async def test_release_session_via_runtime_facade():
     }
     config = load_config_dict(payload)
 
-    with _patch_mcp(log, session_factory=session_factory), patch.object(
-        llm_registry, "create_llm_client", lambda llm: MockLLMClient()
+    with (
+        _patch_mcp(log, session_factory=session_factory),
+        patch.object(llm_registry, "create_llm_client", lambda llm: MockLLMClient()),
     ):
         import shutil as _shutil
+
         real_which = _shutil.which
         _shutil.which = lambda cmd: "/fake/echo" if cmd == "echo" else real_which(cmd)
         try:
@@ -645,9 +614,7 @@ async def test_release_session_via_runtime_facade():
             from openagents.interfaces.runtime import RunRequest
 
             for sid in ("sess1", "sess2"):
-                await runtime.run_detailed(
-                    request=RunRequest(agent_id="a1", session_id=sid, input_text="hi")
-                )
+                await runtime.run_detailed(request=RunRequest(agent_id="a1", session_id=sid, input_text="hi"))
             assert set(runtime._runtime._mcp_coordinator.list_session_ids()) == {
                 "sess1",
                 "sess2",
@@ -671,9 +638,7 @@ async def test_reload_invalidates_mcp_pools_when_agents_change(tmp_path, monkeyp
     from openagents.llm.providers.mock import MockLLMClient
     from openagents.runtime.runtime import Runtime
 
-    monkeypatch.setattr(
-        llm_registry, "create_llm_client", lambda llm: MockLLMClient()
-    )
+    monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: MockLLMClient())
 
     log: list[str] = []
 
@@ -712,9 +677,11 @@ async def test_reload_invalidates_mcp_pools_when_agents_change(tmp_path, monkeyp
     _write_config(cfg_path, "1.0")
 
     import shutil as _shutil
+
     real_which = _shutil.which
     monkeypatch.setattr(
-        _shutil, "which",
+        _shutil,
+        "which",
         lambda cmd: "/fake/echo" if cmd == "echo" else real_which(cmd),
     )
 
@@ -722,9 +689,7 @@ async def test_reload_invalidates_mcp_pools_when_agents_change(tmp_path, monkeyp
         runtime = Runtime.from_config(cfg_path)
         from openagents.interfaces.runtime import RunRequest
 
-        await runtime.run_detailed(
-            request=RunRequest(agent_id="a1", session_id="rel-sess", input_text="hi")
-        )
+        await runtime.run_detailed(request=RunRequest(agent_id="a1", session_id="rel-sess", input_text="hi"))
         assert runtime._runtime._mcp_coordinator.list_session_ids() == ["rel-sess"]
         assert log.count("stdio:enter") == 1
 
@@ -753,9 +718,7 @@ async def test_session_pool_close_is_idempotent():
 
     with _patch_mcp(log, session_factory=session_factory):
         pool = _SessionMcpPool("idempotent")
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         await tool.invoke(
             {"tool": "ping"},
             context=_ScratchCtx({"__mcp_session_pool__": pool}),
@@ -783,9 +746,7 @@ async def test_session_pool_list_tools_failure_is_tolerated():
 
     with _patch_mcp(log, session_factory=session_factory):
         pool = _SessionMcpPool("nolist")
-        tool = McpTool(
-            config={"server": {"command": "echo"}, "connection_mode": "pooled"}
-        )
+        tool = McpTool(config={"server": {"command": "echo"}, "connection_mode": "pooled"})
         out = await tool.invoke(
             {"tool": "ping"},
             context=_ScratchCtx({"__mcp_session_pool__": pool}),

@@ -136,6 +136,4 @@ async def test_pattern_call_tool_records_unwrapped_data_in_tool_results():
         event_bus=bus,
     )
     await pattern.call_tool("t", {})
-    assert pattern.context.tool_results == [
-        {"tool_id": "t", "result": {"value": 99}}
-    ]
+    assert pattern.context.tool_results == [{"tool_id": "t", "result": {"value": 99}}]

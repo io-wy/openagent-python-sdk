@@ -72,10 +72,7 @@ def _select_agent(cfg, requested: str | None) -> tuple[str | None, str | None]:
         return None, f"agent not found: {requested}. Available: {[a.id for a in cfg.agents]}"
     if len(cfg.agents) == 1:
         return cfg.agents[0].id, None
-    return None, (
-        f"config declares {len(cfg.agents)} agents; pass --agent with one of: "
-        f"{[a.id for a in cfg.agents]}"
-    )
+    return None, (f"config declares {len(cfg.agents)} agents; pass --agent with one of: {[a.id for a in cfg.agents]}")
 
 
 def _default_format(explicit: str | None) -> str:

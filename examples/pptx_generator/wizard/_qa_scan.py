@@ -63,9 +63,7 @@ def _python_scan(md_text: str, patterns: list[str]) -> list[QAMatch]:
     return out
 
 
-async def _rg_scan(
-    shell_tool: Any, md_path: str, patterns: list[str]
-) -> list[QAMatch] | None:
+async def _rg_scan(shell_tool: Any, md_path: str, patterns: list[str]) -> list[QAMatch] | None:
     """Try `rg` first. Returns ``None`` if rg is missing or shell_tool rejects it."""
     if shutil.which("rg") is None:
         return None

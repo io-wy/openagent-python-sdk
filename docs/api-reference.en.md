@@ -431,6 +431,7 @@ Optional per-run execution limits:
 | `max_tool_calls` | `int \| None` | `None` | Maximum tool call count |
 | `max_validation_retries` | `int \| None` | `3` | Maximum structured output validation retries |
 | `max_cost_usd` | `float \| None` | `None` | Maximum cost ceiling (USD) |
+| `max_resume_attempts` | `int \| None` | `3` | Maximum automatic resume attempts for durable runs (added in 0.4.x) |
 
 ### `RunArtifact`
 
@@ -469,6 +470,51 @@ Structured run input:
 - `budget: RunBudget | None`
 - `deps: Any`
 - `output_type: type[BaseModel] | None` — structured output target type (added in 0.3.0)
+- `durable: bool = False` — opt into durable execution: auto-checkpoint at every step boundary and auto-resume from the most recent checkpoint on retryable errors (added in 0.4.x)
+- `resume_from_checkpoint: str | None = None` — explicitly resume a new run from a named checkpoint; `DefaultRuntime` skips `context_assembler.assemble()` and `memory.inject()` and rehydrates transcript / artifacts / usage from the checkpoint (added in 0.4.x)
+
+### Durable execution
+
+Durable execution is a runtime-level fault-recovery mechanism, not a new seam. Enable it via:
+
+```python
+from openagents.interfaces.runtime import RunBudget, RunRequest
+
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    durable=True,  # auto-checkpoint + auto-resume
+    budget=RunBudget(max_resume_attempts=3),
+)
+result = await runtime.run_detailed(request=request)
+```
+
+**Checkpoint granularity**: a checkpoint is written after every successful `llm.succeeded` / `tool.succeeded` event, with `checkpoint_id = f"{run_id}:step:{n}"`. Batched tool calls (`call_tool_batch`) are collapsed to a single step.
+
+**Retryable error classification**: `LLMRateLimitError`, `LLMConnectionError`, `ToolRateLimitError`, `ToolUnavailableError` trigger automatic resume. Every other error (`PermanentToolError`, `ConfigError`, `BudgetExhausted`, `OutputValidationError`) terminates the run immediately.
+
+**Explicit resume**: after a process crash, use a persistent session backend (`jsonl_file` / `sqlite`) and resume in a fresh process:
+
+```python
+# Fresh process
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    resume_from_checkpoint="abc123:step:7",
+)
+```
+
+**Events**: durable execution emits six events:
+- `run.checkpoint_saved` — after each successful checkpoint
+- `run.checkpoint_failed` — create_checkpoint raised (run continues, does not fail)
+- `run.resume_attempted` — retryable error caught, about to resume
+- `run.resume_succeeded` — state rehydration complete
+- `run.resume_exhausted` — reached `max_resume_attempts` cap
+- `run.durable_idempotency_warning` — a tool declaring `durable_idempotent=False` was invoked inside a durable run (one-shot per run/tool)
+
+**ToolPlugin.durable_idempotent** (class attribute, default `True`): side-effectful tools (write_file, HTTP, shell subprocess, etc.) should declare `durable_idempotent = False` so runtime emits a one-shot warning when invoked in a durable run. The builtins `WriteFileTool`, `DeleteFileTool`, `HttpRequestTool`, `ShellExecTool`, `ExecuteCommandTool`, `SetEnvTool` are already marked `False`.
 
 ### `RunResult[T]`
 

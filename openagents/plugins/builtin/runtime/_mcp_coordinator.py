@@ -114,9 +114,7 @@ class _SessionMcpPool:
                         identifier,
                         exc_info=True,
                     )
-                entry = _SharedConnEntry(
-                    conn=conn, lock=asyncio.Lock(), tools_cache=tools
-                )
+                entry = _SharedConnEntry(conn=conn, lock=asyncio.Lock(), tools_cache=tools)
                 self._conns[identifier] = entry
             return entry
 
@@ -131,9 +129,7 @@ class _SessionMcpPool:
         return self._preflight_cache.get(tool_id)
 
     def set_preflight_ok(self, tool_id: str) -> None:
-        self._preflight_cache[tool_id] = _PreflightCacheEntry(
-            ok=True, ts=time.monotonic()
-        )
+        self._preflight_cache[tool_id] = _PreflightCacheEntry(ok=True, ts=time.monotonic())
 
     # -- bookkeeping ---------------------------------------------------------
 
@@ -196,10 +192,7 @@ class _McpSessionCoordinator:
                 await self._purge_idle_locked()
             pool = self._pools.get(session_id)
             if pool is None or pool.is_closed():
-                if (
-                    self._max_pooled_sessions is not None
-                    and len(self._pools) >= self._max_pooled_sessions
-                ):
+                if self._max_pooled_sessions is not None and len(self._pools) >= self._max_pooled_sessions:
                     await self._evict_lru_locked(exclude=session_id)
                 pool = _SessionMcpPool(session_id)
                 self._pools[session_id] = pool
@@ -214,9 +207,7 @@ class _McpSessionCoordinator:
         """
         assert self._max_idle_seconds is not None
         cutoff = time.monotonic() - self._max_idle_seconds
-        expired = [
-            sid for sid, pool in self._pools.items() if pool.last_used < cutoff
-        ]
+        expired = [sid for sid, pool in self._pools.items() if pool.last_used < cutoff]
         for sid in expired:
             pool = self._pools.pop(sid, None)
             if pool is not None:
@@ -228,11 +219,7 @@ class _McpSessionCoordinator:
         ``exclude`` protects a session id about to be created/refreshed
         in the same call — never evict the session we're serving.
         """
-        candidates = [
-            (pool.last_used, sid)
-            for sid, pool in self._pools.items()
-            if sid != exclude
-        ]
+        candidates = [(pool.last_used, sid) for sid, pool in self._pools.items() if sid != exclude]
         if not candidates:
             return
         candidates.sort()

@@ -75,8 +75,15 @@ class _RecordingEventBus(EventBusPlugin):
 
 class _EchoLLM(LLMClient):
     async def complete(
-        self, *, messages, model=None, temperature=None, max_tokens=None,
-        tools=None, tool_choice=None, response_format=None,
+        self,
+        *,
+        messages,
+        model=None,
+        temperature=None,
+        max_tokens=None,
+        tools=None,
+        tool_choice=None,
+        response_format=None,
     ):
         _ = (model, temperature, max_tokens, tools, tool_choice)
         return messages[-1]["content"]

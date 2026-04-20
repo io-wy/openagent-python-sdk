@@ -10,7 +10,6 @@ Exercises the wiring without starting a long-running file watcher:
 from __future__ import annotations
 
 import json
-import threading
 import time
 from pathlib import Path
 
@@ -78,7 +77,6 @@ def test_dev_missing_config_returns_2(tmp_path, capsys):
 
 
 def test_reload_with_log_success(monkeypatch, capsys):
-    from openagents.runtime.runtime import Runtime
 
     class _Runtime:
         def reload(self) -> None:
@@ -156,8 +154,15 @@ def test_debounced_allows_second_reload_after_settle():
     assert calls["n"] == 2
 
 
-def test_watch_polling_reloads_on_mtime_change(tmp_path, capsys):
-    """Drive ``_watch_polling`` with a file whose mtime changes once."""
+def test_watch_polling_reloads_on_mtime_change(tmp_path, capsys, monkeypatch):
+    """Drive ``_watch_polling`` with a file whose mtime changes once.
+
+    Runs synchronously on the main thread — we monkey-patch ``time.sleep``
+    inside the polling loop so the second tick bumps mtime and the third
+    tick raises ``KeyboardInterrupt`` to terminate the loop. This avoids
+    leaking a daemon polling thread that would keep stat()-ing files for
+    the remainder of the test session.
+    """
     cfg = tmp_path / "watched.json"
     cfg.write_text("{}")
     calls = {"n": 0}
@@ -167,39 +172,28 @@ def test_watch_polling_reloads_on_mtime_change(tmp_path, capsys):
             calls["n"] += 1
 
     import io
-    import threading as _t
 
     stderr = io.StringIO()
+    state = {"tick": 0}
 
-    def _driver():
-        # Tiny sleep so the polling loop has a chance to start; then bump mtime.
-        time.sleep(0.12)
-        cfg.write_text('{"updated": true}')
-        time.sleep(0.22)
+    def _scripted_sleep(interval: float) -> None:
+        state["tick"] += 1
+        if state["tick"] == 1:
+            # First poll cycle: force a distinct mtime so the next iteration
+            # sees a change. Some filesystems (FAT, certain NTFS configs)
+            # have 1–2s mtime resolution, so bump the stamp explicitly.
+            import os as _os
+
+            stat = cfg.stat()
+            cfg.write_text('{"updated": true}')
+            _os.utime(cfg, (stat.st_mtime + 2, stat.st_mtime + 2))
+            return
+        # Second tick onward: loop has observed the change, exit cleanly.
         raise KeyboardInterrupt
 
-    def _run_with_interrupt():
-        try:
-            dev_cmd._watch_polling(cfg, _Runtime(), poll_interval=0.05, stderr=stderr)
-        except KeyboardInterrupt:
-            return
+    monkeypatch.setattr(time, "sleep", _scripted_sleep)
+    dev_cmd._watch_polling(cfg, _Runtime(), poll_interval=0.05, stderr=stderr)
 
-    driver = _t.Thread(target=_driver, daemon=True)
-    driver.start()
-    # KeyboardInterrupt needs to hit from main thread — drive the polling
-    # loop in a short-lived thread and wait for the driver to finish.
-    loop = _t.Thread(target=_run_with_interrupt, daemon=True)
-    loop.start()
-    # Replace the real signal-based interrupt with explicit thread join +
-    # patching time.sleep to raise when driver has completed its mutation.
-    driver.join(timeout=1.5)
-    # Emulate Ctrl+C by patching the internal loop's reload condition; the
-    # polling loop exits when we monkey-patch ``time.sleep`` — easiest path
-    # is to just force the thread's exit via an injected exception by
-    # wrapping it in a join with a short timeout and accepting hang-free
-    # lifecycle via daemon=True.
-    loop.join(timeout=0.2)
-    # The polling loop should have observed at least one mtime change.
     assert calls["n"] >= 1
 
 

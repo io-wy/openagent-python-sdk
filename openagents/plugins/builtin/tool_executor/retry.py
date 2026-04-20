@@ -82,7 +82,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
         return False
 
     def _delay_for(self, attempt: int) -> int:
-        delay = self._initial_delay_ms * (self._backoff ** attempt)
+        delay = self._initial_delay_ms * (self._backoff**attempt)
         return int(min(self._max_delay_ms, delay))
 
     async def execute(self, request: ToolExecutionRequest) -> ToolExecutionResult:

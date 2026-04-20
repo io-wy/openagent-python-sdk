@@ -43,12 +43,7 @@ async def test_same_session_pressure_no_loss_and_serial_timing():
 
     inputs = [f"msg-{i}" for i in range(task_count)]
     start = time.perf_counter()
-    await asyncio.gather(
-        *[
-            runtime.run(agent_id="assistant", session_id="shared", input_text=msg)
-            for msg in inputs
-        ]
-    )
+    await asyncio.gather(*[runtime.run(agent_id="assistant", session_id="shared", input_text=msg) for msg in inputs])
     elapsed = time.perf_counter() - start
 
     # Same session must serialize.
@@ -82,4 +77,3 @@ async def test_cross_session_pressure_runs_concurrently():
     serial_baseline = task_count * delay
     # Cross session should run substantially faster than fully serialized baseline.
     assert elapsed < serial_baseline * 0.7
-

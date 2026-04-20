@@ -75,14 +75,16 @@ def run(args: argparse.Namespace) -> int:
     seams_configured = 0
     for agent in cfg.agents:
         for seam_name in (
-            "memory", "pattern", "tool_executor", "context_assembler",
+            "memory",
+            "pattern",
+            "tool_executor",
+            "context_assembler",
         ):
             if getattr(agent, seam_name, None) is not None:
                 seams_configured += 1
 
     print(
-        f"OK: {args.path} is valid ({len(cfg.agents)} agents, "
-        f"{seams_configured} seams configured)",
+        f"OK: {args.path} is valid ({len(cfg.agents)} agents, {seams_configured} seams configured)",
     )
     if args.show_resolved:
         print(json.dumps(cfg.model_dump(mode="json"), indent=2))

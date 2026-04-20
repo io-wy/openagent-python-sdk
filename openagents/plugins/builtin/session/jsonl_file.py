@@ -147,10 +147,7 @@ class JsonlFileSessionManager(SessionManagerPlugin):
     async def set_state(self, session_id: str, state: dict[str, Any]) -> None:
         self._ensure_loaded(session_id)
         self._states[session_id] = state
-        payload = {
-            k: v for k, v in state.items()
-            if k not in (_TRANSCRIPT_KEY, _ARTIFACTS_KEY, _CHECKPOINTS_KEY)
-        }
+        payload = {k: v for k, v in state.items() if k not in (_TRANSCRIPT_KEY, _ARTIFACTS_KEY, _CHECKPOINTS_KEY)}
         if payload:
             self._append(session_id, {"type": "state", "data": payload, "ts": _now()})
 

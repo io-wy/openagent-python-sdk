@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Literal
+from typing import Literal
 
 from openagents.cli.wizard import Wizard
 
@@ -76,9 +76,7 @@ async def _edit_intent_field(report: IntentReport) -> IntentReport:
         data["tone"] = await Wizard.select("Tone", choices=_TONES, default=report.tone)
     elif field == "slide_count_hint":
         while True:
-            raw = await Wizard.text(
-                "Slide count (3-20)", default=str(report.slide_count_hint)
-            )
+            raw = await Wizard.text("Slide count (3-20)", default=str(report.slide_count_hint))
             try:
                 value = int(raw)
             except (TypeError, ValueError):
@@ -87,9 +85,7 @@ async def _edit_intent_field(report: IntentReport) -> IntentReport:
                 data["slide_count_hint"] = value
                 break
     elif field == "language":
-        data["language"] = await Wizard.select(
-            "Language", choices=_LANGUAGES, default=report.language
-        )
+        data["language"] = await Wizard.select("Language", choices=_LANGUAGES, default=report.language)
     else:
         data[field] = await _edit_string_list(report.__getattribute__(field), prompt_name=field)
     return IntentReport.model_validate(data)
@@ -189,9 +185,7 @@ async def edit_outline(outline: SlideOutline) -> tuple[SlideOutline, EditOutline
 
 
 async def _outline_add(slides: list[SlideSpec]) -> list[SlideSpec]:
-    pos_raw = await Wizard.text(
-        f"Insert position (1-{len(slides) + 1})", default=str(len(slides) + 1)
-    )
+    pos_raw = await Wizard.text(f"Insert position (1-{len(slides) + 1})", default=str(len(slides) + 1))
     try:
         pos = max(1, min(len(slides) + 1, int(pos_raw)))
     except (TypeError, ValueError):

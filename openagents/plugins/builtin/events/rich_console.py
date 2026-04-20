@@ -107,9 +107,7 @@ class RichConsoleEventBus(EventBusPlugin):
         event = await self._inner.emit(event_name, **payload)
         if self._should_render(event_name):
             try:
-                redacted_payload = redact(
-                    payload, keys=self._redact_keys, max_value_length=self._max_value_length
-                )
+                redacted_payload = redact(payload, keys=self._redact_keys, max_value_length=self._max_value_length)
                 rendered_event = RuntimeEvent(name=event.name, payload=redacted_payload)
                 renderable = render_event_row(rendered_event, show_payload=self._show_payload)
                 self._console.print(renderable)

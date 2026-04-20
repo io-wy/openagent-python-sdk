@@ -18,9 +18,7 @@ def _build_config(responses: list) -> dict:
             {
                 "id": "assistant",
                 "name": "stream-e2e",
-                "memory": {
-                    "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                },
+                "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                 "pattern": {
                     "impl": "tests.fixtures.runtime_plugins.QueuedRawOutputPattern",
                     "config": {"responses": responses},
@@ -43,14 +41,10 @@ async def test_end_to_end_stream_matches_run_detailed():
     runtime_a = Runtime(load_config_dict(_build_config(["hello"])))
     runtime_b = Runtime(load_config_dict(_build_config(["hello"])))
 
-    detailed = await runtime_a.run_detailed(
-        request=RunRequest(agent_id="assistant", session_id="sa", input_text="hi")
-    )
+    detailed = await runtime_a.run_detailed(request=RunRequest(agent_id="assistant", session_id="sa", input_text="hi"))
 
     streamed = None
-    async for chunk in runtime_b.run_stream(
-        request=RunRequest(agent_id="assistant", session_id="sb", input_text="hi")
-    ):
+    async for chunk in runtime_b.run_stream(request=RunRequest(agent_id="assistant", session_id="sb", input_text="hi")):
         if chunk.kind is RunStreamChunkKind.RUN_FINISHED:
             streamed = chunk.result
 

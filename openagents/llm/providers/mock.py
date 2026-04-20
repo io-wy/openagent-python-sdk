@@ -113,11 +113,7 @@ class MockLLMClient(LLMClient):
         tool_calls: list[LLMToolCall] = []
         stop_reason = "end_turn"
         parsed_json = _parse_structured_output(output_text, {"type": "json_object"})
-        if (
-            isinstance(parsed_json, dict)
-            and parsed_json.get("type") == "tool_call"
-            and tools
-        ):
+        if isinstance(parsed_json, dict) and parsed_json.get("type") == "tool_call" and tools:
             tool_id = str(parsed_json.get("tool", ""))
             tool_names = {str(t.get("name")) for t in tools if isinstance(t, dict)}
             if tool_id and tool_id in tool_names:
@@ -137,12 +133,8 @@ class MockLLMClient(LLMClient):
 
         structured_output = _parse_structured_output(output_text, response_format)
         usage = self._build_usage(messages=messages, output_text=output_text)
-        response_id = (
-            "mock-" + hashlib.sha256(output_text.encode("utf-8")).hexdigest()[:12]
-        )
-        content_blocks: list[dict[str, Any]] = (
-            [{"type": "text", "text": output_text}] if output_text else []
-        )
+        response_id = "mock-" + hashlib.sha256(output_text.encode("utf-8")).hexdigest()[:12]
+        content_blocks: list[dict[str, Any]] = [{"type": "text", "text": output_text}] if output_text else []
         result = LLMResponse(
             output_text=output_text,
             content=content_blocks,

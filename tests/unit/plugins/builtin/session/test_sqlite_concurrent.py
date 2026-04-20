@@ -24,9 +24,7 @@ async def test_concurrent_appends_preserve_messages(tmp_path: Path):
 
     async def _append(i: int) -> None:
         async with mgr.session(sid) as _state:
-            await mgr.append_message(
-                sid, {"role": "user", "content": f"msg-{i:03d}"}
-            )
+            await mgr.append_message(sid, {"role": "user", "content": f"msg-{i:03d}"})
 
     await asyncio.gather(*[_append(i) for i in range(n)])
 

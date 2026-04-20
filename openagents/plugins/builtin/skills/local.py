@@ -82,15 +82,9 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
         super().__init__(config=config or {}, capabilities=set())
         self._init_typed_config()
         self._search_paths = [
-            Path(path).resolve(strict=False)
-            for path in self.cfg.search_paths
-            if isinstance(path, str) and path.strip()
+            Path(path).resolve(strict=False) for path in self.cfg.search_paths if isinstance(path, str) and path.strip()
         ]
-        self._enabled = {
-            str(name).strip()
-            for name in self.cfg.enabled
-            if isinstance(name, str) and name.strip()
-        }
+        self._enabled = {str(name).strip() for name in self.cfg.enabled if isinstance(name, str) and name.strip()}
         self._packages: dict[str, dict[str, Any]] = {}
 
     def _discover(self) -> dict[str, dict[str, Any]]:
@@ -118,9 +112,7 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
                 interface = _parse_flat_yaml(openai_yaml if openai_yaml.exists() else None)
                 entrypoints = list((item / "src").glob("*/entrypoint.py"))
                 if len(entrypoints) != 1:
-                    raise ValueError(
-                        f"Skill package '{item}' must contain exactly one src/<package>/entrypoint.py"
-                    )
+                    raise ValueError(f"Skill package '{item}' must contain exactly one src/<package>/entrypoint.py")
                 references_root = item / "references"
                 references = (
                     sorted(path for path in references_root.iterdir() if path.is_file())
@@ -165,11 +157,7 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
         state[self._STATE_KEY] = current
         await session_manager.set_state(session_id, state)
 
-        return {
-            name: SessionSkillSummary(**payload)
-            for name, payload in current.items()
-            if isinstance(payload, dict)
-        }
+        return {name: SessionSkillSummary(**payload) for name, payload in current.items() if isinstance(payload, dict)}
 
     async def load_references(
         self,
@@ -186,9 +174,7 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
             available = sorted(packages.keys())
             guess = near_match(skill_name, available)
             extra = f" Did you mean '{guess}'?" if guess else ""
-            raise KeyError(
-                f"Unknown skill package: '{skill_name}'.{extra} Available: {available}"
-            )
+            raise KeyError(f"Unknown skill package: '{skill_name}'.{extra} Available: {available}")
 
         state = await session_manager.get_state(session_id)
         current = dict(state.get(self._STATE_KEY, {}))
@@ -226,9 +212,7 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
             available = sorted(packages.keys())
             guess = near_match(skill_name, available)
             extra = f" Did you mean '{guess}'?" if guess else ""
-            raise KeyError(
-                f"Unknown skill package: '{skill_name}'.{extra} Available: {available}"
-            )
+            raise KeyError(f"Unknown skill package: '{skill_name}'.{extra} Available: {available}")
 
         src_root = package["root"] / "src"
         entrypoint_module = f"{package['package_name']}.entrypoint"

@@ -38,18 +38,14 @@ def _patch_editor(monkeypatch: pytest.MonkeyPatch, actions: list[str]) -> list[I
         action = queue.pop(0)
         return report, action
 
-    monkeypatch.setattr(
-        "examples.pptx_generator.wizard.intent.edit_intent", fake_edit_intent
-    )
+    monkeypatch.setattr("examples.pptx_generator.wizard.intent.edit_intent", fake_edit_intent)
     return captured
 
 
 @pytest.mark.asyncio
 async def test_intent_wizard_confirm_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     report = _mk_report()
-    runtime = SimpleNamespace(
-        run=AsyncMock(return_value=SimpleNamespace(parsed=report, state={}))
-    )
+    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(parsed=report, state={})))
     _patch_editor(monkeypatch, actions=["confirm"])
     # memory save? no
     monkeypatch.setattr(
@@ -93,9 +89,7 @@ async def test_intent_wizard_regenerate_refetches(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.asyncio
 async def test_intent_wizard_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    runtime = SimpleNamespace(
-        run=AsyncMock(return_value=SimpleNamespace(parsed=_mk_report(), state={}))
-    )
+    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(parsed=_mk_report(), state={})))
     _patch_editor(monkeypatch, actions=["abort"])
 
     step = IntentWizardStep(runtime=runtime)
@@ -109,9 +103,7 @@ async def test_intent_wizard_abort(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_intent_wizard_saves_to_memory(monkeypatch: pytest.MonkeyPatch) -> None:
     report = _mk_report()
-    runtime = SimpleNamespace(
-        run=AsyncMock(return_value=SimpleNamespace(parsed=report, state={}))
-    )
+    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(parsed=report, state={})))
     _patch_editor(monkeypatch, actions=["confirm"])
     # user confirms memory save
     monkeypatch.setattr(
@@ -129,9 +121,7 @@ async def test_intent_wizard_saves_to_memory(monkeypatch: pytest.MonkeyPatch) ->
             capture_log.append((category, rule, reason))
             return "xyz"
 
-    monkeypatch.setattr(
-        "examples.pptx_generator.wizard.intent.MarkdownMemory", FakeMem
-    )
+    monkeypatch.setattr("examples.pptx_generator.wizard.intent.MarkdownMemory", FakeMem)
 
     step = IntentWizardStep(runtime=runtime, topic_hint="draft")
     result = await step.render(console=None, project=_mk_project())

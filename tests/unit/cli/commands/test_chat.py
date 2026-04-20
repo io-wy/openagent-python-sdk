@@ -10,7 +10,6 @@ Drives the REPL headlessly by:
 
 from __future__ import annotations
 
-import io
 import json
 from pathlib import Path
 
@@ -125,9 +124,7 @@ def test_chat_context_without_prior_turn(tmp_path, capsys, monkeypatch, no_quest
 
 def test_chat_context_after_turn_shows_final_output(tmp_path, capsys, monkeypatch, no_questionary):
     cfg = _valid_agent(tmp_path)
-    monkeypatch.setattr(
-        "builtins.input", _Inputs(["hello world", "/context", "/exit"])
-    )
+    monkeypatch.setattr("builtins.input", _Inputs(["hello world", "/context", "/exit"]))
     cli_main(["chat", str(cfg)])
     out = capsys.readouterr().out
     assert "final_output" in out

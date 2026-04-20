@@ -112,10 +112,7 @@ class SlideIR(BaseModel):
 class DeckProject(BaseModel):
     slug: str
     created_at: AwareDatetime
-    stage: Literal[
-        "intent", "env", "research", "outline",
-        "theme", "slides", "compile", "done"
-    ]
+    stage: Literal["intent", "env", "research", "outline", "theme", "slides", "compile", "done"]
     intent: IntentReport | None = None
     research: ResearchFindings | None = None
     outline: SlideOutline | None = None

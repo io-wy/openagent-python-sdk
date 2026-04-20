@@ -7,23 +7,34 @@ from unittest.mock import AsyncMock
 import pytest
 
 from examples.pptx_generator.state import (
-    DeckProject, IntentReport, ResearchFindings, Source,
+    DeckProject,
+    IntentReport,
+    ResearchFindings,
+    Source,
 )
 from examples.pptx_generator.wizard.research import ResearchWizardStep
 
 
 def _intent(queries):
     return IntentReport(
-        topic="t", audience="a", purpose="pitch", tone="formal",
-        slide_count_hint=5, required_sections=[], visuals_hint=[],
-        research_queries=queries, language="zh",
+        topic="t",
+        audience="a",
+        purpose="pitch",
+        tone="formal",
+        slide_count_hint=5,
+        required_sections=[],
+        visuals_hint=[],
+        research_queries=queries,
+        language="zh",
     )
 
 
 def _project(intent):
     return DeckProject(
-        slug="x", created_at=datetime.now(timezone.utc),
-        stage="research", intent=intent,
+        slug="x",
+        created_at=datetime.now(timezone.utc),
+        stage="research",
+        intent=intent,
     )
 
 
@@ -51,10 +62,14 @@ async def test_runs_agent_and_keeps_all(monkeypatch):
         key_facts=["f1"],
         caveats=[],
     )
-    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(
-        parsed=findings,
-        state={"research": findings.model_dump(mode="json")},
-    )))
+    runtime = SimpleNamespace(
+        run=AsyncMock(
+            return_value=SimpleNamespace(
+                parsed=findings,
+                state={"research": findings.model_dump(mode="json")},
+            )
+        )
+    )
     # User picks none → interpret as "keep all"
     monkeypatch.setattr(
         "examples.pptx_generator.wizard.research.Wizard.multi_select",
@@ -77,11 +92,17 @@ async def test_captures_references_when_confirmed(monkeypatch):
     findings = ResearchFindings(
         queries_executed=["q"],
         sources=[Source(url="https://a", title="A", snippet="sA")],
-        key_facts=[], caveats=[],
+        key_facts=[],
+        caveats=[],
     )
-    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(
-        parsed=findings, state={},
-    )))
+    runtime = SimpleNamespace(
+        run=AsyncMock(
+            return_value=SimpleNamespace(
+                parsed=findings,
+                state={},
+            )
+        )
+    )
     monkeypatch.setattr(
         "examples.pptx_generator.wizard.research.Wizard.multi_select",
         AsyncMock(return_value=[]),
@@ -95,12 +116,14 @@ async def test_captures_references_when_confirmed(monkeypatch):
     class FakeMem:
         def __init__(self, config=None):
             pass
+
         def capture(self, category, rule, reason):
             captures.append((category, rule, reason))
             return "id"
 
     monkeypatch.setattr(
-        "examples.pptx_generator.wizard.research.MarkdownMemory", FakeMem,
+        "examples.pptx_generator.wizard.research.MarkdownMemory",
+        FakeMem,
     )
     step = ResearchWizardStep(runtime=runtime)
     await step.render(console=None, project=_project(_intent(["q"])))
@@ -115,12 +138,17 @@ async def test_runs_agent_and_filters(monkeypatch):
             Source(url="https://a", title="A", snippet="sA"),
             Source(url="https://b", title="B", snippet="sB"),
         ],
-        key_facts=["f1"], caveats=[],
+        key_facts=["f1"],
+        caveats=[],
     )
-    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(
-        parsed=findings,
-        state={"research": findings.model_dump(mode="json")},
-    )))
+    runtime = SimpleNamespace(
+        run=AsyncMock(
+            return_value=SimpleNamespace(
+                parsed=findings,
+                state={"research": findings.model_dump(mode="json")},
+            )
+        )
+    )
     monkeypatch.setattr(
         "examples.pptx_generator.wizard.research.Wizard.multi_select",
         AsyncMock(return_value=["A"]),
@@ -140,10 +168,14 @@ async def test_runs_agent_and_filters(monkeypatch):
 @pytest.mark.asyncio
 async def test_fallback_to_state_dict_when_parsed_missing():
     findings = ResearchFindings(queries_executed=["q"], sources=[], key_facts=[], caveats=[])
-    runtime = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(
-        parsed=None,
-        state={"research": findings.model_dump(mode="json")},
-    )))
+    runtime = SimpleNamespace(
+        run=AsyncMock(
+            return_value=SimpleNamespace(
+                parsed=None,
+                state={"research": findings.model_dump(mode="json")},
+            )
+        )
+    )
     step = ResearchWizardStep(runtime=runtime)
     project = _project(_intent(["q"]))
     result = await step.render(console=None, project=project)

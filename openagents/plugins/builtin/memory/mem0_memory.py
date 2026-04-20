@@ -60,6 +60,7 @@ class Mem0Memory(MemoryPlugin):
             api_key = getattr(llm_config, "api_key", None)
             if not api_key and hasattr(llm_config, "api_key_env"):
                 import os
+
                 api_key_env = getattr(llm_config, "api_key_env")
                 if api_key_env:
                     api_key = os.environ.get(api_key_env)
@@ -105,6 +106,7 @@ class Mem0Memory(MemoryPlugin):
             api_key = getattr(llm_config, "api_key", None)
             if not api_key and hasattr(llm_config, "api_key_env"):
                 import os
+
                 api_key_env = getattr(llm_config, "api_key_env")
                 if api_key_env:
                     api_key = os.environ.get(api_key_env)

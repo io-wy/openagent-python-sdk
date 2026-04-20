@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 
-import pytest
-
 from openagents.interfaces.tool import (
     ToolExecutionRequest,
     ToolExecutionResult,
@@ -133,11 +131,13 @@ def test_pattern_call_tool_batch_groups_by_tool_id_and_preserves_order():
             event_bus=event_bus,
             tools={"a": bound_a, "b": bound_b},
         )
-        results = await pattern.call_tool_batch([
-            ("a", {"i": 1}),
-            ("b", {"i": 2}),
-            ("a", {"i": 3}),
-        ])
+        results = await pattern.call_tool_batch(
+            [
+                ("a", {"i": 1}),
+                ("b", {"i": 2}),
+                ("a", {"i": 3}),
+            ]
+        )
         assert results == [1, 2, 3]
         names = [n for n, _ in event_bus.emitted]
         assert "tool.batch.started" in names
@@ -169,8 +169,8 @@ def test_bound_tool_invoke_batch_preserves_order_and_item_ids():
 
 def test_concurrent_batch_defends_against_raising_inner_executor():
     """If a (misbehaving) inner executor raises, we wrap per-request — the batch survives."""
-    from openagents.interfaces.tool import ToolExecutorPlugin
     from openagents.errors.exceptions import ToolError
+    from openagents.interfaces.tool import ToolExecutorPlugin
 
     class _RaisingInner(ToolExecutorPlugin):
         def __init__(self):

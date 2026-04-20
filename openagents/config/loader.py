@@ -16,6 +16,7 @@ from .schema import AppConfig
 
 def _expand_env_vars(text: str, *, source: Path | None = None) -> str:
     """Expand ${VAR} and ${VAR:-default} placeholders using environment variables."""
+
     def _replace(match: re.Match) -> str:
         expr = match.group(1)
         if ":-" in expr:
@@ -25,14 +26,12 @@ def _expand_env_vars(text: str, *, source: Path | None = None) -> str:
         if value is None:
             if source is not None:
                 hint = (
-                    f"Set '{expr.strip()}' in your shell, or copy "
-                    f"{source.parent}/.env.example to {source.parent}/.env"
+                    f"Set '{expr.strip()}' in your shell, or copy {source.parent}/.env.example to {source.parent}/.env"
                 )
             else:
                 hint = f"Set '{expr.strip()}' in your shell"
             raise ConfigLoadError(
-                f"Environment variable '{expr.strip()}' is not set "
-                f"(referenced in config as ${{{expr.strip()}}})",
+                f"Environment variable '{expr.strip()}' is not set (referenced in config as ${{{expr.strip()}}})",
                 hint=hint,
             )
         return value
@@ -77,8 +76,7 @@ def load_config(path: str | Path) -> AppConfig:
     except json.JSONDecodeError as exc:
         raise ConfigLoadError(
             f"Invalid JSON in config file: {config_path}",
-            hint=f"Validate the JSON syntax (e.g. via 'jq . {config_path}'); "
-                 f"see line {exc.lineno}, column {exc.colno}",
+            hint=f"Validate the JSON syntax (e.g. via 'jq . {config_path}'); see line {exc.lineno}, column {exc.colno}",
         ) from exc
 
     return load_config_dict(payload)
@@ -104,4 +102,3 @@ def load_config_dict(payload: dict[str, Any]) -> AppConfig:
         if input_type:
             message = f"{message} (input_type={input_type})"
         raise ConfigValidationError(message) from exc
-

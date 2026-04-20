@@ -11,6 +11,7 @@ from openagents.cli.wizard import StepResult, Wizard
 from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject
+from ._layout import repaint
 from ._slide_runner import LiveStatusTable, SlideRunRecord, SlideStatus, generate_slide
 
 
@@ -21,8 +22,11 @@ class SlideGeneratorWizardStep:
     title: str = "slides"
     description: str = "Generate each slide via retry/fallback loop."
     max_retries: int = 2
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         assert project.outline is not None, "SlideGeneratorWizardStep requires outline"
         sem = asyncio.Semaphore(self.concurrency)
         live_table = LiveStatusTable()
@@ -41,9 +45,7 @@ class SlideGeneratorWizardStep:
                     on_status=on_status,
                 )
 
-        records: list[SlideRunRecord] = list(
-            await asyncio.gather(*(run_one(s) for s in project.outline.slides))
-        )
+        records: list[SlideRunRecord] = list(await asyncio.gather(*(run_one(s) for s in project.outline.slides)))
         records.sort(key=lambda r: r.spec.index)
 
         slides = [r.ir for r in records if r.ir is not None]
@@ -73,9 +75,7 @@ class SlideGeneratorWizardStep:
         on_status: Any,
     ) -> None:
         choices = [f"rerun {i}" for i in failed_indices] + ["continue"]
-        action = await Wizard.select(
-            "Re-run any failed slide?", choices=choices, default="continue"
-        )
+        action = await Wizard.select("Re-run any failed slide?", choices=choices, default="continue")
         if action == "continue":
             return
         idx = int(action.split(" ", maxsplit=1)[1])
@@ -99,7 +99,8 @@ class SlideGeneratorWizardStep:
 
     async def _maybe_capture_memory(self, project: DeckProject) -> None:
         save = await Wizard.confirm(
-            "Save any generation tweaks as a preference?", default=False,
+            "Save any generation tweaks as a preference?",
+            default=False,
         )
         if not save:
             return
@@ -114,9 +115,7 @@ class SlideGeneratorWizardStep:
             pass
 
     @staticmethod
-    def _print_summary(
-        console: Any, live_table: LiveStatusTable, records: list[SlideRunRecord]
-    ) -> None:
+    def _print_summary(console: Any, live_table: LiveStatusTable, records: list[SlideRunRecord]) -> None:
         table = live_table.render()
         if table is not None:
             console.print(table)

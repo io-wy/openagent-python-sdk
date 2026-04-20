@@ -66,9 +66,7 @@ class TestLevelOverrideFilter:
         assert f.filter(record) is True
 
     def test_longest_prefix_wins(self) -> None:
-        f = LevelOverrideFilter(
-            {"openagents": "ERROR", "openagents.llm": "DEBUG"}
-        )
+        f = LevelOverrideFilter({"openagents": "ERROR", "openagents.llm": "DEBUG"})
         record = _make_record("openagents.llm.anthropic", level=logging.DEBUG)
         assert f.filter(record) is True
 

@@ -36,6 +36,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 import urllib.parse
 import weakref
@@ -49,6 +50,9 @@ from openagents.errors.exceptions import ConfigError, PermanentToolError
 from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup  # noqa: F401  (backport needed pre-3.11)
 
 logger = logging.getLogger(__name__)
 
@@ -171,9 +175,7 @@ class McpConnection:
             from mcp import ClientSession, StdioServerParameters
             from mcp.client.stdio import stdio_client
         except ImportError as e:
-            raise RuntimeError(
-                "MCP SDK not installed. Install with: uv sync --extra mcp"
-            ) from e
+            raise RuntimeError("MCP SDK not installed. Install with: uv sync --extra mcp") from e
 
         if not self.config.command:
             raise ValueError("stdio MCP connection requires a 'command'")
@@ -193,15 +195,14 @@ class McpConnection:
         try:
             from mcp import ClientSession
         except ImportError as e:
-            raise RuntimeError(
-                "MCP SDK not installed. Install with: uv sync --extra mcp"
-            ) from e
+            raise RuntimeError("MCP SDK not installed. Install with: uv sync --extra mcp") from e
 
         try:
             from mcp.client.sse import sse_client
         except ImportError as e:
             try:
                 import mcp as _mcp
+
                 installed = getattr(_mcp, "__version__", "unknown")
             except Exception:
                 installed = "unknown"
@@ -330,12 +331,9 @@ class _PooledStrategy:
         arguments: dict[str, Any],
         context: Any = None,
     ) -> dict[str, Any]:
-        tool = self._tool
         shared_pool = _find_shared_pool(context)
         if shared_pool is not None:
-            return await self._call_through_shared(
-                shared_pool, tool_name, arguments
-            )
+            return await self._call_through_shared(shared_pool, tool_name, arguments)
         return await self._call_through_own_pool(tool_name, arguments)
 
     async def _call_through_shared(
@@ -520,17 +518,13 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
 
         server_config = self.cfg.server
         env_passthrough = server_config.get("env_passthrough") or []
-        if not isinstance(env_passthrough, list) or not all(
-            isinstance(name, str) and name for name in env_passthrough
-        ):
+        if not isinstance(env_passthrough, list) or not all(isinstance(name, str) and name for name in env_passthrough):
             raise ConfigError(
                 "'server.env_passthrough' must be a list of non-empty strings",
-                hint="Example: [\"PATH\", \"HOME\"]",
+                hint='Example: ["PATH", "HOME"]',
             )
         init_timeout_ms = server_config.get("init_timeout_ms")
-        if init_timeout_ms is not None and (
-            not isinstance(init_timeout_ms, int) or init_timeout_ms <= 0
-        ):
+        if init_timeout_ms is not None and (not isinstance(init_timeout_ms, int) or init_timeout_ms <= 0):
             raise ConfigError(
                 "'server.init_timeout_ms' must be a positive integer",
                 hint="Use milliseconds, e.g. 10000 for 10 seconds",
@@ -583,10 +577,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         try:
             import mcp  # noqa: F401
         except ImportError as e:
-            msg = (
-                f"[tool:{tool_id}] mcp extra not installed; "
-                f"run: uv sync --extra mcp"
-            )
+            msg = f"[tool:{tool_id}] mcp extra not installed; run: uv sync --extra mcp"
             await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
             raise PermanentToolError(msg, tool_name=tool_id) from e
 
@@ -602,16 +593,11 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         else:
             cmd = self._server_config.command
             if not cmd:
-                msg = (
-                    f"[tool:{tool_id}] server config must set either 'command' "
-                    f"(stdio) or 'url' (SSE/HTTP)"
-                )
+                msg = f"[tool:{tool_id}] server config must set either 'command' (stdio) or 'url' (SSE/HTTP)"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id)
             if shutil.which(cmd) is None:
-                msg = (
-                    f"[tool:{tool_id}] stdio command '{cmd}' was not found on PATH"
-                )
+                msg = f"[tool:{tool_id}] stdio command '{cmd}' was not found on PATH"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id)
 
@@ -623,9 +609,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
                     tool_count = len(tools)
             except BaseExceptionGroup as eg:
                 inner = _unwrap_single_exception(eg)
-                msg = (
-                    f"[tool:{tool_id}] preflight probe failed: {inner}"
-                )
+                msg = f"[tool:{tool_id}] preflight probe failed: {inner}"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id) from eg
             except Exception as exc:
@@ -685,9 +669,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         emit_events = _emit_call_events_factory(self, context)
         started = time.perf_counter()
 
-        dedup_active = (
-            self._dedup_inflight and self._connection_mode == "per_call"
-        )
+        dedup_active = self._dedup_inflight and self._connection_mode == "per_call"
 
         if not dedup_active:
             await emit_events.connect()
@@ -722,9 +704,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
             async with self._inflight_lock:
                 self._inflight.pop(key, None)
             if not future_to_await.done():
-                future_to_await.set_exception(
-                    exc if isinstance(exc, Exception) else RuntimeError(str(exc))
-                )
+                future_to_await.set_exception(exc if isinstance(exc, Exception) else RuntimeError(str(exc)))
             if isinstance(exc, Exception):
                 await emit_events.call_failed(tool_name, started, exc)
             raise

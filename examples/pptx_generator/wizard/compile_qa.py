@@ -12,8 +12,8 @@ from typing import Any
 from openagents.cli.wizard import StepResult, Wizard
 
 from ..state import DeckProject, SlideIR
+from ._layout import repaint
 from ._qa_scan import QAReport, scan_placeholders
-
 
 SubStepStatus = str  # "pending" | "running" | "ok" | "skipped" | "failed"
 
@@ -25,8 +25,11 @@ class CompileQAWizardStep:
     templates_dir: Path
     title: str = "compile"
     description: str = "Render JS, run PptxGenJS, QA via MarkItDown + placeholder scan."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         out_dir = Path(self.output_root) / project.slug / "slides"
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "output").mkdir(exist_ok=True)
@@ -71,14 +74,16 @@ class CompileQAWizardStep:
         else:
             mark("npm install", "running")
             r = await self.shell_tool.invoke(
-                {"command": ["npm", "install"], "cwd": str(out_dir)}, context=None,
+                {"command": ["npm", "install"], "cwd": str(out_dir)},
+                context=None,
             )
             mark("npm install", "ok" if _exit_ok(r) else "failed")
 
         # 3. node compile.js
         mark("node compile.js", "running")
         r = await self.shell_tool.invoke(
-            {"command": ["node", "compile.js"], "cwd": str(out_dir)}, context=None,
+            {"command": ["node", "compile.js"], "cwd": str(out_dir)},
+            context=None,
         )
         compile_ok = _exit_ok(r)
         mark("node compile.js", "ok" if compile_ok else "failed")
@@ -128,9 +133,7 @@ class CompileQAWizardStep:
         if "go back to slides" not in choices:
             choices.append("go back to slides")
         choices += ["accept and finish", "abort"]
-        return await Wizard.select(
-            "QA issues detected. Next action?", choices=choices, default=choices[0]
-        )
+        return await Wizard.select("QA issues detected. Next action?", choices=choices, default=choices[0])
 
     @staticmethod
     def _print_status(console: Any, steps: dict[str, SubStepStatus]) -> None:
@@ -140,8 +143,11 @@ class CompileQAWizardStep:
         table.add_column("Step")
         table.add_column("Status")
         palette = {
-            "pending": "dim", "running": "cyan", "ok": "green",
-            "skipped": "yellow", "failed": "red",
+            "pending": "dim",
+            "running": "cyan",
+            "ok": "green",
+            "skipped": "yellow",
+            "failed": "red",
         }
         for name, status in steps.items():
             color = palette.get(status, "white")
@@ -171,10 +177,7 @@ class CompileQAWizardStep:
     def _compile_script(project: DeckProject) -> str:
         theme_palette = project.theme.palette.model_dump() if project.theme else {}
         title = project.intent.topic if project.intent else "Deck"
-        requires = "\n".join(
-            f'  require("./slide-{s.index:02d}.js").createSlide(pres, theme);'
-            for s in project.slides
-        )
+        requires = "\n".join(f'  require("./slide-{s.index:02d}.js").createSlide(pres, theme);' for s in project.slides)
         return (
             'const pptxgen = require("pptxgenjs");\n\n'
             "async function main() {\n"

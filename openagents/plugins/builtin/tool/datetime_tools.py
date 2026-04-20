@@ -27,6 +27,7 @@ class CurrentTimeTool(ToolPlugin):
                 dt = datetime.now(timezone.utc)
             else:
                 import pytz
+
                 dt = datetime.now(pytz.timezone(tz))
             return {
                 "iso": dt.isoformat(),

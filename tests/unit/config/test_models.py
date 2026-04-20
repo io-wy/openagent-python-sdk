@@ -82,9 +82,7 @@ def test_llm_options_accepts_extra_headers_dict():
 
 def test_llm_options_rejects_non_string_header_value():
     with pytest.raises(ValidationError):
-        LLMOptions.model_validate(
-            {"provider": "anthropic", "extra_headers": {"X-Num": 42}}
-        )
+        LLMOptions.model_validate({"provider": "anthropic", "extra_headers": {"X-Num": 42}})
 
 
 def test_llm_options_rejects_non_dict_extra_headers():

@@ -38,7 +38,6 @@ async def test_inner_emit_runs_when_otel_raises(caplog):
     history = await bus.get_history()
     assert [e.name for e in history] == ["custom.event"]
     # The failure was logged with our marker prefix.
-    assert any(
-        "otel_bridge: failed to emit" in record.getMessage()
-        for record in caplog.records
-    ), [r.getMessage() for r in caplog.records]
+    assert any("otel_bridge: failed to emit" in record.getMessage() for record in caplog.records), [
+        r.getMessage() for r in caplog.records
+    ]

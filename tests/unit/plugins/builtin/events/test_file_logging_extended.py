@@ -96,9 +96,7 @@ async def test_exclude_wins_over_include(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_history_property_passthrough(tmp_path: Path) -> None:
     log = tmp_path / "events.ndjson"
-    bus = FileLoggingEventBus(
-        config={"log_path": str(log), "inner": {"type": "async"}}
-    )
+    bus = FileLoggingEventBus(config={"log_path": str(log), "inner": {"type": "async"}})
     await bus.emit("tool.called", x=1)
     await bus.emit("tool.succeeded", x=1)
     assert [e.name for e in bus.history] == ["tool.called", "tool.succeeded"]

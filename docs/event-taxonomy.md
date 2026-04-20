@@ -25,6 +25,12 @@ Regenerate this file via::
 | `pattern.plan_created` | `plan` | — | PlanExecutePattern produced its plan. |
 | `pattern.step_finished` | `step`, `action` | — | Pattern completed an execution step. |
 | `pattern.step_started` | `step` | `plan_step` | Pattern began an execution step. |
+| `run.checkpoint_failed` | `run_id`, `checkpoint_id`, `error`, `error_type` | — | create_checkpoint raised during a durable run; the run continues. |
+| `run.checkpoint_saved` | `run_id`, `checkpoint_id`, `step_index`, `transcript_length` | — | DefaultRuntime persisted a step checkpoint during a durable run. |
+| `run.durable_idempotency_warning` | `run_id`, `tool_id` | `hint` | A tool declaring durable_idempotent=False was invoked inside a durable run (one-shot per run/tool). |
+| `run.resume_attempted` | `run_id`, `checkpoint_id`, `error_type`, `attempt_index` | — | Durable run caught a retryable error and is about to load a checkpoint. |
+| `run.resume_exhausted` | `run_id`, `attempt_index`, `error_type`, `limit` | — | Durable run exceeded max_resume_attempts; the last retryable error propagates. |
+| `run.resume_succeeded` | `run_id`, `checkpoint_id`, `attempt_index` | — | Durable run successfully rehydrated from a checkpoint and continues. |
 | `session.run.completed` | `agent_id`, `session_id`, `stop_reason` | `run_id`, `duration_ms` | Runtime finished a single run. |
 | `session.run.started` | `agent_id`, `session_id` | `run_id`, `input_text` | Runtime begins a single run. |
 | `tool.approval_needed` | `tool_id`, `call_id`, `params` | `reason` | Tool requires human approval; app must inject approvals[call_id] in next run. |

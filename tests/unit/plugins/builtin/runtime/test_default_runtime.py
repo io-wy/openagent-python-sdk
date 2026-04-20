@@ -99,10 +99,7 @@ def test_buffer_memory_warns_on_unknown_config_keys(caplog):
         plugin = BufferMemory({"state_key": "ok", "totally_unknown": 1})
 
     assert plugin.cfg.state_key == "ok"
-    assert any(
-        "unknown config keys" in r.message and "totally_unknown" in r.message
-        for r in caplog.records
-    )
+    assert any("unknown config keys" in r.message and "totally_unknown" in r.message for r in caplog.records)
 
 
 def test_window_buffer_memory_warns_on_unknown_config_keys(caplog):
@@ -110,13 +107,8 @@ def test_window_buffer_memory_warns_on_unknown_config_keys(caplog):
 
     from openagents.plugins.builtin.memory.window_buffer import WindowBufferMemory
 
-    with caplog.at_level(
-        logging.WARNING, logger="openagents.plugins.builtin.memory.window_buffer"
-    ):
+    with caplog.at_level(logging.WARNING, logger="openagents.plugins.builtin.memory.window_buffer"):
         plugin = WindowBufferMemory({"window_size": 5, "totally_unknown": 1})
 
     assert plugin.window_size() == 5
-    assert any(
-        "unknown config keys" in r.message and "totally_unknown" in r.message
-        for r in caplog.records
-    )
+    assert any("unknown config keys" in r.message and "totally_unknown" in r.message for r in caplog.records)

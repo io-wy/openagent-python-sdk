@@ -27,8 +27,7 @@ def _names_in_doc(text: str) -> set[str]:
 
 def test_doc_file_exists():
     assert _DOC_PATH.exists(), (
-        "docs/event-taxonomy.md is missing; "
-        "regenerate via 'uv run python -m openagents.tools.gen_event_doc'"
+        "docs/event-taxonomy.md is missing; regenerate via 'uv run python -m openagents.tools.gen_event_doc'"
     )
 
 
@@ -49,6 +48,5 @@ def test_render_doc_matches_file_byte_for_byte():
     expected = render_doc()
     actual = _DOC_PATH.read_text(encoding="utf-8")
     assert actual == expected, (
-        "docs/event-taxonomy.md is out of date; "
-        "regenerate via 'uv run python -m openagents.tools.gen_event_doc'"
+        "docs/event-taxonomy.md is out of date; regenerate via 'uv run python -m openagents.tools.gen_event_doc'"
     )

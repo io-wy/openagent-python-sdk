@@ -118,12 +118,16 @@ async def test_timeout_retries_when_flag_true():
 @pytest.mark.asyncio
 async def test_timeout_not_retried_when_flag_false():
     inner = _ScriptedExecutor([_timeout(), _ok()])
-    retry = RetryToolExecutor(config={
-        "max_attempts": 3, "initial_delay_ms": 1, "max_delay_ms": 2,
-        "retry_on_timeout": False,
-        "retry_on": ["RetryableToolError"],
-        "inner": {"type": "safe"},
-    })
+    retry = RetryToolExecutor(
+        config={
+            "max_attempts": 3,
+            "initial_delay_ms": 1,
+            "max_delay_ms": 2,
+            "retry_on_timeout": False,
+            "retry_on": ["RetryableToolError"],
+            "inner": {"type": "safe"},
+        }
+    )
     retry._inner = inner
     result = await retry.execute(_req())
     assert result.success is False
@@ -150,10 +154,14 @@ async def test_execute_stream_passthrough_no_retry():
 @pytest.mark.asyncio
 async def test_cancellation_during_backoff_propagates():
     inner = _ScriptedExecutor([_retryable(), _retryable(), _ok()])
-    retry = RetryToolExecutor(config={
-        "max_attempts": 3, "initial_delay_ms": 1_000_000, "max_delay_ms": 1_000_000,
-        "inner": {"type": "safe"},
-    })
+    retry = RetryToolExecutor(
+        config={
+            "max_attempts": 3,
+            "initial_delay_ms": 1_000_000,
+            "max_delay_ms": 1_000_000,
+            "inner": {"type": "safe"},
+        }
+    )
     retry._inner = inner
 
     async def run():

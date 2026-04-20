@@ -114,7 +114,5 @@ class ConcurrentBatchExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
                     exception=ToolError(str(exc), tool_name=requests[idx].tool_id),
                 )
 
-        assert all(r is not None for r in results), (
-            "ConcurrentBatchExecutor: result slot unfilled"
-        )
+        assert all(r is not None for r in results), "ConcurrentBatchExecutor: result slot unfilled"
         return results  # type: ignore[return-value]

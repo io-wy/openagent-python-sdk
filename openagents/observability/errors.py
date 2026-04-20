@@ -13,6 +13,5 @@ class RichNotInstalledError(ImportError):
 
     def __init__(self, message: str | None = None) -> None:
         super().__init__(
-            message
-            or "rich is required for pretty output. Install with: pip install io-openagent-sdk[rich]"
+            message or "rich is required for pretty output. Install with: pip install io-openagent-sdk[rich]"
         )

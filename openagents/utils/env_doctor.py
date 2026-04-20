@@ -218,8 +218,6 @@ class EnvironmentDoctor:
         os.environ[key] = value
         return path
 
-    async def interactive_fix(
-        self, report: EnvironmentReport, console: Any
-    ) -> EnvironmentReport:
+    async def interactive_fix(self, report: EnvironmentReport, console: Any) -> EnvironmentReport:
         """App-side UI glue; deliberately left minimal here so Wizard can own the UI."""
         return report

@@ -27,9 +27,9 @@ _ANTHROPIC_EXTRA_RETRYABLE_STATUS: frozenset[int] = frozenset({529})
 
 
 _ANTHROPIC_PRICE_TABLE: dict[str, dict[str, float]] = {
-    "claude-opus-4-6":   {"in": 15.00, "out": 75.00, "cached_read": 1.50, "cached_write": 18.75},
-    "claude-sonnet-4-6": {"in":  3.00, "out": 15.00, "cached_read": 0.30, "cached_write":  3.75},
-    "claude-haiku-4-5":  {"in":  0.80, "out":  4.00, "cached_read": 0.08, "cached_write":  1.00},
+    "claude-opus-4-6": {"in": 15.00, "out": 75.00, "cached_read": 1.50, "cached_write": 18.75},
+    "claude-sonnet-4-6": {"in": 3.00, "out": 15.00, "cached_read": 0.30, "cached_write": 3.75},
+    "claude-haiku-4-5": {"in": 0.80, "out": 4.00, "cached_read": 0.08, "cached_write": 1.00},
 }
 
 
@@ -112,9 +112,7 @@ class AnthropicClient(HTTPProviderClient):
         # Merge Anthropic-specific retryable status (529 overloaded) into the policy
         if retry_policy is None:
             effective_policy = _RetryPolicy(
-                retryable_status=frozenset(
-                    _RetryPolicy().retryable_status | _ANTHROPIC_EXTRA_RETRYABLE_STATUS
-                )
+                retryable_status=frozenset(_RetryPolicy().retryable_status | _ANTHROPIC_EXTRA_RETRYABLE_STATUS)
             )
         else:
             effective_policy = _RetryPolicy(
@@ -124,9 +122,7 @@ class AnthropicClient(HTTPProviderClient):
                 backoff_multiplier=retry_policy.backoff_multiplier,
                 retry_on_connection_errors=retry_policy.retry_on_connection_errors,
                 total_budget_ms=retry_policy.total_budget_ms,
-                retryable_status=frozenset(
-                    retry_policy.retryable_status | _ANTHROPIC_EXTRA_RETRYABLE_STATUS
-                ),
+                retryable_status=frozenset(retry_policy.retryable_status | _ANTHROPIC_EXTRA_RETRYABLE_STATUS),
             )
         super().__init__(
             timeout_ms=timeout_ms,
@@ -374,11 +370,7 @@ class AnthropicClient(HTTPProviderClient):
                 )
 
         raw_usage = data.get("usage")
-        normalized_usage = (
-            self._normalize_usage(raw_usage).normalized()
-            if isinstance(raw_usage, dict)
-            else None
-        )
+        normalized_usage = self._normalize_usage(raw_usage).normalized() if isinstance(raw_usage, dict) else None
         if normalized_usage is not None:
             normalized_usage = self._compute_cost_for(
                 usage=normalized_usage,
@@ -445,9 +437,7 @@ class AnthropicClient(HTTPProviderClient):
             if response.status_code != 200:
                 body = await response.aread()
                 error_text = body.decode("utf-8", errors="replace")
-                classifier = _classify_status(
-                    int(response.status_code), self._retry_policy.retryable_status
-                )
+                classifier = _classify_status(int(response.status_code), self._retry_policy.retryable_status)
                 yield LLMChunk(
                     type="error",
                     error=f"HTTP {response.status_code}: {error_text[:500]}",
@@ -536,9 +526,7 @@ class AnthropicClient(HTTPProviderClient):
 
                             finish_reason = choice.get("finish_reason")
                             if isinstance(finish_reason, str) and finish_reason:
-                                pending_stop_reason = (
-                                    "tool_use" if finish_reason == "tool_calls" else finish_reason
-                                )
+                                pending_stop_reason = "tool_use" if finish_reason == "tool_calls" else finish_reason
 
                         if pending_stop_reason is not None and latest_usage is not None:
                             yield LLMChunk(
@@ -586,9 +574,7 @@ class AnthropicClient(HTTPProviderClient):
                             normalized_delta = self._normalize_usage(merged_raw)
                             total_tokens = int(usage_payload.get("total_tokens", 0) or 0)
                             if total_tokens <= 0:
-                                total_tokens = (
-                                    normalized_delta.input_tokens + normalized_delta.output_tokens
-                                )
+                                total_tokens = normalized_delta.input_tokens + normalized_delta.output_tokens
                             merged_metadata = dict(latest_usage.metadata) if latest_usage else {}
                             merged_metadata.update(normalized_delta.metadata)
                             latest_usage = self._compute_cost_for(

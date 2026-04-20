@@ -81,9 +81,7 @@ async def test_runtime_enforces_max_tool_calls_budget():
         "tests.fixtures.runtime_plugins.InjectWritebackMemory",
         "tests.fixtures.runtime_plugins.TwoToolCallsPattern",
     )
-    payload["agents"][0]["tools"] = [
-        {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
-    ]
+    payload["agents"][0]["tools"] = [{"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}]
     config = load_config_dict(payload)
     runtime = Runtime(config)
 

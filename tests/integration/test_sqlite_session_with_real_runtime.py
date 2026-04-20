@@ -16,9 +16,7 @@ from openagents.runtime.runtime import Runtime
 
 @pytest.mark.asyncio
 async def test_sqlite_session_replays_across_runs(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(
-        llm_registry, "create_llm_client", lambda llm: MockLLMClient()
-    )
+    monkeypatch.setattr(llm_registry, "create_llm_client", lambda llm: MockLLMClient())
     db_path = tmp_path / "agent.db"
     payload = {
         "version": "1.0",

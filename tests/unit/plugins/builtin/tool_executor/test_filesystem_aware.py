@@ -11,9 +11,7 @@ class _MockTool:
 
 def _req(tool_id="read_file", params=None, reads_files=False, writes_files=False):
     spec = ToolExecutionSpec(reads_files=reads_files, writes_files=writes_files)
-    return ToolExecutionRequest(
-        tool_id=tool_id, tool=_MockTool(), params=params or {}, execution_spec=spec
-    )
+    return ToolExecutionRequest(tool_id=tool_id, tool=_MockTool(), params=params or {}, execution_spec=spec)
 
 
 @pytest.mark.asyncio
@@ -34,9 +32,7 @@ async def test_allow_tools_permits_listed():
 @pytest.mark.asyncio
 async def test_read_roots_blocks_outside_path(tmp_path):
     ex = FilesystemAwareExecutor(config={"read_roots": [str(tmp_path)]})
-    result = await ex.execute(
-        _req(tool_id="read_file", params={"path": "/etc/passwd"}, reads_files=True)
-    )
+    result = await ex.execute(_req(tool_id="read_file", params={"path": "/etc/passwd"}, reads_files=True))
     assert result.success is False
     assert "outside read_roots" in result.error
 

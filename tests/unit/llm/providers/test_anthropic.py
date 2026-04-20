@@ -48,13 +48,13 @@ def _install_fake_httpx(monkeypatch, *, response: _FakeResponse) -> _FakeAsyncCl
 
 
 def test_messages_endpoint_adds_v1_when_base_is_root():
-    client = AnthropicClient(api_base='https://api.anthropic.com', model='claude-test')
-    assert client._messages_endpoint() == 'https://api.anthropic.com/v1/messages'
+    client = AnthropicClient(api_base="https://api.anthropic.com", model="claude-test")
+    assert client._messages_endpoint() == "https://api.anthropic.com/v1/messages"
 
 
 def test_messages_endpoint_preserves_existing_v1_prefix():
-    client = AnthropicClient(api_base='https://api.minimaxi.com/anthropic/v1', model='MiniMax-M2.5')
-    assert client._messages_endpoint() == 'https://api.minimaxi.com/anthropic/v1/messages'
+    client = AnthropicClient(api_base="https://api.minimaxi.com/anthropic/v1", model="MiniMax-M2.5")
+    assert client._messages_endpoint() == "https://api.minimaxi.com/anthropic/v1/messages"
 
 
 def test_build_payload_uses_x_api_key_without_authorization_header(monkeypatch):
@@ -281,9 +281,7 @@ async def test_generate_system_list_preserves_cache_control(monkeypatch):
     fake = _install_fake_httpx(monkeypatch, response=response)
     client = AnthropicClient(api_base="https://api.anthropic.com", model="claude-test")
 
-    system_blocks = [
-        {"type": "text", "text": "system prompt", "cache_control": {"type": "ephemeral"}}
-    ]
+    system_blocks = [{"type": "text", "text": "system prompt", "cache_control": {"type": "ephemeral"}}]
     await client.generate(
         messages=[
             {"role": "system", "content": system_blocks},

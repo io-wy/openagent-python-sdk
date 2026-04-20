@@ -415,9 +415,7 @@ def test_parse_retry_after_http_date_returns_nonnegative():
 
 
 @pytest.mark.asyncio
-async def test_request_retries_429_exactly_max_attempts_then_raises_rate_limit(
-    monkeypatch, record_sleep
-):
+async def test_request_retries_429_exactly_max_attempts_then_raises_rate_limit(monkeypatch, record_sleep):
     fake = _install_retry_fake(
         monkeypatch,
         responses=[
@@ -446,9 +444,7 @@ async def test_request_retry_after_header_overrides_computed_backoff(monkeypatch
             _RetryResponse(status_code=200, json_data={"ok": True}),
         ],
     )
-    client = _TransportHarness(
-        retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=100, max_backoff_ms=200)
-    )
+    client = _TransportHarness(retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=100, max_backoff_ms=200))
 
     response = await client._request("POST", "https://example.com", json_body={})
     assert response.status_code == 200
@@ -470,9 +466,7 @@ async def test_request_retries_connection_errors_when_enabled(monkeypatch, recor
         ],
         connection_exc_types=(_FakeConnectError,),
     )
-    client = _TransportHarness(
-        retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=10)
-    )
+    client = _TransportHarness(retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=10))
 
     response = await client._request("POST", "https://example.com", json_body={})
     assert response.status_code == 200
@@ -481,9 +475,7 @@ async def test_request_retries_connection_errors_when_enabled(monkeypatch, recor
 
 
 @pytest.mark.asyncio
-async def test_request_connection_error_exhaustion_raises_connection_error(
-    monkeypatch, record_sleep
-):
+async def test_request_connection_error_exhaustion_raises_connection_error(monkeypatch, record_sleep):
     class _FakeConnectError(Exception):
         pass
 
@@ -577,7 +569,7 @@ async def test_open_stream_429_exhaustion_raises_rate_limit(monkeypatch, record_
 
 @pytest.mark.asyncio
 async def test_open_stream_200_returns_entered_response(monkeypatch):
-    resp = _RetryResponse(status_code=200, records=[b'data: hi\n\n'])
+    resp = _RetryResponse(status_code=200, records=[b"data: hi\n\n"])
     _install_retry_fake(monkeypatch, stream_responses=[resp])
     client = _TransportHarness()
 
@@ -594,7 +586,7 @@ async def test_open_stream_success_after_retry(monkeypatch, record_sleep):
         monkeypatch,
         stream_responses=[
             _RetryResponse(status_code=429, headers={"Retry-After": "0"}),
-            _RetryResponse(status_code=200, records=[b'data: ok\n\n']),
+            _RetryResponse(status_code=200, records=[b"data: ok\n\n"]),
         ],
     )
     client = _TransportHarness(retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=10))
@@ -673,9 +665,7 @@ async def test_open_stream_connection_errors_retry_then_raise(monkeypatch, recor
 
 
 @pytest.mark.asyncio
-async def test_open_stream_connection_errors_disabled_aborts_immediately(
-    monkeypatch, record_sleep
-):
+async def test_open_stream_connection_errors_disabled_aborts_immediately(monkeypatch, record_sleep):
     class _FakeConnectError(Exception):
         pass
 
@@ -727,9 +717,7 @@ async def test_request_retry_after_http_date_is_parsed(monkeypatch, record_sleep
             _RetryResponse(status_code=200, json_data={"ok": True}),
         ],
     )
-    client = _TransportHarness(
-        retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=10)
-    )
+    client = _TransportHarness(retry_policy=_RetryPolicy(max_attempts=3, initial_backoff_ms=10))
 
     response = await client._request("POST", "https://example.com", json_body={})
     assert response.status_code == 200

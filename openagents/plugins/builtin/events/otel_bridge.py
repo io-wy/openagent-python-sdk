@@ -21,6 +21,7 @@ from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 try:
     from opentelemetry import trace as otel_trace
+
     _HAS_OTEL = True
 except ImportError:
     otel_trace = None  # type: ignore[assignment]
@@ -68,7 +69,7 @@ class OtelEventBusBridge(TypedConfigPluginMixin, EventBusPlugin):
             raise PluginLoadError(
                 "events 'otel_bridge' requires the 'opentelemetry-api' package",
                 hint="Install the 'otel' extra: uv sync --extra otel; "
-                     "also configure a TracerProvider via opentelemetry-sdk",
+                "also configure a TracerProvider via opentelemetry-sdk",
             )
         super().__init__(
             config=config or {},
@@ -95,9 +96,7 @@ class OtelEventBusBridge(TypedConfigPluginMixin, EventBusPlugin):
     def _matches_include(self, name: str) -> bool:
         if self.cfg.include_events is None:
             return True
-        return any(
-            fnmatch.fnmatchcase(name, pat) for pat in self.cfg.include_events
-        )
+        return any(fnmatch.fnmatchcase(name, pat) for pat in self.cfg.include_events)
 
     def _flatten_attribute(self, key: str, value: Any) -> tuple[str, str]:
         if isinstance(value, (str, int, float, bool)) or value is None:
@@ -126,16 +125,12 @@ class OtelEventBusBridge(TypedConfigPluginMixin, EventBusPlugin):
             return event
 
         try:
-            with self._tracer.start_as_current_span(
-                f"openagents.{event_name}"
-            ) as span:
+            with self._tracer.start_as_current_span(f"openagents.{event_name}") as span:
                 for k, v in payload.items():
                     attr_k, attr_v = self._flatten_attribute(k, v)
                     span.set_attribute(attr_k, attr_v)
         except Exception as exc:  # noqa: BLE001 - OTel SDK exceptions vary
-            logger.error(
-                "otel_bridge: failed to emit span for %s: %s", event_name, exc
-            )
+            logger.error("otel_bridge: failed to emit span for %s: %s", event_name, exc)
 
         return event
 

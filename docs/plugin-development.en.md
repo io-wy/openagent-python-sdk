@@ -190,6 +190,19 @@ Key points:
 - Unknown config keys emit a warning only (0.3.x migration safety). A future release may switch to `extra='forbid'`.
 - Config validation failures raise `PluginConfigError` with a schema hint.
 
+### Optional: `durable_idempotent` attribute (added in 0.4.x)
+
+Durable runs (`RunRequest.durable=True`) rehydrate from the most recent checkpoint and re-invoke `pattern.execute()` after a retryable error. If your tool has externally-visible side effects (writes files, sends HTTP POSTs, spawns subprocesses, mutates env vars), that re-invocation may replay the tool — which is non-idempotent against outside state.
+
+Declare `durable_idempotent = False` on the class to have the runtime emit a one-shot `run.durable_idempotency_warning` event the first time the tool is invoked inside a durable run. The warning is advisory; it does not block execution.
+
+```python
+class MyWriteTool(ToolPlugin):
+    durable_idempotent = False  # default True — read-only tools omit this
+```
+
+The builtins `WriteFileTool`, `DeleteFileTool`, `HttpRequestTool`, `ShellExecTool`, `ExecuteCommandTool`, `SetEnvTool` are already marked `False`; read-only / query tools keep the `True` default.
+
 ## 7. Custom Memory
 
 Write a Memory plugin when you need to control `inject` / `writeback` behavior.

@@ -36,7 +36,7 @@ from openagents.decorators import (
     _TOOL_REGISTRY,
 )
 from openagents.errors.exceptions import ConfigError
-from openagents.plugins.registry import _BUILTIN_REGISTRY, get_builtin_plugin_class
+from openagents.plugins.registry import get_builtin_plugin_class
 
 _DECORATOR_REGISTRIES: dict[str, dict[str, Any]] = {
     "memory": _MEMORY_REGISTRY,
@@ -104,10 +104,7 @@ def _annotate_refs(obj: Any, seam_key: str | None = None) -> Any:
 def _redact(obj: Any, *, path: tuple[str, ...] = ()) -> Any:
     """Replace leaves whose path segments match the secret pattern with ``***``."""
     if isinstance(obj, dict):
-        return {
-            k: _redact(v, path=path + (str(k),))
-            for k, v in obj.items()
-        }
+        return {k: _redact(v, path=path + (str(k),)) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_redact(item, path=path) for item in obj]
     for segment in path:

@@ -76,4 +76,3 @@ class BuiltinSearchTool(ToolPlugin):
             },
             "required": ["query"],
         }
-

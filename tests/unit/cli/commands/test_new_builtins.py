@@ -21,7 +21,10 @@ EXPECTED: list[tuple[str, str]] = [
 def _run(*args: str) -> str:
     result = subprocess.run(
         [sys.executable, "-m", "openagents", *args],
-        capture_output=True, text=True, check=True, encoding="utf-8",
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
     )
     return result.stdout
 

@@ -1,4 +1,3 @@
-
 import pytest
 
 from openagents.llm.providers.anthropic import AnthropicClient

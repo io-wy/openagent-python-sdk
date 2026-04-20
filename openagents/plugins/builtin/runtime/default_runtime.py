@@ -16,12 +16,17 @@ from pydantic import BaseModel, Field
 
 from openagents.errors.exceptions import (
     BudgetExhausted,
+    ConfigError,
+    LLMConnectionError,
+    LLMRateLimitError,
     MaxStepsExceeded,
     ModelRetryError,
     OpenAgentsError,
     OutputValidationError,
     PatternError,
     PermanentToolError,
+    ToolRateLimitError,
+    ToolUnavailableError,
 )
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
@@ -54,7 +59,7 @@ from openagents.interfaces.runtime import (
     RunUsage,
     StopReason,
 )
-from openagents.interfaces.session import SessionArtifact
+from openagents.interfaces.session import SessionArtifact, SessionCheckpoint
 from openagents.interfaces.tool import (
     ToolExecutionRequest,
     ToolExecutionResult,
@@ -66,13 +71,25 @@ from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 logger = logging.getLogger("openagents")
 
+# Errors classified as retryable by the durable-run resume loop.
+# Any other OpenAgentsError subclass (PermanentToolError, ConfigError,
+# BudgetExhausted, OutputValidationError, PatternError, ModelRetryError
+# post-budget) is treated as permanent.
+RETRYABLE_RUN_ERRORS: tuple[type[OpenAgentsError], ...] = (
+    LLMRateLimitError,
+    LLMConnectionError,
+    ToolRateLimitError,
+    ToolUnavailableError,
+)
+
+# State-dict key used by the durable-run machinery to stash usage /
+# artifacts / step counter across checkpoints. Private to this module.
+_DURABLE_STATE_KEY = "__durable__"
+
 
 def _supports_parameter(fn: Any, name: str) -> bool:
     params = inspect.signature(fn).parameters.values()
-    return any(
-        param.name == name or param.kind is inspect.Parameter.VAR_KEYWORD
-        for param in params
-    )
+    return any(param.name == name or param.kind is inspect.Parameter.VAR_KEYWORD for param in params)
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -95,9 +112,7 @@ def _instantiate(factory: Any, config: dict[str, Any]) -> Any:
     try:
         return factory(config=config)
     except TypeError as exc:
-        raise TypeError(
-            f"Could not instantiate runtime dependency from {factory!r}: {exc}"
-        ) from exc
+        raise TypeError(f"Could not instantiate runtime dependency from {factory!r}: {exc}") from exc
 
 
 class _DefaultToolExecutor(ToolExecutorPlugin):
@@ -174,6 +189,10 @@ class _BoundTool:
             return get_spec()
         return ToolExecutionSpec()
 
+    @property
+    def durable_idempotent(self) -> bool:
+        return bool(getattr(self._tool, "durable_idempotent", True))
+
     async def invoke(self, params: dict[str, Any], context: Any) -> ToolExecutionResult:
         """Bound invocation: call_id + approval gate + before/after hooks + executor.
 
@@ -191,9 +210,7 @@ class _BoundTool:
         usage = getattr(context, "usage", None)
         if budget is not None and budget.max_tool_calls is not None and usage is not None:
             if usage.tool_calls >= budget.max_tool_calls:
-                raise MaxStepsExceeded(
-                    f"Tool call limit ({budget.max_tool_calls}) exceeded"
-                ).with_context(
+                raise MaxStepsExceeded(f"Tool call limit ({budget.max_tool_calls}) exceeded").with_context(
                     agent_id=getattr(context, "agent_id", None),
                     session_id=getattr(context, "session_id", None),
                     run_id=getattr(getattr(context, "run_request", None), "run_id", None),
@@ -204,6 +221,35 @@ class _BoundTool:
         scratch = getattr(context, "scratch", None)
         if isinstance(scratch, dict):
             scratch["__current_call_id__"] = call_id
+
+        # One-shot durable idempotency warning: emitted the first time a
+        # tool declaring durable_idempotent=False is invoked inside a
+        # durable run. Dedup key = (run_id, tool_id). Advisory only — we
+        # do not block the call.
+        run_request = getattr(context, "run_request", None)
+        if (
+            run_request is not None
+            and getattr(run_request, "durable", False)
+            and not self.durable_idempotent
+            and isinstance(scratch, dict)
+        ):
+            warned: set[str] = scratch.setdefault("__idempotency_warned__", set())
+            if self._tool_id not in warned:
+                warned.add(self._tool_id)
+                event_bus = getattr(context, "event_bus", None)
+                if event_bus is not None and callable(getattr(event_bus, "emit", None)):
+                    try:
+                        await event_bus.emit(
+                            "run.durable_idempotency_warning",
+                            run_id=getattr(run_request, "run_id", ""),
+                            tool_id=self._tool_id,
+                            hint=(
+                                f"Tool '{self._tool_id}' declares durable_idempotent=False; "
+                                "on resume it may re-execute and repeat side effects."
+                            ),
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
 
         if self._requires_approval(params, context):
             event_bus = getattr(context, "event_bus", None)
@@ -237,9 +283,7 @@ class _BoundTool:
         if callable(before):
             await before(params or {}, context)
 
-        cancel_event = (
-            scratch.get("__cancel_event__") if isinstance(scratch, dict) else None
-        )
+        cancel_event = scratch.get("__cancel_event__") if isinstance(scratch, dict) else None
         request = ToolExecutionRequest(
             tool_id=self._tool_id,
             tool=self._tool,
@@ -323,9 +367,7 @@ class _BoundTool:
             return []
 
         scratch = getattr(context, "scratch", None)
-        cancel_event = (
-            scratch.get("__cancel_event__") if isinstance(scratch, dict) else None
-        )
+        cancel_event = scratch.get("__cancel_event__") if isinstance(scratch, dict) else None
         spec = self.execution_spec()
         requests = [
             ToolExecutionRequest(
@@ -378,11 +420,7 @@ class _BoundTool:
             if event_bus is not None and callable(getattr(event_bus, "emit", None)):
                 try:
                     scratch = getattr(context, "scratch", None)
-                    call_id = (
-                        scratch.get("__current_call_id__")
-                        if isinstance(scratch, dict)
-                        else None
-                    )
+                    call_id = scratch.get("__current_call_id__") if isinstance(scratch, dict) else None
                     await event_bus.emit(
                         "tool.background.submitted",
                         tool_id=self._tool_id,
@@ -471,9 +509,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
     class Config(BaseModel):
         tool_executor: dict[str, Any] | None = None
         context_assembler: dict[str, Any] | None = None
-        mcp: "DefaultRuntime.McpRuntimeConfig" = Field(
-            default_factory=lambda: DefaultRuntime.McpRuntimeConfig()
-        )
+        mcp: "DefaultRuntime.McpRuntimeConfig" = Field(default_factory=lambda: DefaultRuntime.McpRuntimeConfig())
 
     def __init__(
         self,
@@ -490,6 +526,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         self._tool_executor: ToolExecutor | None = None
         self._context_assembler: ContextAssemblerPlugin | None = None
         from ._mcp_coordinator import _McpSessionCoordinator
+
         mcp_cfg = self.cfg.mcp
         self._mcp_coordinator = _McpSessionCoordinator(
             max_pooled_sessions=mcp_cfg.max_pooled_sessions,
@@ -525,12 +562,8 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
 
             available = sorted(agents_by_id.keys())
             guess = near_match(request.agent_id, available)
-            extra = (
-                f" Did you mean '{guess}'?" if guess else ""
-            )
-            raise ValueError(
-                f"Unknown agent id: '{request.agent_id}'.{extra} Available: {available}"
-            )
+            extra = f" Did you mean '{guess}'?" if guess else ""
+            raise ValueError(f"Unknown agent id: '{request.agent_id}'.{extra} Available: {available}")
 
         if agent_plugins is None:
             plugins = load_agent_plugins(agent)
@@ -566,6 +599,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         context_assembler = self._resolve_context_assembler(agent_plugins)
         started_at = time.perf_counter()
 
+        resumed_from_checkpoint: SessionCheckpoint | None = None
         try:
             async with self._session_manager.session(request.session_id) as session_state:
                 await self._event_bus.emit(
@@ -576,28 +610,102 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 )
 
                 session_state.pop("_runtime_last_output", None)
-                await self._event_bus.emit("context.assemble.started")
-                assemble_started_at = time.perf_counter()
-                assembly = await context_assembler.assemble(
-                    request=request,
-                    session_state=session_state,
-                    session_manager=self._session_manager,
-                )
-                assemble_duration_ms = int(
-                    (time.perf_counter() - assemble_started_at) * 1000
-                )
-                await self._event_bus.emit(
-                    "context.assemble.completed",
-                    transcript_size=len(assembly.transcript),
-                    artifact_count=len(assembly.session_artifacts),
-                    duration_ms=assemble_duration_ms,
-                )
+
+                # --- Explicit resume entry point ---
+                # When request.resume_from_checkpoint is set, we skip the
+                # normal context_assembler.assemble() path and build the
+                # assembly from the loaded checkpoint's state instead.
+                if request.resume_from_checkpoint:
+                    checkpoint = await self._session_manager.load_checkpoint(
+                        request.session_id, request.resume_from_checkpoint
+                    )
+                    if checkpoint is None:
+                        available = await self._list_checkpoint_ids(request.session_id)
+                        hint = (
+                            f"No checkpoint '{request.resume_from_checkpoint}' for session "
+                            f"'{request.session_id}'. Available: {available}"
+                            if available
+                            else f"No checkpoints exist for session '{request.session_id}'."
+                        )
+                        raise ConfigError(
+                            f"Unknown resume_from_checkpoint '{request.resume_from_checkpoint}'",
+                            hint=hint,
+                        )
+                    resumed_from_checkpoint = checkpoint
+                    ckpt_state = dict(checkpoint.state or {})
+                    transcript_full = list(ckpt_state.get("_session_transcript", []))
+                    if checkpoint.transcript_length and checkpoint.transcript_length <= len(transcript_full):
+                        transcript_full = transcript_full[: checkpoint.transcript_length]
+                    ckpt_artifacts_raw = list(ckpt_state.get("_session_artifacts", []))
+                    if checkpoint.artifact_count and checkpoint.artifact_count <= len(ckpt_artifacts_raw):
+                        ckpt_artifacts_raw = ckpt_artifacts_raw[: checkpoint.artifact_count]
+                    ckpt_artifacts = [
+                        SessionArtifact.from_dict(item) if isinstance(item, dict) else item
+                        for item in ckpt_artifacts_raw
+                    ]
+                    assembly = ContextAssemblyResult(
+                        transcript=transcript_full,
+                        session_artifacts=ckpt_artifacts,
+                        metadata={"resumed_from_checkpoint": request.resume_from_checkpoint},
+                    )
+                    # Merge the checkpoint's saved state (minus private keys) into session_state
+                    # so subsequent pattern.execute() sees the same scratch data it had.
+                    for key, value in ckpt_state.items():
+                        if key.startswith("_session_"):
+                            continue
+                        session_state[key] = value
+                    # Rehydrate usage / artifacts from the durable blob (if any).
+                    durable_blob = ckpt_state.get(_DURABLE_STATE_KEY) or {}
+                    blob_usage = durable_blob.get("usage")
+                    if isinstance(blob_usage, dict):
+                        try:
+                            restored = RunUsage.model_validate(blob_usage)
+                            usage.llm_calls = restored.llm_calls
+                            usage.tool_calls = restored.tool_calls
+                            usage.input_tokens = restored.input_tokens
+                            usage.output_tokens = restored.output_tokens
+                            usage.total_tokens = restored.total_tokens
+                            usage.input_tokens_cached = restored.input_tokens_cached
+                            usage.input_tokens_cache_creation = restored.input_tokens_cache_creation
+                            usage.cost_usd = restored.cost_usd
+                            usage.cost_breakdown = dict(restored.cost_breakdown)
+                        except Exception:  # noqa: BLE001
+                            logger.exception("failed to rehydrate usage from resume checkpoint")
+                    from openagents.interfaces.runtime import RunArtifact as _RunArtifact
+
+                    blob_artifacts = durable_blob.get("artifacts")
+                    if isinstance(blob_artifacts, list):
+                        for item in blob_artifacts:
+                            try:
+                                if isinstance(item, dict):
+                                    artifacts.append(_RunArtifact.model_validate(item))
+                            except Exception:  # noqa: BLE001
+                                logger.exception("failed to rehydrate artifact on resume")
+                    await self._event_bus.emit(
+                        "context.assemble.completed",
+                        transcript_size=len(assembly.transcript),
+                        artifact_count=len(assembly.session_artifacts),
+                        duration_ms=0,
+                    )
+                else:
+                    await self._event_bus.emit("context.assemble.started")
+                    assemble_started_at = time.perf_counter()
+                    assembly = await context_assembler.assemble(
+                        request=request,
+                        session_state=session_state,
+                        session_manager=self._session_manager,
+                    )
+                    assemble_duration_ms = int((time.perf_counter() - assemble_started_at) * 1000)
+                    await self._event_bus.emit(
+                        "context.assemble.completed",
+                        transcript_size=len(assembly.transcript),
+                        artifact_count=len(assembly.session_artifacts),
+                        duration_ms=assemble_duration_ms,
+                    )
                 self._apply_runtime_budget(pattern=plugins.pattern, agent=agent)
                 bound_tools = self._bind_tools(plugins.tools, tool_executor)
 
-                mcp_pool = await self._mcp_coordinator.get_or_create(
-                    request.session_id
-                )
+                mcp_pool = await self._mcp_coordinator.get_or_create(request.session_id)
 
                 await self._run_tool_preflight(
                     tools=plugins.tools,
@@ -605,9 +713,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     mcp_pool=mcp_pool,
                 )
 
-                await self._mcp_coordinator.warmup_eager(
-                    mcp_pool, plugins.tools.values()
-                )
+                await self._mcp_coordinator.warmup_eager(mcp_pool, plugins.tools.values())
 
                 await self._setup_pattern(
                     pattern=plugins.pattern,
@@ -627,10 +733,9 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 # Seed a per-run cancel event so tools can race against external
                 # cancellation. External callers set the event to request cancel.
                 import asyncio as _asyncio
+
                 pattern_ctx = getattr(plugins.pattern, "context", None)
-                if pattern_ctx is not None and isinstance(
-                    getattr(pattern_ctx, "scratch", None), dict
-                ):
+                if pattern_ctx is not None and isinstance(getattr(pattern_ctx, "scratch", None), dict):
                     pattern_ctx.scratch.setdefault("__cancel_event__", _asyncio.Event())
                     pattern_ctx.scratch["__mcp_session_pool__"] = mcp_pool
 
@@ -642,68 +747,143 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 )
 
                 self._enforce_duration_budget(request=request, started_at=started_at)
-                await self._run_memory_inject(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
+                # Skip memory.inject on explicit resume — the checkpoint's
+                # transcript already contains the injected memory from the
+                # original run, and re-injecting is not idempotent for
+                # memory plugins with side effects.
+                if resumed_from_checkpoint is None:
+                    await self._run_memory_inject(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
                 self._enforce_duration_budget(request=request, started_at=started_at)
+
+                # --- Durable step-checkpoint subscription (opt-in) ---
+                checkpoint_handler = None
+                if request.durable:
+                    checkpoint_handler = self._build_step_checkpoint_handler(
+                        run_id=request.run_id,
+                        session_id=request.session_id,
+                        session_state=session_state,
+                        pattern=plugins.pattern,
+                        usage=usage,
+                        artifacts=artifacts,
+                    )
+                    self._event_bus.subscribe("tool.succeeded", checkpoint_handler)
+                    self._event_bus.subscribe("llm.succeeded", checkpoint_handler)
 
                 output_type = request.output_type
                 max_retries = (
                     request.budget.max_validation_retries
-                    if request.budget is not None
-                    and request.budget.max_validation_retries is not None
+                    if request.budget is not None and request.budget.max_validation_retries is not None
                     else 3
                 )
+                max_resume = (
+                    request.budget.max_resume_attempts
+                    if request.budget is not None and request.budget.max_resume_attempts is not None
+                    else 3
+                )
+                resume_attempt = 0
                 attempts = 0
-                raw = await plugins.pattern.execute()
-                self._enforce_duration_budget(request=request, started_at=started_at)
                 validation_exhausted: OutputValidationError | None = None
+                result: Any = None
 
-                finalize_fn = getattr(plugins.pattern, "finalize", None)
-                if finalize_fn is None:
-                    # Duck-typed pattern without finalize hook: skip validation entirely.
-                    result = raw
-                    validation_exhausted = None
-                    # Fall through past the while loop (no retries needed).
-                    finalize_enabled = False
-                else:
-                    finalize_enabled = True
+                try:
+                    # Durable outer loop: catches retryable errors and
+                    # resumes from the most recent checkpoint.
+                    while True:
+                        try:
+                            raw = await plugins.pattern.execute()
+                            self._enforce_duration_budget(request=request, started_at=started_at)
+                            validation_exhausted = None
 
-                while finalize_enabled:
-                    try:
-                        result = await finalize_fn(raw, output_type)
-                        break
-                    except ModelRetryError as retry_exc:
-                        attempts += 1
-                        if max_retries is not None and attempts > max_retries:
-                            validation_exhausted = OutputValidationError(
-                                str(retry_exc),
-                                output_type=output_type,
-                                attempts=attempts,
-                                last_validation_error=retry_exc.validation_error,
-                            ).with_context(
-                                agent_id=request.agent_id,
-                                session_id=request.session_id,
+                            finalize_fn = getattr(plugins.pattern, "finalize", None)
+                            if finalize_fn is None:
+                                # Duck-typed pattern without finalize hook: skip validation.
+                                result = raw
+                                finalize_enabled = False
+                            else:
+                                finalize_enabled = True
+
+                            while finalize_enabled:
+                                try:
+                                    result = await finalize_fn(raw, output_type)
+                                    break
+                                except ModelRetryError as retry_exc:
+                                    attempts += 1
+                                    if max_retries is not None and attempts > max_retries:
+                                        validation_exhausted = OutputValidationError(
+                                            str(retry_exc),
+                                            output_type=output_type,
+                                            attempts=attempts,
+                                            last_validation_error=retry_exc.validation_error,
+                                        ).with_context(
+                                            agent_id=request.agent_id,
+                                            session_id=request.session_id,
+                                            run_id=request.run_id,
+                                        )
+                                        break
+                                    pattern_ctx = getattr(plugins.pattern, "context", None)
+                                    if pattern_ctx is not None:
+                                        pattern_ctx.scratch["last_validation_error"] = {
+                                            "attempt": attempts,
+                                            "message": str(retry_exc),
+                                            "expected_schema": (
+                                                output_type.model_json_schema() if output_type is not None else {}
+                                            ),
+                                        }
+                                    await self._event_bus.emit(
+                                        "validation.retry",
+                                        agent_id=request.agent_id,
+                                        session_id=request.session_id,
+                                        run_id=request.run_id,
+                                        attempt=attempts,
+                                        error=str(retry_exc),
+                                    )
+                                    raw = await plugins.pattern.execute()
+                                    self._enforce_duration_budget(request=request, started_at=started_at)
+                            break  # durable outer loop success
+                        except RETRYABLE_RUN_ERRORS as exc:
+                            if not request.durable:
+                                raise
+                            durable_blob = session_state.get(_DURABLE_STATE_KEY) or {}
+                            checkpoint_id = durable_blob.get("checkpoint_id")
+                            if checkpoint_id is None:
+                                # No checkpoint written yet — nothing to resume to.
+                                raise
+                            if resume_attempt >= max_resume:
+                                await self._event_bus.emit(
+                                    "run.resume_exhausted",
+                                    run_id=request.run_id,
+                                    attempt_index=resume_attempt + 1,
+                                    error_type=type(exc).__name__,
+                                    limit=max_resume,
+                                )
+                                raise
+                            resume_attempt += 1
+                            await self._event_bus.emit(
+                                "run.resume_attempted",
                                 run_id=request.run_id,
+                                checkpoint_id=checkpoint_id,
+                                error_type=type(exc).__name__,
+                                attempt_index=resume_attempt,
                             )
-                            break
-                        pattern_ctx = getattr(plugins.pattern, "context", None)
-                        if pattern_ctx is not None:
-                            pattern_ctx.scratch["last_validation_error"] = {
-                                "attempt": attempts,
-                                "message": str(retry_exc),
-                                "expected_schema": (
-                                    output_type.model_json_schema() if output_type is not None else {}
-                                ),
-                            }
-                        await self._event_bus.emit(
-                            "validation.retry",
-                            agent_id=request.agent_id,
-                            session_id=request.session_id,
-                            run_id=request.run_id,
-                            attempt=attempts,
-                            error=str(retry_exc),
-                        )
-                        raw = await plugins.pattern.execute()
-                        self._enforce_duration_budget(request=request, started_at=started_at)
+                            ckpt = await self._session_manager.load_checkpoint(request.session_id, checkpoint_id)
+                            if ckpt is None:
+                                raise
+                            self._rehydrate_pattern_from_checkpoint(
+                                pattern=plugins.pattern,
+                                checkpoint=ckpt,
+                                usage=usage,
+                                artifacts=artifacts,
+                            )
+                            await self._event_bus.emit(
+                                "run.resume_succeeded",
+                                run_id=request.run_id,
+                                checkpoint_id=checkpoint_id,
+                                attempt_index=resume_attempt,
+                            )
+                finally:
+                    if checkpoint_handler is not None:
+                        self._event_bus.unsubscribe("tool.succeeded", checkpoint_handler)
+                        self._event_bus.unsubscribe("llm.succeeded", checkpoint_handler)
 
                 if validation_exhausted is not None:
                     await self._append_transcript(
@@ -874,6 +1054,162 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         client = self._llm_clients.pop(agent_id, None)
         await self._close_llm_client(client)
 
+    # ------------------------------------------------------------------
+    # Durable execution helpers
+    # ------------------------------------------------------------------
+
+    def _build_step_checkpoint_handler(
+        self,
+        *,
+        run_id: str,
+        session_id: str,
+        session_state: dict[str, Any],
+        pattern: PatternPlugin,
+        usage: RunUsage,
+        artifacts: list[Any],
+    ):
+        """Return an async event handler that persists a checkpoint per step.
+
+        Filters by ``payload['run_id'] == run_id``. Skips events while
+        ``pattern.context.scratch['__in_batch__']`` is truthy so batched
+        tool calls collapse to a single checkpoint at batch completion.
+        """
+        counter = {"n": 0}
+
+        async def handler(event: Any) -> None:
+            payload = event.payload or {}
+            # PatternPlugin.emit injects agent_id + session_id (but not run_id)
+            # into every payload. Use session_id to isolate across concurrent
+            # runs on different sessions; the handler is also unsubscribed when
+            # the owning run ends, so cross-run leakage on the SAME session is
+            # bounded by the session lock.
+            if payload.get("session_id") and payload.get("session_id") != session_id:
+                return
+            ctx = getattr(pattern, "context", None)
+            scratch = getattr(ctx, "scratch", None) if ctx is not None else None
+            if isinstance(scratch, dict) and scratch.get("__in_batch__"):
+                return
+            counter["n"] += 1
+            step_index = counter["n"]
+            checkpoint_id = f"{run_id}:step:{step_index}"
+            # Flush the durable blob into session_state so the checkpoint
+            # snapshot captures the latest usage / artifacts / run_id /
+            # step counter alongside the stock transcript.
+            try:
+                session_state[_DURABLE_STATE_KEY] = {
+                    "run_id": run_id,
+                    "step_counter": step_index,
+                    "checkpoint_id": checkpoint_id,
+                    "usage": usage.model_dump(),
+                    "artifacts": [a.model_dump() if hasattr(a, "model_dump") else a for a in artifacts],
+                }
+            except Exception:  # noqa: BLE001 - best-effort only
+                logger.exception("failed to serialize __durable__ blob")
+            try:
+                await self._session_manager.create_checkpoint(session_id, checkpoint_id=checkpoint_id)
+            except Exception as exc:  # noqa: BLE001 - checkpoint failure never fails the run
+                await self._event_bus.emit(
+                    "run.checkpoint_failed",
+                    run_id=run_id,
+                    checkpoint_id=checkpoint_id,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                return
+            transcript = session_state.get("_session_transcript", [])
+            await self._event_bus.emit(
+                "run.checkpoint_saved",
+                run_id=run_id,
+                checkpoint_id=checkpoint_id,
+                step_index=step_index,
+                transcript_length=len(transcript),
+            )
+
+        return handler
+
+    async def _list_checkpoint_ids(self, session_id: str) -> list[str]:
+        """Best-effort list of checkpoint ids for a session.
+
+        Uses ``list_checkpoints`` when the session backend implements it;
+        otherwise peeks the private ``_session_checkpoints`` state key.
+        """
+        list_fn = getattr(self._session_manager, "list_checkpoints", None)
+        if callable(list_fn):
+            try:
+                result = await list_fn(session_id)
+                if isinstance(result, list):
+                    return list(result)
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            state = await self._session_manager.get_state(session_id)
+            ckpts = state.get("_session_checkpoints", {})
+            return list(ckpts.keys()) if isinstance(ckpts, dict) else []
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _rehydrate_pattern_from_checkpoint(
+        self,
+        *,
+        pattern: PatternPlugin,
+        checkpoint: SessionCheckpoint,
+        usage: RunUsage,
+        artifacts: list[Any],
+    ) -> None:
+        """Seed pattern.context + usage + artifacts from a loaded checkpoint.
+
+        Mutates ``usage`` and ``artifacts`` in place so the runtime's own
+        aggregates stay in sync with the rehydrated state.
+        """
+        ctx = getattr(pattern, "context", None)
+        ckpt_state = dict(checkpoint.state or {})
+        transcript = list(ckpt_state.get("_session_transcript", []))
+        if checkpoint.transcript_length and checkpoint.transcript_length <= len(transcript):
+            transcript = transcript[: checkpoint.transcript_length]
+        ckpt_artifacts = list(ckpt_state.get("_session_artifacts", []))
+        if checkpoint.artifact_count and checkpoint.artifact_count <= len(ckpt_artifacts):
+            ckpt_artifacts = ckpt_artifacts[: checkpoint.artifact_count]
+
+        durable_blob = ckpt_state.get(_DURABLE_STATE_KEY) or {}
+        # Rehydrate usage from the durable blob (authoritative) if present.
+        blob_usage = durable_blob.get("usage")
+        if isinstance(blob_usage, dict):
+            try:
+                restored = RunUsage.model_validate(blob_usage)
+                usage.llm_calls = restored.llm_calls
+                usage.tool_calls = restored.tool_calls
+                usage.input_tokens = restored.input_tokens
+                usage.output_tokens = restored.output_tokens
+                usage.total_tokens = restored.total_tokens
+                usage.input_tokens_cached = restored.input_tokens_cached
+                usage.input_tokens_cache_creation = restored.input_tokens_cache_creation
+                usage.cost_usd = restored.cost_usd
+                usage.cost_breakdown = dict(restored.cost_breakdown)
+            except Exception:  # noqa: BLE001
+                logger.exception("failed to rehydrate usage from checkpoint")
+
+        # Rehydrate artifacts from the durable blob (authoritative) if present.
+        from openagents.interfaces.runtime import RunArtifact as _RunArtifact
+
+        blob_artifacts = durable_blob.get("artifacts")
+        if isinstance(blob_artifacts, list):
+            artifacts.clear()
+            for item in blob_artifacts:
+                try:
+                    if isinstance(item, dict):
+                        artifacts.append(_RunArtifact.model_validate(item))
+                    else:
+                        artifacts.append(item)
+                except Exception:  # noqa: BLE001
+                    logger.exception("failed to rehydrate artifact")
+
+        if ctx is not None:
+            # Reset pattern-visible state to the checkpointed snapshot.
+            ctx.state = dict(ckpt_state)
+            ctx.transcript = transcript
+            ctx.artifacts = artifacts
+            ctx.usage = usage
+
     def _apply_runtime_budget(self, *, pattern: PatternPlugin, agent: "AgentDefinition") -> None:
         config = getattr(pattern, "config", None)
         if not isinstance(config, dict):
@@ -893,10 +1229,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         tools: dict[str, Any],
         executor: ToolExecutor,
     ) -> dict[str, Any]:
-        return {
-            tool_id: _BoundTool(tool_id=tool_id, tool=tool, executor=executor)
-            for tool_id, tool in tools.items()
-        }
+        return {tool_id: _BoundTool(tool_id=tool_id, tool=tool, executor=executor) for tool_id, tool in tools.items()}
 
     async def _run_tool_preflight(
         self,
@@ -910,14 +1243,10 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             if not callable(preflight):
                 continue
             started = time.perf_counter()
-            cached_hit, exc = await self._mcp_coordinator.preflight_with_dedup(
-                mcp_pool, tool, tool_id
-            )
+            cached_hit, exc = await self._mcp_coordinator.preflight_with_dedup(mcp_pool, tool, tool_id)
             if exc is not None:
                 if isinstance(exc, PermanentToolError):
-                    propagate = self._prefix_permanent_tool_error(
-                        exc, tool_id=tool_id, request=request
-                    )
+                    propagate = self._prefix_permanent_tool_error(exc, tool_id=tool_id, request=request)
                     await self._event_bus.emit(
                         "tool.preflight",
                         tool_id=tool_id,
@@ -969,9 +1298,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             return
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         if elapsed_ms > budget.max_duration_ms:
-            raise BudgetExhausted(
-                f"Run duration limit ({budget.max_duration_ms}ms) exceeded"
-            ).with_context(
+            raise BudgetExhausted(f"Run duration limit ({budget.max_duration_ms}ms) exceeded").with_context(
                 agent_id=request.agent_id,
                 session_id=request.session_id,
                 run_id=request.run_id,
@@ -1109,8 +1436,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             factory = builtin_factories.get(dep_type.strip())
             if factory is None:
                 raise ValueError(
-                    f"Unknown runtime.config.{key}.type '{dep_type.strip()}'. "
-                    f"Available: {sorted(builtin_factories)}"
+                    f"Unknown runtime.config.{key}.type '{dep_type.strip()}'. Available: {sorted(builtin_factories)}"
                 )
         else:
             raise ValueError(f"runtime.config.{key} must set one of 'type' or 'impl'")
@@ -1119,8 +1445,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         for method_name in required_methods:
             if not callable(getattr(dependency, method_name, None)):
                 raise TypeError(
-                    f"runtime.config.{key} dependency '{type(dependency).__name__}' "
-                    f"must implement '{method_name}'"
+                    f"runtime.config.{key} dependency '{type(dependency).__name__}' must implement '{method_name}'"
                 )
         self._bind_runtime_dependency(dependency)
         return dependency
@@ -1289,9 +1614,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         """
         await self._mcp_coordinator.release_session(session_id)
 
-    async def invalidate_mcp_pools_for_agents(
-        self, agent_ids: set[str] | None = None
-    ) -> None:
+    async def invalidate_mcp_pools_for_agents(self, agent_ids: set[str] | None = None) -> None:
         """Drop every MCP session pool — used by ``Runtime.reload``.
 
         Today we don't trace which tools sit under which session, so a

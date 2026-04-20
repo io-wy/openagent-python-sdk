@@ -24,6 +24,7 @@ def test_anthropic_generate_attaches_cost_when_rates_available(monkeypatch):
     # Note: if your implementation differs (e.g., uses raw input_tokens without subtracting),
     # adjust the assertion. The _compute_cost_for in base.py subtracts cached tokens from input.
     import pytest
+
     assert usage.metadata.get("cost_usd") == pytest.approx(10.035)
 
 

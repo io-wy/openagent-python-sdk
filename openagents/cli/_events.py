@@ -106,9 +106,7 @@ class EventFormatter:
         tool_id = str(payload.get("tool_id") or "?")
         params = payload.get("params") or {}
         self._tool_start_ns[tool_id] = time.monotonic_ns()
-        line = self._build_line(
-            prefix=f"{_TOOL_ICON} ", prefix_style="bold cyan", text=tool_id, text_style="bold"
-        )
+        line = self._build_line(prefix=f"{_TOOL_ICON} ", prefix_style="bold cyan", text=tool_id, text_style="bold")
         if params:
             primary_key = _pick_primary_param_key(params)
             if primary_key is not None:
@@ -192,9 +190,7 @@ class EventFormatter:
 
     # ------------------------------------------------------------- generic
     def _render_generic(self, name: str, payload: dict[str, Any]) -> None:
-        line = self._build_line(
-            prefix="·  ", prefix_style="dim", text=name, text_style="bold dim"
-        )
+        line = self._build_line(prefix="·  ", prefix_style="dim", text=name, text_style="bold dim")
         if payload and self._show_details:
             bits = [f"{k}={_short(v)}" for k, v in payload.items()]
             _append(line, "  ")
@@ -259,6 +255,7 @@ def iter_turns(events: Iterable[dict[str, Any]]) -> Iterator[list[dict[str, Any]
 
 
 # --------------------------------------------------------------------- utils
+
 
 def _pick_primary_param_key(params: dict[str, Any]) -> str | None:
     for preferred in ("query", "command", "path", "url", "rule", "input_text"):

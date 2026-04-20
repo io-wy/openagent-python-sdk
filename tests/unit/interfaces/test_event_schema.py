@@ -15,10 +15,7 @@ async def test_warns_when_required_key_missing(caplog):
     with caplog.at_level(logging.WARNING, logger="openagents"):
         # tool.called requires 'tool_id' and 'params'; omit 'params'
         await bus.emit("tool.called", tool_id="x")
-    assert any(
-        "tool.called" in record.message and "params" in record.message
-        for record in caplog.records
-    )
+    assert any("tool.called" in record.message and "params" in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -36,10 +33,7 @@ async def test_no_warning_when_all_required_present(caplog):
     bus = AsyncEventBus()
     with caplog.at_level(logging.WARNING, logger="openagents"):
         await bus.emit("tool.called", tool_id="x", params={})
-    assert not any(
-        "missing required payload" in record.message
-        for record in caplog.records
-    )
+    assert not any("missing required payload" in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -47,10 +41,7 @@ async def test_unknown_event_name_is_not_validated(caplog):
     bus = AsyncEventBus()
     with caplog.at_level(logging.WARNING, logger="openagents"):
         await bus.emit("custom.user.event")  # nothing required, no warning
-    assert not any(
-        "missing required payload" in record.message
-        for record in caplog.records
-    )
+    assert not any("missing required payload" in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -59,7 +50,4 @@ async def test_optional_payload_missing_is_not_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="openagents"):
         # tool.succeeded has 'tool_id'/'result' required, 'executor_metadata' optional
         await bus.emit("tool.succeeded", tool_id="x", result="ok")
-    assert not any(
-        "missing required payload" in record.message
-        for record in caplog.records
-    )
+    assert not any("missing required payload" in record.message for record in caplog.records)

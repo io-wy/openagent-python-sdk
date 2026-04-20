@@ -26,13 +26,15 @@ def _make_ctx(llm_return: str):
 
 @pytest.mark.asyncio
 async def test_outline_generates_valid_slides():
-    payload = json.dumps({
-        "slides": [
-            {"index": 1, "type": "cover", "title": "T", "key_points": [], "sources_cited": []},
-            {"index": 2, "type": "content", "title": "Why", "key_points": ["p1"], "sources_cited": []},
-            {"index": 3, "type": "closing", "title": "Thanks", "key_points": [], "sources_cited": []},
-        ]
-    })
+    payload = json.dumps(
+        {
+            "slides": [
+                {"index": 1, "type": "cover", "title": "T", "key_points": [], "sources_cited": []},
+                {"index": 2, "type": "content", "title": "Why", "key_points": ["p1"], "sources_cited": []},
+                {"index": 3, "type": "closing", "title": "Thanks", "key_points": [], "sources_cited": []},
+            ]
+        }
+    )
     pattern = OutlinePattern(config={})
     pattern.context = _make_ctx(payload)
     result = await pattern.execute()
@@ -49,11 +51,13 @@ async def test_outline_invalid_retries():
         calls.append(messages)
         if len(calls) < 2:
             return "garbage"
-        return json.dumps({
-            "slides": [
-                {"index": 1, "type": "cover", "title": "T", "key_points": [], "sources_cited": []},
-            ]
-        })
+        return json.dumps(
+            {
+                "slides": [
+                    {"index": 1, "type": "cover", "title": "T", "key_points": [], "sources_cited": []},
+                ]
+            }
+        )
 
     pattern = OutlinePattern(config={"max_steps": 3})
     ctx = _make_ctx("")

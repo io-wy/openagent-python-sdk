@@ -17,12 +17,16 @@ These tests pin the invariants:
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 pytest.importorskip("mcp", reason="mcp extra not installed")
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup  # noqa: F401  (backport needed pre-3.11)
 
 
 # ---------------------------------------------------------------------------
@@ -113,10 +117,14 @@ def _patch_mcp(log: list[str], *, session_factory):
         def __init__(self, **kw):
             self.kw = kw
 
-    fake_mcp = type("fake_mcp", (), {
-        "ClientSession": session_factory,
-        "StdioServerParameters": _DummyParams,
-    })
+    fake_mcp = type(
+        "fake_mcp",
+        (),
+        {
+            "ClientSession": session_factory,
+            "StdioServerParameters": _DummyParams,
+        },
+    )
     fake_stdio_module = type("fake_stdio", (), {"stdio_client": _stdio_client})
 
     return patch.dict(
@@ -161,7 +169,9 @@ async def test_invoke_unwinds_on_call_tool_failure():
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(
-            reader, writer, log,
+            reader,
+            writer,
+            log,
             raise_on_call=RuntimeError("subprocess died"),
         )
 
@@ -188,7 +198,9 @@ async def test_failed_invoke_does_not_leak_into_next_call():
 
     log: list[str] = []
     success_result = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
     calls = {"n": 0}
 
@@ -225,10 +237,12 @@ async def test_rejects_tool_outside_exposed_list():
         return _FakeSession(reader, writer, log)
 
     with _patch_mcp(log, session_factory=session_factory):
-        tool = McpTool(config={
-            "server": {"command": "echo"},
-            "tools": ["read_file"],
-        })
+        tool = McpTool(
+            config={
+                "server": {"command": "echo"},
+                "tools": ["read_file"],
+            }
+        )
         with pytest.raises(ValueError, match="not exposed"):
             await tool.invoke({"tool": "write_file"}, context=None)
 
@@ -302,15 +316,24 @@ async def test_invoke_unwraps_single_exceptiongroup():
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(
-            reader, writer, log, call_result=type(
-                "R", (), {"content": [], "isError": False},
+            reader,
+            writer,
+            log,
+            call_result=type(
+                "R",
+                (),
+                {"content": [], "isError": False},
             )(),
         )
 
-    fake_mcp = type("fake_mcp", (), {
-        "ClientSession": session_factory,
-        "StdioServerParameters": _DummyParams,
-    })
+    fake_mcp = type(
+        "fake_mcp",
+        (),
+        {
+            "ClientSession": session_factory,
+            "StdioServerParameters": _DummyParams,
+        },
+    )
     fake_stdio = type("fake_stdio", (), {"stdio_client": _stdio_client})
 
     with patch.dict(
@@ -335,18 +358,22 @@ async def test_pooled_mode_opens_one_session_across_three_calls():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(reader, writer, log, call_result=result_obj)
 
     with _patch_mcp(log, session_factory=session_factory):
-        tool = McpTool(config={
-            "server": {"command": "echo"},
-            "connection_mode": "pooled",
-            "dedup_inflight": False,
-        })
+        tool = McpTool(
+            config={
+                "server": {"command": "echo"},
+                "connection_mode": "pooled",
+                "dedup_inflight": False,
+            }
+        )
         for _ in range(3):
             out = await tool.invoke({"tool": "ping", "arguments": {}}, context=None)
             assert out == {"content": ["ok"], "isError": False}
@@ -367,18 +394,22 @@ async def test_pooled_close_is_idempotent():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(reader, writer, log, call_result=result_obj)
 
     with _patch_mcp(log, session_factory=session_factory):
-        tool = McpTool(config={
-            "server": {"command": "echo"},
-            "connection_mode": "pooled",
-            "dedup_inflight": False,
-        })
+        tool = McpTool(
+            config={
+                "server": {"command": "echo"},
+                "connection_mode": "pooled",
+                "dedup_inflight": False,
+            }
+        )
         await tool.invoke({"tool": "ping", "arguments": {}}, context=None)
         await tool.close()
         await tool.close()  # second close must not raise
@@ -394,7 +425,9 @@ async def test_pooled_recovers_from_dead_session_on_next_call():
 
     log: list[str] = []
     good_result = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
     calls = {"n": 0}
 
@@ -405,11 +438,13 @@ async def test_pooled_recovers_from_dead_session_on_next_call():
         return _FakeSession(reader, writer, log, call_result=good_result)
 
     with _patch_mcp(log, session_factory=session_factory):
-        tool = McpTool(config={
-            "server": {"command": "echo"},
-            "connection_mode": "pooled",
-            "dedup_inflight": False,
-        })
+        tool = McpTool(
+            config={
+                "server": {"command": "echo"},
+                "connection_mode": "pooled",
+                "dedup_inflight": False,
+            }
+        )
         with pytest.raises(RuntimeError, match="died"):
             await tool.invoke({"tool": "ping", "arguments": {}}, context=None)
         # Next call must succeed — no leaked cancel scope.
@@ -450,9 +485,13 @@ def _patch_mcp_sse(log: list[str], *, session_factory, sse_client_fn=None):
 
     sse_fn = sse_client_fn if sse_client_fn is not None else _default_sse
 
-    fake_mcp = type("fake_mcp", (), {
-        "ClientSession": session_factory,
-    })
+    fake_mcp = type(
+        "fake_mcp",
+        (),
+        {
+            "ClientSession": session_factory,
+        },
+    )
     fake_sse_module = type("fake_sse", (), {"sse_client": sse_fn})
 
     return patch.dict(
@@ -469,7 +508,9 @@ async def test_url_configured_tool_routes_through_sse_client():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "hi"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "hi"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
@@ -502,7 +543,9 @@ async def test_sse_path_unwinds_on_call_failure():
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(
-            reader, writer, log,
+            reader,
+            writer,
+            log,
             raise_on_call=RuntimeError("sse broke"),
         )
 
@@ -534,6 +577,7 @@ async def test_missing_sse_client_symbol_raises_actionable_error():
     with patch.dict("sys.modules", {"mcp": fake_mcp_pkg}):
         # Ensure the SSE submodule isn't cached from a prior test.
         import sys as _sys
+
         _sys.modules.pop("mcp.client.sse", None)
         tool = McpTool(config={"server": {"url": "http://example.test/mcp"}})
         with pytest.raises(RuntimeError, match="sse_client"):
@@ -553,6 +597,7 @@ async def test_preflight_missing_mcp_import_raises_with_install_hint():
 
     from openagents.errors.exceptions import PermanentToolError
     from openagents.plugins.builtin.tool.mcp_tool import McpTool
+
     original = _sys.modules.get("mcp")
     _sys.modules["mcp"] = None  # sentinel: "this module is known-unavailable"
     try:
@@ -617,14 +662,17 @@ async def test_preflight_probe_surfaces_server_startup_failure():
 
     # Point `shutil.which` at an existing binary so the command check passes.
     import shutil as _shutil
+
     real_which = _shutil.which
     try:
         _shutil.which = lambda cmd: "/fake/path/echo" if cmd == "echo" else real_which(cmd)
         with _patch_mcp(log, session_factory=session_factory):
-            tool = McpTool(config={
-                "server": {"command": "echo"},
-                "probe_on_preflight": True,
-            })
+            tool = McpTool(
+                config={
+                    "server": {"command": "echo"},
+                    "probe_on_preflight": True,
+                }
+            )
             with pytest.raises(PermanentToolError, match="preflight probe failed"):
                 await tool.preflight(None)
     finally:
@@ -644,7 +692,9 @@ async def test_dedup_coalesces_two_concurrent_identical_calls():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "shared"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "shared"})()], "isError": False},
     )()
     block = asyncio.Event()
 
@@ -689,7 +739,9 @@ async def test_dedup_does_not_coalesce_different_arguments():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
@@ -713,17 +765,21 @@ async def test_dedup_disabled_opens_separate_sessions():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(reader, writer, log, call_result=result_obj)
 
     with _patch_mcp(log, session_factory=session_factory):
-        tool = McpTool(config={
-            "server": {"command": "echo"},
-            "dedup_inflight": False,
-        })
+        tool = McpTool(
+            config={
+                "server": {"command": "echo"},
+                "dedup_inflight": False,
+            }
+        )
         # Serial calls — with dedup on these would still spawn a second
         # session since the first is already complete by the time the
         # second runs. The interesting case is that the two calls never
@@ -743,7 +799,9 @@ async def test_failed_dedup_call_does_not_poison_next_call():
 
     log: list[str] = []
     success_result = type(
-        "R", (), {"content": [type("C", (), {"text": "ok"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "ok"})()], "isError": False},
     )()
     calls = {"n": 0}
 
@@ -828,7 +886,9 @@ async def test_invoke_without_event_bus_does_not_raise():
 
     log: list[str] = []
     result_obj = type(
-        "R", (), {"content": [type("C", (), {"text": "hi"})()], "isError": False},
+        "R",
+        (),
+        {"content": [type("C", (), {"text": "hi"})()], "isError": False},
     )()
 
     def session_factory(reader, writer, **_kw):
@@ -889,15 +949,24 @@ async def test_invoke_preserves_multichild_exceptiongroup():
 
     def session_factory(reader, writer, **_kw):
         return _FakeSession(
-            reader, writer, log, call_result=type(
-                "R", (), {"content": [], "isError": False},
+            reader,
+            writer,
+            log,
+            call_result=type(
+                "R",
+                (),
+                {"content": [], "isError": False},
             )(),
         )
 
-    fake_mcp = type("fake_mcp", (), {
-        "ClientSession": session_factory,
-        "StdioServerParameters": _DummyParams,
-    })
+    fake_mcp = type(
+        "fake_mcp",
+        (),
+        {
+            "ClientSession": session_factory,
+            "StdioServerParameters": _DummyParams,
+        },
+    )
     fake_stdio = type("fake_stdio", (), {"stdio_client": _stdio_client})
 
     with patch.dict(
@@ -912,6 +981,7 @@ async def test_invoke_preserves_multichild_exceptiongroup():
 
 def test_mcp_tool_invoke_batch_reuses_pooled_session(monkeypatch):
     import asyncio
+
     from openagents.interfaces.tool import BatchItem
     from openagents.plugins.builtin.tool.mcp_tool import McpTool
 
@@ -1050,7 +1120,9 @@ async def test_mcp_connection_init_timeout_ms_raises_timeout_error():
 
     def session_factory(reader, writer, **_kw):
         return _SlowSession(
-            reader, writer, log,
+            reader,
+            writer,
+            log,
             call_result=type("R", (), {"content": [], "isError": False})(),
         )
 
@@ -1163,9 +1235,7 @@ def test_config_env_var_interpolation_flows_into_mcp_server(tmp_path, monkeypatc
                                         "command": "python",
                                         "args": ["${MY_MCP_HOME}/server.py"],
                                         "env": {"TOKEN": "${MY_MCP_TOKEN}"},
-                                        "headers": {
-                                            "Authorization": "Bearer ${MY_MCP_TOKEN}"
-                                        },
+                                        "headers": {"Authorization": "Bearer ${MY_MCP_TOKEN}"},
                                     }
                                 },
                             }
@@ -1179,9 +1249,7 @@ def test_config_env_var_interpolation_flows_into_mcp_server(tmp_path, monkeypatc
     tool_cfg = config.agents[0].tools[0].config
     assert tool_cfg["server"]["args"] == ["/srv/mcp-root/server.py"]
     assert tool_cfg["server"]["env"] == {"TOKEN": "secret-token-abc"}
-    assert tool_cfg["server"]["headers"] == {
-        "Authorization": "Bearer secret-token-abc"
-    }
+    assert tool_cfg["server"]["headers"] == {"Authorization": "Bearer secret-token-abc"}
 
 
 def test_default_runtime_accepts_mcp_config_block():

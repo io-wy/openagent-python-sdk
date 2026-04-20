@@ -8,11 +8,18 @@
     "redact_keys": ["api_key", "authorization", "token", "secret", "password"]
   },
   "events": {
-    "impl": "examples.pptx_generator.app.events.PrettyEventBus",
+    "type": "file_logging",
     "config": {
-      "inner": { "type": "async" },
-      "stream": "stderr",
-      "show_details": true
+      "log_path": "${PPTX_EVENTS_LOG:-./events.jsonl}",
+      "redact_keys": ["api_key", "authorization", "token", "secret", "password"],
+      "inner": {
+        "impl": "examples.pptx_generator.app.events.PrettyEventBus",
+        "config": {
+          "inner": { "type": "async" },
+          "stream": "stderr",
+          "show_details": true
+        }
+      }
     }
   },
   "runtime": {

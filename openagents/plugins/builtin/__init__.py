@@ -1,2 +1,1 @@
 """Builtin plugin package."""
-

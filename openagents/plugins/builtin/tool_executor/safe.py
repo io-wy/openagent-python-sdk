@@ -64,9 +64,7 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
         cancel_event = request.cancel_event
         interrupt_behavior = str(request.execution_spec.interrupt_behavior or "cancel").lower()
 
-        invoke_task = asyncio.create_task(
-            request.tool.invoke(request.params or {}, request.context)
-        )
+        invoke_task = asyncio.create_task(request.tool.invoke(request.params or {}, request.context))
         try:
             if cancel_event is None and timeout_s is None:
                 data = await invoke_task
@@ -80,9 +78,7 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
                 if timeout_s is not None:
                     timeout_task = asyncio.create_task(asyncio.sleep(timeout_s))
                     waiters.append(timeout_task)
-                done, pending = await asyncio.wait(
-                    waiters, return_when=asyncio.FIRST_COMPLETED
-                )
+                done, pending = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
 
                 if invoke_task in done:
                     for t in pending:
@@ -149,11 +145,7 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
             # Caller cancelled us from outside — propagate, don't mask.
             raise
         except Exception as exc:
-            wrapped_exc = (
-                exc
-                if isinstance(exc, ToolError)
-                else ToolError(str(exc), tool_name=request.tool_id)
-            )
+            wrapped_exc = exc if isinstance(exc, ToolError) else ToolError(str(exc), tool_name=request.tool_id)
             return ToolExecutionResult(
                 tool_id=request.tool_id,
                 success=False,

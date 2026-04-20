@@ -45,13 +45,19 @@ async def test_cost_budget_post_call_exceeded_raises():
     response = LLMResponse(output_text="x", usage=usage)
     pattern = _TestPattern(config={}, capabilities=set())
     request = RunRequest(
-        agent_id="a", session_id="s", input_text="hi",
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
         budget=RunBudget(max_cost_usd=0.01),
     )
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={},
-        llm_client=_FakeClient([response]), llm_options=None,
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=_FakeClient([response]),
+        llm_options=None,
         event_bus=_FakeEventBus(),
         usage=RunUsage(),
         run_request=request,
@@ -69,13 +75,18 @@ async def test_cost_budget_skipped_when_cost_unavailable_emits_event_once():
     responses = [LLMResponse(output_text=c, usage=usage) for c in "abc"]
     pattern = _TestPattern(config={}, capabilities=set())
     request = RunRequest(
-        agent_id="a", session_id="s", input_text="hi",
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
         budget=RunBudget(max_cost_usd=1.0),
     )
     bus = _FakeEventBus()
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={},
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
         llm_client=_FakeClient(responses, price_per_mtok_input=None, price_per_mtok_output=None),
         llm_options=None,
         event_bus=bus,
@@ -98,9 +109,13 @@ async def test_no_cost_budget_leaves_calls_alone():
     request = RunRequest(agent_id="a", session_id="s", input_text="hi")  # no budget
     bus = _FakeEventBus()
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={},
-        llm_client=_FakeClient([response]), llm_options=None,
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=_FakeClient([response]),
+        llm_options=None,
         event_bus=bus,
         usage=RunUsage(),
         run_request=request,

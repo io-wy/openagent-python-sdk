@@ -16,9 +16,7 @@ def _build_config(responses: list) -> dict:
             {
                 "id": "assistant",
                 "name": "stream-test",
-                "memory": {
-                    "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                },
+                "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                 "pattern": {
                     "impl": "tests.fixtures.runtime_plugins.QueuedRawOutputPattern",
                     "config": {"responses": responses},

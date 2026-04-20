@@ -186,26 +186,20 @@ async def test_url_build_requires_host():
 
 @pytest.mark.asyncio
 async def test_query_param_list_action():
-    out = await QueryParamTool().invoke(
-        {"url": "https://x/?a=1&b=2", "action": "list"}, None
-    )
+    out = await QueryParamTool().invoke({"url": "https://x/?a=1&b=2", "action": "list"}, None)
     assert out["params"] == {"a": "1", "b": "2"}
 
 
 @pytest.mark.asyncio
 async def test_query_param_get_missing_key_returns_none():
-    out = await QueryParamTool().invoke(
-        {"url": "https://x/?a=1", "key": "z", "action": "get"}, None
-    )
+    out = await QueryParamTool().invoke({"url": "https://x/?a=1", "key": "z", "action": "get"}, None)
     assert out["value"] is None
 
 
 @pytest.mark.asyncio
 async def test_query_param_unknown_action():
     with pytest.raises(ValueError):
-        await QueryParamTool().invoke(
-            {"url": "https://x/?a=1", "key": "a", "action": "xx"}, None
-        )
+        await QueryParamTool().invoke({"url": "https://x/?a=1", "key": "a", "action": "xx"}, None)
 
 
 @pytest.mark.asyncio

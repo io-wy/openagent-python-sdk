@@ -186,4 +186,41 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         (),
         "Background tool job reached terminal state (succeeded/failed/cancelled).",
     ),
+    # === durable execution events ===
+    "run.checkpoint_saved": EventSchema(
+        "run.checkpoint_saved",
+        ("run_id", "checkpoint_id", "step_index", "transcript_length"),
+        (),
+        "DefaultRuntime persisted a step checkpoint during a durable run.",
+    ),
+    "run.checkpoint_failed": EventSchema(
+        "run.checkpoint_failed",
+        ("run_id", "checkpoint_id", "error", "error_type"),
+        (),
+        "create_checkpoint raised during a durable run; the run continues.",
+    ),
+    "run.resume_attempted": EventSchema(
+        "run.resume_attempted",
+        ("run_id", "checkpoint_id", "error_type", "attempt_index"),
+        (),
+        "Durable run caught a retryable error and is about to load a checkpoint.",
+    ),
+    "run.resume_succeeded": EventSchema(
+        "run.resume_succeeded",
+        ("run_id", "checkpoint_id", "attempt_index"),
+        (),
+        "Durable run successfully rehydrated from a checkpoint and continues.",
+    ),
+    "run.resume_exhausted": EventSchema(
+        "run.resume_exhausted",
+        ("run_id", "attempt_index", "error_type", "limit"),
+        (),
+        "Durable run exceeded max_resume_attempts; the last retryable error propagates.",
+    ),
+    "run.durable_idempotency_warning": EventSchema(
+        "run.durable_idempotency_warning",
+        ("run_id", "tool_id"),
+        ("hint",),
+        "A tool declaring durable_idempotent=False was invoked inside a durable run (one-shot per run/tool).",
+    ),
 }

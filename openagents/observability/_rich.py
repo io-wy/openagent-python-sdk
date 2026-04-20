@@ -78,6 +78,7 @@ def _render_value(v: Any, depth: int = 0) -> Any:
         display = v if len(v) <= _MAX_STR_LEN else v[:_MAX_STR_LEN] + f"\n… [{len(v) - _MAX_STR_LEN} chars truncated]"
         if "\n" in display:
             from rich.markdown import Markdown
+
             return Markdown(display)
         return Text(display)
     return Text(repr(v), style="dim")

@@ -42,10 +42,7 @@ def _select_agent(cfg, requested: str | None) -> tuple[str | None, str | None]:
         return None, f"agent not found: {requested}. Available: {[a.id for a in cfg.agents]}"
     if len(cfg.agents) == 1:
         return cfg.agents[0].id, None
-    return None, (
-        f"config declares {len(cfg.agents)} agents; pass --agent with one of: "
-        f"{[a.id for a in cfg.agents]}"
-    )
+    return None, (f"config declares {len(cfg.agents)} agents; pass --agent with one of: {[a.id for a in cfg.agents]}")
 
 
 def _prompt(question_module: Any | None, prompt: str) -> str | None:
@@ -145,10 +142,7 @@ def _dispatch_slash(
         if last_result is None:
             console_out.write("(no previous turn yet)\n")
         else:
-            console_out.write(
-                f"final_output: {last_result.final_output}\n"
-                f"stop_reason : {last_result.stop_reason}\n"
-            )
+            console_out.write(f"final_output: {last_result.final_output}\nstop_reason : {last_result.stop_reason}\n")
         return False, session_id
     if cmd == "/tools":
         rows = _list_tools(runtime, agent_id)
@@ -158,9 +152,7 @@ def _dispatch_slash(
             for row in rows:
                 console_out.write(f"  {row['id']:<20} ({row['type']})\n")
         return False, session_id
-    console_out.write(
-        f"unknown slash command: {cmd}. Try /exit, /reset, /save <path>, /context, /tools\n"
-    )
+    console_out.write(f"unknown slash command: {cmd}. Try /exit, /reset, /save <path>, /context, /tools\n")
     return False, session_id
 
 

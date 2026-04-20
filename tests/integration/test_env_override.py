@@ -35,9 +35,7 @@ def _reset_around() -> None:
 
 def test_env_overrides_file_level(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAGENTS_LOG_LEVEL", "WARNING")
-    Runtime.from_dict(
-        _base_config({"auto_configure": True, "level": "DEBUG"})
-    )
+    Runtime.from_dict(_base_config({"auto_configure": True, "level": "DEBUG"}))
     assert logging.getLogger("openagents").level == logging.WARNING
 
 
@@ -57,7 +55,5 @@ def test_unset_env_does_not_clobber(monkeypatch: pytest.MonkeyPatch) -> None:
         "OPENAGENTS_LOG_PRETTY",
     ]:
         monkeypatch.delenv(var, raising=False)
-    Runtime.from_dict(
-        _base_config({"auto_configure": True, "level": "DEBUG"})
-    )
+    Runtime.from_dict(_base_config({"auto_configure": True, "level": "DEBUG"}))
     assert logging.getLogger("openagents").level == logging.DEBUG

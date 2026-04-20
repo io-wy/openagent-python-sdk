@@ -16,9 +16,15 @@ class _Bus:
 async def test_react_injects_correction_message_when_scratch_has_error():
     pattern = ReActPattern(config={})
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={}, llm_client=None, llm_options=None,
-        event_bus=_Bus(), usage=RunUsage(),
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=None,
+        llm_options=None,
+        event_bus=_Bus(),
+        usage=RunUsage(),
     )
     pattern.context.scratch["last_validation_error"] = {
         "attempt": 1,
@@ -27,8 +33,7 @@ async def test_react_injects_correction_message_when_scratch_has_error():
     }
     pattern._inject_validation_correction()
     assert any(
-        m.get("role") == "system" and "validation" in m.get("content", "").lower()
-        for m in pattern.context.transcript
+        m.get("role") == "system" and "validation" in m.get("content", "").lower() for m in pattern.context.transcript
     )
     assert "last_validation_error" not in pattern.context.scratch
 
@@ -39,13 +44,17 @@ async def test_plan_execute_injects_correction():
 
     pattern = PlanExecutePattern(config={})
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={}, llm_client=None, llm_options=None,
-        event_bus=_Bus(), usage=RunUsage(),
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=None,
+        llm_options=None,
+        event_bus=_Bus(),
+        usage=RunUsage(),
     )
-    pattern.context.scratch["last_validation_error"] = {
-        "attempt": 1, "message": "missing field", "expected_schema": {}
-    }
+    pattern.context.scratch["last_validation_error"] = {"attempt": 1, "message": "missing field", "expected_schema": {}}
     pattern._inject_validation_correction()
     assert any(m.get("role") == "system" for m in pattern.context.transcript)
 
@@ -56,12 +65,16 @@ async def test_reflexion_injects_correction():
 
     pattern = ReflexionPattern(config={})
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={}, llm_client=None, llm_options=None,
-        event_bus=_Bus(), usage=RunUsage(),
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=None,
+        llm_options=None,
+        event_bus=_Bus(),
+        usage=RunUsage(),
     )
-    pattern.context.scratch["last_validation_error"] = {
-        "attempt": 1, "message": "bad schema", "expected_schema": {}
-    }
+    pattern.context.scratch["last_validation_error"] = {"attempt": 1, "message": "bad schema", "expected_schema": {}}
     pattern._inject_validation_correction()
     assert any(m.get("role") == "system" for m in pattern.context.transcript)

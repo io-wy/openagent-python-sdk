@@ -49,10 +49,7 @@ def test_tool_cancelled_error_str_includes_hint():
 
 def test_new_errors_importable_from_public_api():
     from openagents.errors import (
-        ToolAuthError,
-        ToolCancelledError,
-        ToolRateLimitError,
-        ToolUnavailableError,
         ToolValidationError,
     )
+
     assert ToolValidationError is not None

@@ -38,9 +38,7 @@ def _build_config(responses: list) -> dict:
             {
                 "id": "assistant",
                 "name": "validation-retry-agent",
-                "memory": {
-                    "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                },
+                "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                 "pattern": {
                     "impl": "tests.fixtures.runtime_plugins.QueuedRawOutputPattern",
                     "config": {
@@ -65,9 +63,9 @@ def _build_config(responses: list) -> dict:
 @pytest.mark.asyncio
 async def test_retry_succeeds_on_third_attempt():
     responses = [
-        {"name": "a"},                    # attempt 1: missing age
+        {"name": "a"},  # attempt 1: missing age
         {"name": "a", "age": "not-int"},  # attempt 2: age wrong type
-        {"name": "ada", "age": 33},       # attempt 3: valid
+        {"name": "ada", "age": 33},  # attempt 3: valid
     ]
     runtime = Runtime(load_config_dict(_build_config(responses)))
     request = RunRequest(
@@ -128,9 +126,9 @@ async def test_no_output_type_skips_validation():
 async def test_validation_retry_event_emitted_per_retry():
     """`validation.retry` must be emitted on each retry (not on final success or exhaustion)."""
     responses = [
-        {"name": "a"},                     # fail
-        {"name": "b"},                     # fail
-        {"name": "zoe", "age": 7},         # success
+        {"name": "a"},  # fail
+        {"name": "b"},  # fail
+        {"name": "zoe", "age": 7},  # success
     ]
     runtime = Runtime(load_config_dict(_build_config(responses)))
     request = RunRequest(

@@ -14,11 +14,10 @@ EventHandler = Callable[["RuntimeEvent"], Awaitable[None] | None]
 @dataclass
 class RuntimeEvent:
     """Runtime event data."""
+
     name: str
     payload: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class EventBusPlugin(BasePlugin):
@@ -36,6 +35,16 @@ class EventBusPlugin(BasePlugin):
             handler: Async handler function
         """
         raise NotImplementedError("EventBusPlugin.subscribe must be implemented")
+
+    def unsubscribe(self, event_name: str, handler: EventHandler) -> None:
+        """Unsubscribe a previously registered handler.
+
+        Default implementation is a no-op for bus implementations that do
+        not track per-handler registrations; builtin buses SHOULD override
+        to actually remove the handler so long-lived runtimes do not leak
+        handlers across runs.
+        """
+        return None
 
     async def emit(self, event_name: str, **payload: Any) -> RuntimeEvent:
         """Emit an event.

@@ -209,6 +209,15 @@ class ToolPlugin(BasePlugin):
     # Subclasses can override these
     name: str = ""
     description: str = ""
+    durable_idempotent: bool = True
+    """Whether re-executing this tool on a durable-run resume is safe.
+
+    Default True (read-only tools, pure computations). Set to False on tools
+    with externally-visible side effects (write_file, delete_file, shell_exec,
+    POST-style HTTP, etc.) so DefaultRuntime can emit a one-shot
+    run.durable_idempotency_warning when such a tool is invoked inside a
+    durable run.
+    """
 
     @property
     def tool_name(self) -> str:
@@ -328,9 +337,7 @@ class ToolPlugin(BasePlugin):
         context: "RunContext[Any] | None",
     ) -> JobHandle:
         """Submit a long-running job; return handle immediately. Default: NotImplementedError."""
-        raise NotImplementedError(
-            f"{self.tool_name} does not support background execution"
-        )
+        raise NotImplementedError(f"{self.tool_name} does not support background execution")
 
     async def poll_job(
         self,
@@ -338,9 +345,7 @@ class ToolPlugin(BasePlugin):
         context: "RunContext[Any] | None",
     ) -> JobStatus:
         """Query background job status. Default: NotImplementedError."""
-        raise NotImplementedError(
-            f"{self.tool_name} does not support background execution"
-        )
+        raise NotImplementedError(f"{self.tool_name} does not support background execution")
 
     async def cancel_job(
         self,
@@ -348,9 +353,7 @@ class ToolPlugin(BasePlugin):
         context: "RunContext[Any] | None",
     ) -> bool:
         """Cancel a background job. Return True if cancelled. Default: NotImplementedError."""
-        raise NotImplementedError(
-            f"{self.tool_name} does not support background execution"
-        )
+        raise NotImplementedError(f"{self.tool_name} does not support background execution")
 
     def requires_approval(
         self,

@@ -152,7 +152,5 @@ def test_chain_memory_requires_memories_config():
 
 def test_filesystem_execution_policy_ignores_unknown_config_keys():
     """Pydantic's default model_validate silently ignores extra keys."""
-    policy = FilesystemExecutionPolicy(
-        {"deny_tools": ["delete_file"], "totally_unknown": 1}
-    )
+    policy = FilesystemExecutionPolicy({"deny_tools": ["delete_file"], "totally_unknown": 1})
     assert policy._deny_tools == {"delete_file"}

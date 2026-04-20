@@ -5,6 +5,7 @@ Covers:
 - Empty queries: short-circuit without calling LLM
 - MCP failure: fallback to REST tool
 """
+
 from __future__ import annotations
 
 import json
@@ -37,12 +38,14 @@ async def test_research_happy_path(monkeypatch):
             {"url": "https://a", "title": "A", "content": "fact A", "score": 0.9},
         ],
     }
-    findings_json = json.dumps({
-        "queries_executed": ["q1"],
-        "sources": [{"url": "https://a", "title": "A", "snippet": "fact A"}],
-        "key_facts": ["A says fact A"],
-        "caveats": [],
-    })
+    findings_json = json.dumps(
+        {
+            "queries_executed": ["q1"],
+            "sources": [{"url": "https://a", "title": "A", "snippet": "fact A"}],
+            "key_facts": ["A says fact A"],
+            "caveats": [],
+        }
+    )
     intent = {"research_queries": ["q1"]}
     ctx = _make_ctx(intent=intent, llm_return=findings_json)
 
@@ -81,15 +84,22 @@ async def test_research_falls_back_to_tavily_rest_when_mcp_errors():
             raise RuntimeError("MCP unavailable")
         if tool_id == "tavily_fallback":
             rest_call_count["n"] += 1
-            return SimpleNamespace(data={"query": params["query"], "results": [{"url": "u", "title": "t", "content": "s"}]})
+            return SimpleNamespace(
+                data={
+                    "query": params["query"],
+                    "results": [{"url": "u", "title": "t", "content": "s"}],
+                }
+            )
         raise AssertionError(f"unexpected tool {tool_id}")
 
-    findings_json = json.dumps({
-        "queries_executed": ["q"],
-        "sources": [{"url": "u", "title": "t", "snippet": "s"}],
-        "key_facts": ["f"],
-        "caveats": [],
-    })
+    findings_json = json.dumps(
+        {
+            "queries_executed": ["q"],
+            "sources": [{"url": "u", "title": "t", "snippet": "s"}],
+            "key_facts": ["f"],
+            "caveats": [],
+        }
+    )
     ctx = SimpleNamespace(
         input_text="",
         state={"intent": {"research_queries": ["q"]}},

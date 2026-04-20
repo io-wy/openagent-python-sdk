@@ -26,6 +26,44 @@ uv add "io-openagent-sdk[pptx]"
 6. **Slide Generation** — 每张 slide 独立的 agent run，按 `concurrency=3` 并行生成。返回的 `SlideIR` 会按 slide 类型的 slot schema 严格校验；失败后最多重试 2 次，仍失败则 fallback 成 `freeform` + 基础脚本。Live 表格实时展示每张 slide 的状态（`queued / running / retry-N / ok / fallback / failed`）。完成后给出 `N ok / M fallback / K failed` 汇总，允许对任一失败索引手动 `rerun`。
 7. **Compile + QA** — 写入 JS 模板 → `npm install`（`node_modules` 已存在则跳过）→ `node compile.js` → `markitdown` 回读校验。
 
+## Rich Layout 外壳
+
+每次 wizard 运行，都会在终端顶部显示一个 4 区域的 Rich `Layout`：
+
+```
+┌ pptx-agent · <slug> · stage n/7 · mm:ss ────────────────┐
+│ ✓ 1 意图       │                                        │
+│ ▶ 2 环境       │        (当前阶段内容面板)               │
+│ ○ 3 研究       │                                        │
+│ ○ 4 大纲       │                                        │
+│ ○ 5 主题       │                                        │
+│ ○ 6 切片       │                                        │
+│ ○ 7 编译QA     │                                        │
+├────────────────┴────────────────────────────────────────┤
+│ Log (tail, 最近 5 行)                                    │
+└──────────────────────────────────────────────────────────┘
+```
+
+- 侧边栏 7 步用 `✓ / ▶ / ○` 实时反映 `project.stage`。
+- 底部 Log tail 绑定 `examples.pptx_generator` logger（通过 `RingLogHandler`），只保留最近 5 行。
+- **不使用 `rich.Live`**：每次阶段切换或子步骤推进时手动重绘一次，确保在 Windows 上与 `questionary` 交互不会串线。如果需要 ticker 式秒表更新，是设计中明确舍弃的（换取 Windows 兼容）。
+- Ctrl+C 退出前会额外重绘一次 Layout，终端最后一帧与磁盘上 `project.stage` 保持一致。
+
+## 事件日志与回放
+
+每次 `pptx-agent new` / `resume` 都会把事件流追加到 `outputs/<slug>/events.jsonl`（NDJSON，`{"name","payload","ts"}` 格式，敏感字段自动脱敏）。直接用 SDK 内置的 `openagents replay` 回放：
+
+```bash
+openagents replay outputs/<slug>/events.jsonl
+openagents replay outputs/<slug>/events.jsonl --turn 2
+```
+
+日志路径可以用 `PPTX_EVENTS_LOG` 环境变量临时覆盖。
+
+## 从内置 CLI scaffold 起步
+
+如果你想基于 SDK 的内置脚手架开始类似项目，`openagents init --template pptx-wizard` 会生成一个两-Agent 最小切片（intent-analyst + slide-generator，chain memory + markdown 持久化），直接对 mock provider 可跑。它不是完整的 7 阶段 wizard ——真实 pipeline 仍在 `examples/pptx_generator/`，scaffold 的 README 会指向那里。
+
 ## Resume
 
 所有项目状态持久化在 `outputs/<slug>/project.json`（atomic write，每次写入前备份成 `project.json.bak`）。任何阶段 Ctrl+C 退出后，都可以 `pptx-agent resume <slug>` 从该阶段恢复，退出码 `130`。

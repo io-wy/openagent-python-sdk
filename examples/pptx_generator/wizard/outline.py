@@ -10,6 +10,7 @@ from openagents.cli.wizard import StepResult
 
 from ..state import DeckProject, SlideOutline
 from ._editors import edit_outline
+from ._layout import repaint
 
 
 @dataclass
@@ -17,8 +18,11 @@ class OutlineWizardStep:
     runtime: Any
     title: str = "outline"
     description: str = "Plan the slide-by-slide structure."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         outline = await self._invoke_agent(project)
         if console is not None:
             with contextlib.suppress(Exception):

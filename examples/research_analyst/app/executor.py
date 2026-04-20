@@ -43,9 +43,7 @@ class SandboxedResearchExecutor(ToolExecutorPlugin):
         default_timeout_ms: int = 200
         max_attempts: int = 3
         initial_delay_ms: int = 50
-        retry_on: list[str] = Field(
-            default_factory=lambda: ["RetryableToolError", "ToolTimeoutError"]
-        )
+        retry_on: list[str] = Field(default_factory=lambda: ["RetryableToolError", "ToolTimeoutError"])
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities=set())

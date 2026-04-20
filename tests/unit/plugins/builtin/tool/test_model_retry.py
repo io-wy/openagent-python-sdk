@@ -41,13 +41,21 @@ async def test_call_tool_retry_emits_event_and_transcript_correction_until_escal
     pattern = _TestPattern(config={}, capabilities=set())
     failing = _FailingTool()
     request = RunRequest(
-        agent_id="a", session_id="s", input_text="hi",
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
         budget=RunBudget(max_validation_retries=2),
     )
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={"bad": failing}, llm_client=None, llm_options=None,
-        event_bus=_Bus(), usage=RunUsage(),
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={"bad": failing},
+        llm_client=None,
+        llm_options=None,
+        event_bus=_Bus(),
+        usage=RunUsage(),
         run_request=request,
     )
 
@@ -89,13 +97,21 @@ async def test_call_tool_resets_retry_counter_on_success():
     pattern = _TestPattern(config={}, capabilities=set())
     tool = _SometimesFailing()
     request = RunRequest(
-        agent_id="a", session_id="s", input_text="hi",
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
         budget=RunBudget(max_validation_retries=3),
     )
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={"t": tool}, llm_client=None, llm_options=None,
-        event_bus=_Bus(), usage=RunUsage(),
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={"t": tool},
+        llm_client=None,
+        llm_options=None,
+        event_bus=_Bus(),
+        usage=RunUsage(),
         run_request=request,
     )
     with pytest.raises(ModelRetryError):

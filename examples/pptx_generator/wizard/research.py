@@ -10,6 +10,7 @@ from openagents.cli.wizard import StepResult, Wizard
 from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject, ResearchFindings
+from ._layout import repaint
 
 
 @dataclass
@@ -17,8 +18,11 @@ class ResearchWizardStep:
     runtime: Any
     title: str = "research"
     description: str = "Gather facts via Tavily (MCP → REST fallback)."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         assert project.intent is not None, "ResearchWizardStep requires intent"
         if not project.intent.research_queries:
             project.research = ResearchFindings()
@@ -44,9 +48,7 @@ class ResearchWizardStep:
             )
             if chosen:
                 keep = set(chosen)
-                findings = findings.model_copy(update={
-                    "sources": [s for s in findings.sources if s.title in keep]
-                })
+                findings = findings.model_copy(update={"sources": [s for s in findings.sources if s.title in keep]})
 
         project.research = findings
         project.stage = "outline"
@@ -57,9 +59,7 @@ class ResearchWizardStep:
     async def _maybe_capture_memory(findings: ResearchFindings) -> None:
         if not findings.sources:
             return
-        save = await Wizard.confirm(
-            "Save these sources as research references?", default=False
-        )
+        save = await Wizard.confirm("Save these sources as research references?", default=False)
         if not save:
             return
         try:

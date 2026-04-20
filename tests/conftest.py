@@ -7,12 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-SKILL_SRC = (
-    Path(__file__).resolve().parents[1]
-    / "skills"
-    / "openagent-agent-builder"
-    / "src"
-)
+SKILL_SRC = Path(__file__).resolve().parents[1] / "skills" / "openagent-agent-builder" / "src"
 
 if str(SKILL_SRC) not in sys.path:
     sys.path.insert(0, str(SKILL_SRC))

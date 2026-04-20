@@ -38,9 +38,7 @@ def _req():
 @pytest.mark.asyncio
 async def test_sliding_window_keeps_recent_messages():
     msgs = [{"role": "user", "content": "x" * 3} for _ in range(10)]
-    assembler = SlidingWindowContextAssembler(
-        config={"max_input_tokens": 10, "reserve_for_response": 0}
-    )
+    assembler = SlidingWindowContextAssembler(config={"max_input_tokens": 10, "reserve_for_response": 0})
     result = await assembler.assemble(
         request=_req(),
         session_state={"llm_client": _LLM()},
@@ -56,9 +54,7 @@ async def test_sliding_window_keeps_recent_messages():
 @pytest.mark.asyncio
 async def test_head_tail_keeps_head_and_tail():
     msgs = [{"role": "user", "content": "x" * 3} for _ in range(10)]
-    assembler = HeadTailContextAssembler(
-        config={"max_input_tokens": 12, "reserve_for_response": 0, "head_messages": 2}
-    )
+    assembler = HeadTailContextAssembler(config={"max_input_tokens": 12, "reserve_for_response": 0, "head_messages": 2})
     result = await assembler.assemble(
         request=_req(),
         session_state={"llm_client": _LLM()},
@@ -83,9 +79,7 @@ async def test_importance_weighted_keeps_priority_messages():
         {"role": "tool", "content": "tool result"},
         {"role": "user", "content": "recent question"},
     ]
-    assembler = ImportanceWeightedContextAssembler(
-        config={"max_input_tokens": 30, "reserve_for_response": 0}
-    )
+    assembler = ImportanceWeightedContextAssembler(config={"max_input_tokens": 30, "reserve_for_response": 0})
     result = await assembler.assemble(
         request=_req(),
         session_state={"llm_client": _LLM()},
@@ -112,9 +106,7 @@ async def test_importance_weighted_tight_budget_preserves_priority():
     # priority: system(1000) > tool(900-x) > user(800-x) > assistant(500-x)
     # score-sorted: system(3), tool(11), user(8), assistant(14)
     # fill greedily: system(3, remain=13), tool(11, remain=2), user skipped (8>2), assistant skipped
-    assembler = ImportanceWeightedContextAssembler(
-        config={"max_input_tokens": 14, "reserve_for_response": 0}
-    )
+    assembler = ImportanceWeightedContextAssembler(config={"max_input_tokens": 14, "reserve_for_response": 0})
     result = await assembler.assemble(
         request=_req(),
         session_state={"llm_client": _LLM()},

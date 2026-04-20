@@ -50,9 +50,7 @@ def test_load_agent_plugins_impl_types():
     payload["agents"][0]["pattern"] = {"impl": "tests.fixtures.custom_plugins.CustomPattern"}
     payload["agents"][0]["tool_executor"] = {"impl": "tests.fixtures.custom_plugins.CustomToolExecutor"}
     payload["agents"][0]["context_assembler"] = {"impl": "tests.fixtures.custom_plugins.CustomContextAssembler"}
-    payload["agents"][0]["tools"] = [
-        {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
-    ]
+    payload["agents"][0]["tools"] = [{"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}]
     config = load_config_dict(payload)
     plugins = load_agent_plugins(config.agents[0])
 
@@ -65,9 +63,7 @@ def test_load_agent_plugins_impl_types():
 
 def test_load_agent_plugins_rejects_pattern_without_react_capability():
     payload = _base_payload()
-    payload["agents"][0]["pattern"] = {
-        "impl": "tests.fixtures.custom_plugins.BadPatternNoCapability"
-    }
+    payload["agents"][0]["pattern"] = {"impl": "tests.fixtures.custom_plugins.BadPatternNoCapability"}
     config = load_config_dict(payload)
 
     with pytest.raises(CapabilityError, match="missing required capabilities"):

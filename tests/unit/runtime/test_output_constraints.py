@@ -39,11 +39,7 @@ def _payload(
 
 @pytest.mark.asyncio
 async def test_rejects_non_dict_action():
-    runtime = Runtime(
-        load_config_dict(
-            _payload(pattern_impl="tests.fixtures.runtime_plugins.NonDictActionPattern")
-        )
-    )
+    runtime = Runtime(load_config_dict(_payload(pattern_impl="tests.fixtures.runtime_plugins.NonDictActionPattern")))
     with pytest.raises(PatternError, match="Pattern action must be dict"):
         await runtime.run(agent_id="assistant", session_id="s1", input_text="x")
     assert any(evt.name == "run.failed" for evt in runtime.event_bus.history)
@@ -51,11 +47,7 @@ async def test_rejects_non_dict_action():
 
 @pytest.mark.asyncio
 async def test_rejects_unknown_action_type():
-    runtime = Runtime(
-        load_config_dict(
-            _payload(pattern_impl="tests.fixtures.runtime_plugins.UnknownTypePattern")
-        )
-    )
+    runtime = Runtime(load_config_dict(_payload(pattern_impl="tests.fixtures.runtime_plugins.UnknownTypePattern")))
     with pytest.raises(PatternError, match="Unsupported pattern action type"):
         await runtime.run(agent_id="assistant", session_id="s1", input_text="x")
 

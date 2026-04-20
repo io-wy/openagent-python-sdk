@@ -43,9 +43,13 @@ async def test_pattern_accumulates_cost_and_cached_tokens():
 
     pattern = _TestPattern(config={}, capabilities=set())
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={},
-        llm_client=_FakeClient([resp1, resp2]), llm_options=None,
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=_FakeClient([resp1, resp2]),
+        llm_options=None,
         event_bus=_FakeEventBus(),
         usage=RunUsage(),
     )
@@ -65,9 +69,13 @@ async def test_cost_goes_none_sticky_when_any_call_has_none():
     resps = [LLMResponse(output_text=x, usage=u) for x, u in [("a", usage1), ("b", usage2), ("c", usage3)]]
     pattern = _TestPattern(config={}, capabilities=set())
     await pattern.setup(
-        agent_id="a", session_id="s", input_text="hi",
-        state={}, tools={},
-        llm_client=_FakeClient(resps), llm_options=None,
+        agent_id="a",
+        session_id="s",
+        input_text="hi",
+        state={},
+        tools={},
+        llm_client=_FakeClient(resps),
+        llm_options=None,
         event_bus=_FakeEventBus(),
         usage=RunUsage(),
     )

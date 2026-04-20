@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -118,9 +119,7 @@ class LayoutRenderer:
             Layout(name="sidebar", size=26),
             Layout(name="main", ratio=1),
         )
-        layout["status"].update(
-            Panel(Text(self.status_bar_text(), style="bold"), border_style="cyan")
-        )
+        layout["status"].update(Panel(Text(self.status_bar_text(), style="bold"), border_style="cyan"))
         sidebar_table = Table.grid(padding=(0, 1))
         sidebar_table.add_column()
         for line in self.sidebar_entries():
@@ -128,12 +127,52 @@ class LayoutRenderer:
         layout["sidebar"].update(Panel(sidebar_table, title="Steps", border_style="blue"))
         layout["main"].update(self.main_panel or Panel("", title="Main"))
         tail = self.log.snapshot() or ["(no log entries yet)"]
-        layout["logs"].update(
-            Panel("\n".join(tail), title="Log (tail)", border_style="dim")
-        )
+        layout["logs"].update(Panel("\n".join(tail), title="Log (tail)", border_style="dim"))
         return layout
 
     def render(self, project: Any = None) -> Any:
         if project is not None:
             self.project = project
         return self.build()
+
+
+def repaint(console: Any, renderer: Any, project: Any) -> None:
+    """Best-effort Layout repaint — no-op when disabled or Rich is missing.
+
+    Stages call this at logical boundaries (stage entry, sub-step progress)
+    to surface the current sidebar/status/log-tail state inside the Rich
+    Layout without holding an open :class:`rich.live.Live` context across
+    `questionary.ask_async()` calls (which corrupts Windows conhost).
+    """
+    if renderer is None or console is None:
+        return
+    try:
+        rendered = renderer.render(project)
+    except Exception:  # pragma: no cover - defensive
+        return
+    if rendered is None:
+        return
+    try:
+        console.print(rendered)
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+
+class RingLogHandler(logging.Handler):
+    """Push formatted log records into a :class:`LogRing`.
+
+    The ring trims itself — this handler is a thin formatter bridge so the
+    wizard can surface the tail of `logging.getLogger(...)` output inside
+    the Rich layout without maintaining its own stderr capture.
+    """
+
+    def __init__(self, ring: LogRing, level: int = logging.INFO) -> None:
+        super().__init__(level=level)
+        self._ring = ring
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            line = self.format(record)
+        except Exception:  # pragma: no cover - defensive
+            line = record.getMessage()
+        self._ring.append(line)

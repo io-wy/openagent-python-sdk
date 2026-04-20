@@ -276,9 +276,7 @@ def test_react_pattern_warns_on_unknown_config_keys(caplog):
 
     assert plugin._tool_prefix() == "/x"
     assert any(
-        "unknown config keys" in r.message
-        and "ReActPattern" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "ReActPattern" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )
 
@@ -291,9 +289,7 @@ def test_plan_execute_pattern_warns_on_unknown_config_keys(caplog):
 
     assert plugin._max_steps() == 4
     assert any(
-        "unknown config keys" in r.message
-        and "PlanExecutePattern" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "PlanExecutePattern" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )
 
@@ -306,8 +302,6 @@ def test_reflexion_pattern_warns_on_unknown_config_keys(caplog):
 
     assert plugin._max_retries == 5
     assert any(
-        "unknown config keys" in r.message
-        and "ReflexionPattern" in r.message
-        and "totally_unknown" in r.message
+        "unknown config keys" in r.message and "ReflexionPattern" in r.message and "totally_unknown" in r.message
         for r in caplog.records
     )

@@ -391,9 +391,7 @@ async def test_runtime_uses_configured_tool_executor():
             }
         },
     }
-    payload["agents"][0]["tools"] = [
-        {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
-    ]
+    payload["agents"][0]["tools"] = [{"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}]
     config = load_config_dict(payload)
     runtime = Runtime(config)
 
@@ -425,9 +423,7 @@ async def test_runtime_respects_executor_evaluate_policy():
         "impl": "tests.fixtures.runtime_plugins.DenyingToolExecutor",
         "config": {"deny_tools": ["custom_tool"]},
     }
-    payload["agents"][0]["tools"] = [
-        {"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}
-    ]
+    payload["agents"][0]["tools"] = [{"id": "custom_tool", "impl": "tests.fixtures.custom_plugins.CustomTool"}]
     config = load_config_dict(payload)
     runtime = Runtime(config)
 

@@ -11,6 +11,7 @@ from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject, ThemeCandidateList, ThemeSelection
 from ._editors import edit_theme_custom
+from ._layout import repaint
 
 
 @dataclass
@@ -18,8 +19,11 @@ class ThemeWizardStep:
     runtime: Any
     title: str = "theme"
     description: str = "Pick palette, fonts, and style."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         bundle = await self._invoke_agent(project)
         if console is not None:
             with contextlib.suppress(Exception):
@@ -27,9 +31,7 @@ class ThemeWizardStep:
 
         pick_choices = [f"pick {i + 1}" for i in range(len(bundle.candidates))]
         pick_choices += ["regenerate", "custom editor", "abort"]
-        action = await Wizard.select(
-            "Theme action?", choices=pick_choices, default=pick_choices[0]
-        )
+        action = await Wizard.select("Theme action?", choices=pick_choices, default=pick_choices[0])
         if action == "abort":
             return StepResult(status="aborted")
         if action == "regenerate":

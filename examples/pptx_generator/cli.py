@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import re
 import sys
@@ -41,6 +42,7 @@ from .persistence import (
     save_project,
 )
 from .state import DeckProject
+from .wizard._layout import LayoutRenderer, LogRing, RingLogHandler, repaint
 from .wizard.compile_qa import CompileQAWizardStep
 from .wizard.env import EnvDoctorWizardStep
 from .wizard.intent import IntentWizardStep
@@ -107,6 +109,15 @@ def outputs_root() -> Path:
     return Path(os.environ.get("PPTX_AGENT_OUTPUTS", "examples/pptx_generator/outputs"))
 
 
+def _make_console() -> Any:
+    """Return a Rich Console or None when the optional `rich` extra is missing."""
+    try:
+        from rich.console import Console
+    except ImportError:  # pragma: no cover - rich is a declared extra
+        return None
+    return Console()
+
+
 async def run_wizard(
     project: DeckProject,
     *,
@@ -137,10 +148,18 @@ async def run_wizard(
         print(f"Project {project.slug!r} is already complete.")
         return 0
 
+    # Ensure outputs/<slug>/ exists and seed PPTX_EVENTS_LOG before Runtime.from_config
+    # so the file_logging event bus (wrapped around PrettyEventBus in agent.json)
+    # resolves its ${PPTX_EVENTS_LOG} placeholder to a per-project path.
+    project_dir = Path(outputs) / project.slug
+    project_dir.mkdir(parents=True, exist_ok=True)
+    env_prior = os.environ.get("PPTX_EVENTS_LOG")
+    events_log_path = project_dir / "events.jsonl"
+    if env_prior is None:
+        os.environ["PPTX_EVENTS_LOG"] = str(events_log_path)
+
     if runtime is None:
-        runtime = _Runtime.from_config(
-            Path("examples/pptx_generator/agent.json")
-        )
+        runtime = _Runtime.from_config(Path("examples/pptx_generator/agent.json"))
     if shell_tool is None:
         shell_tool = ShellExecTool(
             config={
@@ -206,20 +225,44 @@ async def run_wizard(
         ),
     ]
 
-    wizard = Wizard(steps=steps, project=project)
+    layout_renderer = LayoutRenderer(project=project, log=LogRing(max_lines=5))
+    log_handler = RingLogHandler(layout_renderer.log)
+    log_handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = logging.getLogger("examples.pptx_generator")
+    logger.addHandler(log_handler)
+    for step in steps:
+        step.layout = layout_renderer
+        step.log_ring = layout_renderer.log
+
+    console = _make_console()
+    wizard = Wizard(steps=steps, project=project, console=console)
+    if console is not None:
+        try:
+            console.clear()
+        except Exception:
+            pass
+        repaint(console, layout_renderer, project)
     try:
-        if resume:
-            outcome = await wizard.resume(from_step=project.stage)
-        else:
-            outcome = await wizard.run()
-    except KeyboardInterrupt:
+        try:
+            if resume:
+                outcome = await wizard.resume(from_step=project.stage)
+            else:
+                outcome = await wizard.run()
+        except KeyboardInterrupt:
+            save_project(project, root=outputs)
+            repaint(console, layout_renderer, project)
+            print(
+                f"\ninterrupted; state saved. resume with: pptx-agent resume {project.slug}",
+            )
+            return 130
         save_project(project, root=outputs)
-        print(
-            f"\ninterrupted; state saved. resume with: pptx-agent resume {project.slug}",
-        )
-        return 130
-    save_project(project, root=outputs)
-    return 0 if outcome == "completed" else 1
+        return 0 if outcome == "completed" else 1
+    finally:
+        logger.removeHandler(log_handler)
+        if env_prior is None:
+            os.environ.pop("PPTX_EVENTS_LOG", None)
+        else:
+            os.environ["PPTX_EVENTS_LOG"] = env_prior
 
 
 async def main(argv: Sequence[str] | None = None) -> int:

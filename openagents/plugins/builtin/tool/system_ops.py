@@ -18,6 +18,8 @@ class ExecuteCommandTool(ToolPlugin):
     Depends on: ``asyncio.create_subprocess_shell``; pair with a strict execution policy.
     """
 
+    durable_idempotent = False
+
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
         self._timeout = config.get("timeout", 30) if config else 30
@@ -79,6 +81,8 @@ class SetEnvTool(ToolPlugin):
     Usage: ``{"id": "set_env", "type": "set_env"}``; invoke with ``{"key": "FLAG", "value": "1"}``.
     Depends on: ``os.environ``.
     """
+
+    durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})

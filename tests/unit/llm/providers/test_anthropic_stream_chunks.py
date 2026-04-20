@@ -106,7 +106,7 @@ async def test_complete_stream_normalizes_content_block_start_payload(monkeypatc
 async def test_complete_stream_surfaces_json_error_body_without_sse_delimiter(monkeypatch):
     records = [
         (
-            b"{\"base_resp\":{\"status_code\":1004,\"status_msg\":\"login fail: Please carry the API secret key in the "
+            b'{"base_resp":{"status_code":1004,"status_msg":"login fail: Please carry the API secret key in the '
             b"'Authorization' field of the request header\"}}"
         ),
     ]
@@ -148,7 +148,7 @@ async def test_complete_stream_carries_usage_and_stop_reason_from_message_events
             b"event: message_delta\n"
             b'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":4}}\n\n'
         ),
-        b"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        b'event: message_stop\ndata: {"type":"message_stop"}\n\n',
     ]
 
     fake_httpx = types.SimpleNamespace(
@@ -192,10 +192,7 @@ async def test_complete_stream_preserves_thinking_block_events(monkeypatch):
             b'data: {"type":"content_block_delta","index":0,'
             b'"delta":{"type":"thinking_delta","thinking":"Let me think..."}}\n\n'
         ),
-        (
-            b"event: content_block_stop\n"
-            b'data: {"type":"content_block_stop","index":0}\n\n'
-        ),
+        (b'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n'),
         b'event: message_stop\ndata: {"type":"message_stop"}\n\n',
     ]
 

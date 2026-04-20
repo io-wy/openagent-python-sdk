@@ -118,6 +118,8 @@ openagents new plugin tool calculator
 
 Templates: `minimal` (default), `coding-agent`, `pptx-wizard`.
 
+> The `pptx-wizard` scaffold is a two-agent slice (intent-analyst + slide-generator, `chain` memory + markdown persistence) of `examples/pptx_generator/` — it runs against the mock provider out of the box. For the complete 7-stage wizard (environment doctor, Tavily research, outline, theme gallery, parallel slide generation, compile-QA), clone the SDK repo and see `examples/pptx_generator/README.md`.
+
 ### Environment diagnostics
 
 ```bash

@@ -22,11 +22,21 @@ def test_missing_config_file_includes_hint(tmp_path):
 
 def test_unset_env_var_includes_dotenv_hint(tmp_path, monkeypatch):
     cfg = tmp_path / "agent.json"
-    cfg.write_text(json.dumps({
-        "runtime": {"type": "default"},
-        "agents": [{"id": "a", "memory": {"type": "buffer"}, "pattern": {"type": "react"},
-                    "llm": {"provider": "anthropic", "model": "x", "api_key": "${MY_TEST_VAR_THAT_IS_NEVER_SET}"}}],
-    }))
+    cfg.write_text(
+        json.dumps(
+            {
+                "runtime": {"type": "default"},
+                "agents": [
+                    {
+                        "id": "a",
+                        "memory": {"type": "buffer"},
+                        "pattern": {"type": "react"},
+                        "llm": {"provider": "anthropic", "model": "x", "api_key": "${MY_TEST_VAR_THAT_IS_NEVER_SET}"},
+                    }
+                ],
+            }
+        )
+    )
     monkeypatch.delenv("MY_TEST_VAR_THAT_IS_NEVER_SET", raising=False)
     with pytest.raises(ConfigLoadError) as ei:
         load_config(cfg)

@@ -1,6 +1,5 @@
 """Tests for Runtime core functionality."""
 
-
 import pytest
 
 import openagents.llm.registry as llm_registry
@@ -89,9 +88,7 @@ async def test_run_detailed_rejects_non_runresult():
     runtime._runtime.run = _bogus_run  # type: ignore[method-assign]
 
     with pytest.raises(TypeError, match="must return RunResult"):
-        await runtime.run_detailed(
-            request=RunRequest(agent_id="test_agent", session_id="s1", input_text="hello")
-        )
+        await runtime.run_detailed(request=RunRequest(agent_id="test_agent", session_id="s1", input_text="hello"))
     await runtime.close()
 
 
@@ -572,9 +569,7 @@ async def test_preflight_dedup_across_runs_on_same_session():
     # Preflight was called exactly once despite two runs on the same session.
     assert preflight_tools.PREFLIGHT_CALLS == ["recording_preflight_tool"]
 
-    preflight_events = [
-        evt for evt in runtime.event_bus.history if evt.name == "tool.preflight"
-    ]
+    preflight_events = [evt for evt in runtime.event_bus.history if evt.name == "tool.preflight"]
     assert len(preflight_events) == 2
     assert preflight_events[0].payload["result"] == "ok"
     assert preflight_events[1].payload["result"] == "cached-ok"

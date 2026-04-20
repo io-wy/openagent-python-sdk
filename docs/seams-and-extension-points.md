@@ -80,6 +80,9 @@ kernel 会变糊，产品功能也会误伤 SDK 边界。
 
 这些是代码里正式的扩展点，总共 **8 个**。
 
+!!! note "Durable execution 不是新 seam"
+    `RunRequest.durable=True` 启用的自动 checkpoint + retryable 错误自动恢复是 runtime 层面的行为装饰，**不是新的 seam**。细节见 [api-reference.md §8 Durable execution](api-reference.md#durable-execution)。
+
 !!! info "Seam 合并（2026-04-18，11 → 8）"
     `execution_policy`、`followup_resolver`、`response_repair_policy` 三个独立 seam 被移除。
     它们的功能以可覆写方法的形式归入了现有 seam：
