@@ -84,6 +84,7 @@ skip_covered = true
 omit = [
     "openagents/plugins/builtin/memory/mem0_memory.py",
     "openagents/plugins/builtin/tool/mcp_tool.py",
+    "openagents/plugins/builtin/runtime/_mcp_coordinator.py",
     "openagents/plugins/builtin/session/sqlite_backed.py",
     "openagents/plugins/builtin/events/otel_bridge.py",
 ]
