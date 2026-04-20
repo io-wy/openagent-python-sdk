@@ -155,6 +155,7 @@ Located at `examples/pptx_generator/`. 7-stage interactive wizard (intent → en
 - Run: `pptx-agent new --topic "..."` or `pptx-agent resume <slug>`
 - List saved preferences: `pptx-agent memory list`
 - Remove a preference: `pptx-agent memory forget <id>`
+- Replay a finished run: `openagents replay outputs/<slug>/events.jsonl` (every `new` / `resume` persists an NDJSON event stream with secret-bearing keys redacted)
 - CLI guide: [`docs/pptx-agent-cli.en.md`](pptx-agent-cli.en.md) ([CN](pptx-agent-cli.md))
 
 Every stage is interactive: field-by-field intent editing, outline add/remove/reorder/edit, a 3–5 candidate theme gallery with a full custom editor, slide-generator schema validation with retry-and-fallback, and optional cross-session preference capture. See the CLI guide for the walk-through.

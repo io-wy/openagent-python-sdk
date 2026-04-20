@@ -26,6 +26,44 @@ System dependencies: Python ≥3.10, Node.js ≥18, npm, `markitdown` (Python pa
 6. **Slide Generation** — each slide runs as its own agent call with `concurrency=3`. Returned `SlideIR` values are strictly validated against the slide-type slot schema; failures retry up to 2 times, then fall back to a `freeform` IR with a generated script. A Rich `Live` table shows per-slide state (`queued / running / retry-N / ok / fallback / failed`). After the run the summary (`N ok / M fallback / K failed`) lets you rerun any failed index.
 7. **Compile + QA** — writes JS templates → `npm install` (skipped when `node_modules` already exists) → `node compile.js` → optional `markitdown` read-back.
 
+## Rich Layout shell
+
+Every wizard run renders a four-region Rich `Layout` around each stage:
+
+```
+┌ pptx-agent · <slug> · stage n/7 · mm:ss ────────────────┐
+│ ✓ 1 Intent     │                                        │
+│ ▶ 2 Env        │        (current stage panel)           │
+│ ○ 3 Research   │                                        │
+│ ○ 4 Outline    │                                        │
+│ ○ 5 Theme      │                                        │
+│ ○ 6 Slides     │                                        │
+│ ○ 7 Compile QA │                                        │
+├────────────────┴────────────────────────────────────────┤
+│ Log (tail, last 5 lines)                                │
+└──────────────────────────────────────────────────────────┘
+```
+
+- The sidebar reflects `project.stage` live with `✓ / ▶ / ○` glyphs.
+- The log tail binds the `examples.pptx_generator` logger via a `RingLogHandler` that keeps only the most recent 5 lines.
+- **No `rich.Live`**: the Layout is re-printed manually on every stage transition or sub-step boundary. This deliberately sacrifices sub-second clock ticking in exchange for clean coexistence with `questionary` prompts on Windows conhost.
+- Ctrl+C repaints the Layout one last time before the resume hint so the final terminal frame matches what was persisted to `project.json`.
+
+## Event log and replay
+
+Every `pptx-agent new` / `resume` appends its event stream to `outputs/<slug>/events.jsonl` (NDJSON, `{"name","payload","ts"}`; secret-bearing payload keys are redacted on write). The file is consumed directly by the builtin replay command:
+
+```bash
+openagents replay outputs/<slug>/events.jsonl
+openagents replay outputs/<slug>/events.jsonl --turn 2
+```
+
+Override the path for a single run with the `PPTX_EVENTS_LOG` env var.
+
+## Starting from the builtin scaffold
+
+If you want to build something similar from scratch using the SDK's own scaffold, `openagents init --template pptx-wizard` emits a two-agent slice (intent-analyst + slide-generator, chain memory + markdown persistence) that runs against the mock provider out of the box. It is **not** the full 7-stage pipeline — the real wizard lives in `examples/pptx_generator/` and the scaffolded README points there.
+
 ## Resume
 
 Project state lives in `outputs/<slug>/project.json` (atomic writes; a `project.json.bak` copy is rotated on every save). Ctrl+C at any stage flushes state and exits with code `130`; `pptx-agent resume <slug>` picks up from the last saved stage.

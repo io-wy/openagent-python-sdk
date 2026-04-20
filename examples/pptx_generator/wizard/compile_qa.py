@@ -12,6 +12,7 @@ from typing import Any
 from openagents.cli.wizard import StepResult, Wizard
 
 from ..state import DeckProject, SlideIR
+from ._layout import repaint
 from ._qa_scan import QAReport, scan_placeholders
 
 SubStepStatus = str  # "pending" | "running" | "ok" | "skipped" | "failed"
@@ -24,8 +25,11 @@ class CompileQAWizardStep:
     templates_dir: Path
     title: str = "compile"
     description: str = "Render JS, run PptxGenJS, QA via MarkItDown + placeholder scan."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         out_dir = Path(self.output_root) / project.slug / "slides"
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "output").mkdir(exist_ok=True)

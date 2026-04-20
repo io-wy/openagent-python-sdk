@@ -10,6 +10,7 @@ from openagents.cli.wizard import StepResult, Wizard
 from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject, ResearchFindings
+from ._layout import repaint
 
 
 @dataclass
@@ -17,8 +18,11 @@ class ResearchWizardStep:
     runtime: Any
     title: str = "research"
     description: str = "Gather facts via Tavily (MCP → REST fallback)."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         assert project.intent is not None, "ResearchWizardStep requires intent"
         if not project.intent.research_queries:
             project.research = ResearchFindings()

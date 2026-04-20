@@ -213,6 +213,19 @@ class MyExternalTool(ToolPlugin):
 - preflight 不应该做重量级副作用（例如真正启动 MCP 子进程）；需要探活的话请把探活行为作为 opt-in 配置项（MCP 内置工具的 `probe_on_preflight` 就是这个模式）。
 - 参见 `McpTool.preflight()` 作为参考实现；具体见 `docs/builtin-tools.md` 的 MCP 段落。
 
+### 可选：`durable_idempotent` 属性（0.4.x 新增）
+
+Durable run（`RunRequest.durable=True`）在捕获 retryable 错误后会从最近 checkpoint 恢复并重新执行 pattern。如果你的工具有**外部可见的副作用**（写文件、发 HTTP POST、启动子进程、修改环境变量等），resume 后它可能再跑一次 —— 对外部状态是非幂等的。
+
+在类体上声明 `durable_idempotent = False` 让 runtime 在 durable run 中首次调用该工具时发出一次性 `run.durable_idempotency_warning` 事件（仅提示、不阻断）：
+
+```python
+class MyWriteTool(ToolPlugin):
+    durable_idempotent = False  # 默认 True；只读工具可省略
+```
+
+内建工具中 `WriteFileTool` / `DeleteFileTool` / `HttpRequestTool` / `ShellExecTool` / `ExecuteCommandTool` / `SetEnvTool` 已默认标为 `False`。读文件、查询类工具保留默认 `True`。
+
 ## 7. 自定义 Memory
 
 当你要控制 inject / writeback 行为时，写 Memory。

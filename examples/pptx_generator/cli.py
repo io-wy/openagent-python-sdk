@@ -131,11 +131,17 @@ async def run_wizard(
         with a safe command allowlist is constructed.
     """
     outputs = outputs_root()
+    project_dir = outputs / project.slug
+    project_dir.mkdir(parents=True, exist_ok=True)
     save_project(project, root=outputs)
 
     if resume and project.stage == "done":
         print(f"Project {project.slug!r} is already complete.")
         return 0
+
+    prior_log = os.environ.get("PPTX_EVENTS_LOG")
+    if prior_log is None:
+        os.environ["PPTX_EVENTS_LOG"] = str(project_dir / "events.jsonl")
 
     if runtime is None:
         runtime = _Runtime.from_config(Path("examples/pptx_generator/agent.json"))
@@ -216,6 +222,9 @@ async def run_wizard(
             f"\ninterrupted; state saved. resume with: pptx-agent resume {project.slug}",
         )
         return 130
+    finally:
+        if prior_log is None:
+            os.environ.pop("PPTX_EVENTS_LOG", None)
     save_project(project, root=outputs)
     return 0 if outcome == "completed" else 1
 

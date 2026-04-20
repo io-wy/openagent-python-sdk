@@ -1015,13 +1015,20 @@
 |------|------|------|------|
 | `server.command` | `string` | 条件必填 | stdio 模式：启动服务器的可执行命令 |
 | `server.args` | `array[string]` | 否 | stdio 模式：命令参数 |
-| `server.env` | `object` | 否 | stdio 模式：附加环境变量 |
+| `server.env` | `object` | 否 | stdio 模式：附加环境变量。若 `env_passthrough` 为空（默认），此字段含义与底层 MCP SDK 一致——提供时**替换**父环境变量；不提供时继承父环境变量 |
+| `server.cwd` | `string` | 否 | stdio 模式：子进程工作目录，直接透传给 `StdioServerParameters(cwd=...)` |
+| `server.env_passthrough` | `array[string]` | 否 | stdio 模式：父进程环境变量白名单（如 `["PATH","HOME"]`）。非空时会把命中名字的父变量合入子进程 env；`server.env` 的显式键优先级更高（覆盖 passthrough）。默认空列表 = 保持历史行为 |
+| `server.init_timeout_ms` | `int` | 否 | `ClientSession.initialize()` 的超时（毫秒）。超时抛 `TimeoutError`，连接与会话照常回滚；默认 `None` = 不限 |
 | `server.url` | `string` | 条件必填 | HTTP/SSE 模式：服务器端点 URL |
 | `server.headers` | `object` | 否 | HTTP/SSE 模式：请求头 |
 | `tools` | `array[string]` | 否 | 暴露的工具名白名单，空列表表示暴露服务器上的全部工具 |
 | `connection_mode` | `string` | 否 | `per_call`（默认）或 `pooled`，控制会话生命周期，详见下方 |
+| `prelaunch` | `string` | 否 | `off`（默认）或 `eager`。`eager` 必须配合 `connection_mode=pooled`——会在 session 首次 run 时就打开共享连接，第一次 `invoke` 零进程启动延迟；误配到 `per_call` 将在初始化时抛 `ConfigError` |
 | `probe_on_preflight` | `bool` | 否 | 默认 `false`；开启后 `preflight()` 会尝试连接服务器并调用一次 `list_tools` |
 | `dedup_inflight` | `bool` | 否 | 默认 `true`；在 `per_call` 模式下合并同 `(tool, arguments)` 的并发调用 |
+
+!!! tip "环境变量插值（`${VAR}`）"
+    `server.env`、`server.headers`、`server.url`、`server.args` 里的 `${VAR}` / `${VAR:-default}` 占位符由 config loader 在文件文本层统一展开，缺失变量会在 `load_config` 阶段抛 `ConfigLoadError`。注意：**仅通过 `Runtime.from_config(path)` 加载才有插值**；直接 `Runtime.from_dict(payload)` 不做文本展开。
 
 **调用参数**
 
@@ -1042,17 +1049,49 @@
 **连接模式：per_call vs pooled**
 
 - `per_call`（默认）：每次 `invoke()` 都会打开并关闭一个全新的 stdio 子进程（或 SSE 会话）。好处是 anyio 的 cancel scope 始终绑定在单次调用内，子进程崩溃不会连带取消调用方后续的 `await`。代价是重量级服务器（如 node-based tavily-mcp）每次工具调用都要付一次进程启动成本。
-- `pooled`：首次调用时打开一个长生命周期的会话，后续所有调用复用它，通过内部 `asyncio.Lock` 串行化。N 次工具调用只开一次进程。**代价**：若池内子进程异常退出，残留的 cancel scope 可能泄漏到调用方。我们通过"死会话在下一次调用时才替换（而不是在失败的那次调用里）"来缓解这种泄漏，但仍然要求 agent 运行结束后主动调用 `close()` 排空池。当 runtime 在被意外 kill 时，`atexit` 钩子会尽力排空所有活动池，避免遗留孤儿进程。
+- `pooled`：首次调用时打开一个长生命周期的会话，后续所有调用复用它，通过内部 `asyncio.Lock` 串行化。N 次工具调用只开一次进程。**代价**：若池内子进程异常退出，残留的 cancel scope 可能泄漏到调用方。我们通过"死会话在下一次调用时才替换（而不是在失败的那次调用里）"来缓解这种泄漏。`DefaultRuntime` 会在 `runtime.close()` / `runtime.release_session()` 时级联关闭共享连接；runtime 被意外 kill 时 `atexit` 钩子兜底。
 - 何时开启 `pooled`：ReAct 等循环里会对同一个 MCP 服务器连续发起很多次工具调用时；服务器启动成本很高时。
 - 何时保留默认 `per_call`：服务器本身不稳定、经常崩溃；或者你希望每次调用都有干净的 cancel scope 边界。
 
+**Session 级共享池（0.4.x 新增）**
+
+`DefaultRuntime` 会为每个 `session_id` 维护一个共享的 MCP 池，按 `server.identifier()`（stdio 的 `command` 或 HTTP 的 `url`）聚合：
+
+- 同一 session 内、`connection_mode=pooled` 的多个 `McpTool` 若指向同一服务器配置，会复用**同一个**子进程 / SSE 会话，并通过一条 `asyncio.Lock` 串行化（MCP stdio 协议本身是单流）。两个 agent 共用一台服务器不会开两份进程。
+- 池与 session 生命周期绑定：**跨 run 常驻**。同一个 `session_id` 上的第 N 次 `runtime.run_detailed` 会直接复用第 1 次建立的连接。
+- `prelaunch="eager"` 的工具会在 session 首次 run 的"preflight 之后、pattern 执行之前"触发一次 warmup，把共享连接提前建好；此时第一次 `invoke` 不需要等进程启动。
+- 池在以下任一时机统一排空：`runtime.close()`、`runtime.release_session(session_id)`、`runtime.reload()` 检测到 agent 配置变化；非 `DefaultRuntime` 场景或没有把 pool 注入到 context 的情况下，`McpTool._PooledStrategy` 自动回退到旧的每实例池路径（向后兼容）。
+
+可以通过 runtime-level 配置调节池容量：
+
+```json
+{
+  "runtime": {
+    "type": "default",
+    "config": {
+      "mcp": {
+        "max_pooled_sessions": 32,
+        "max_idle_seconds": 300,
+        "preflight_cache_success_ttl": null
+      }
+    }
+  }
+}
+```
+
+- `max_pooled_sessions`：同时活跃的 session 池上限；超限时按 LRU（`last_used` 最旧）驱逐并关闭对应共享连接。默认 `None` = 不限。
+- `max_idle_seconds`：session 池 idle 超时；任何 `get_or_create` 调用到来时会先清掉超时的 idle 池。默认 `None` = 不限。
+- `preflight_cache_success_ttl`：保留字段，当前未启用（成功 preflight 随 session 池生命周期常驻）。
+
 **预启动检查（preflight）**
 
-`McpTool.preflight()` 在每个会话的第一个 agent turn 之前由运行时调用一次，用于尽早暴露配置错误：
+`McpTool.preflight()` 在每次 `runtime.run_detailed` 进入 agent 循环之前、tool binding 之后被调用，用于尽早暴露配置错误：
 
 1. 检查 `mcp` Python SDK 是否可导入（未安装时抛 `PermanentToolError`，附带 `uv sync --extra mcp` 安装提示）；
 2. 校验 `server` 配置：stdio 模式用 `shutil.which` 检查 `command` 是否在 PATH 上；HTTP/SSE 模式用 `urllib.parse` 确认 URL 格式合法；
 3. 若 `probe_on_preflight=true`，额外打开一次临时连接调用 `list_tools` 验证服务器可达性（会产生一次额外的子进程 fork，默认关闭）。
+
+**Session 级 dedup**：`DefaultRuntime` 会在 session 池里缓存每个 `tool_id` 的成功 preflight，后续同 session 的 run 会直接命中缓存（事件 payload `result="cached-ok"`）。失败 **不缓存**——用户修好配置后下次 run 自动重试。
 
 preflight 失败会让 `runtime.run()` 直接返回 `stop_reason=failed` 的 `RunResult`，错误消息里会带上失败工具的 `id`，不会进入 agent 循环。
 
@@ -1067,9 +1106,10 @@ MCP 工具在配置了 event bus 的 `RunContext` 下会发射以下结构化事
 
 **注意事项**
 
-- `per_call` 模式下，连接随每次调用打开并关闭；`pooled` 模式下首次调用建立并复用。
+- `per_call` 模式下，连接随每次调用打开并关闭；`pooled` 模式下首次调用建立并复用；开启 `prelaunch=eager` 后，连接会在 session 首次 run 的 warmup 阶段提前建好。
 - 调用 `tools` 白名单之外的工具会抛出 `ValueError`。
-- `connection_mode="pooled"` 时务必在 runtime 关停时调用 `tool.close()`（或让 runtime 的 close 级联调用）排空会话；`atexit` 只是最后的兜底。
+- `connection_mode="pooled"` 在 `DefaultRuntime` 下的排空责任已交给 runtime：`runtime.close()` / `runtime.release_session(sid)` / `runtime.reload()` 会自动级联关闭共享会话；`atexit` 和 `McpTool.close()` 是降级路径。
+- `env_passthrough` 和 `${VAR}` 插值不会绕过安全策略：插值发生在 config load，运行时看到的已是明文值，请避免把密钥写进 JSON 快照类工件。
 
 ---
 

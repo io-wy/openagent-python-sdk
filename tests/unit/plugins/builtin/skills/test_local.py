@@ -6,7 +6,7 @@ import pytest
 
 from openagents.plugins.builtin.skills.local import LocalSkillsManager
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[5]
 SKILLS_ROOT = REPO_ROOT / "skills"
 OPENAGENT_SKILL_ROOT = SKILLS_ROOT / "openagent-agent-builder"
 

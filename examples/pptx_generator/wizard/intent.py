@@ -11,6 +11,7 @@ from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject, IntentReport
 from ._editors import edit_intent
+from ._layout import repaint
 
 
 @dataclass
@@ -19,8 +20,11 @@ class IntentWizardStep:
     topic_hint: str | None = None
     title: str = "intent"
     description: str = "Understand what you want to present."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         report = await self._invoke_agent(project, topic_hint=self.topic_hint)
         while True:
             if console is not None:

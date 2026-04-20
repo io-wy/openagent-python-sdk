@@ -1015,13 +1015,20 @@ Forward tool calls to an external MCP (Model Context Protocol) server. Supports 
 |-------|------|----------|-------------|
 | `server.command` | `string` | Conditional | stdio mode: executable command to launch the server |
 | `server.args` | `array[string]` | No | stdio mode: command arguments |
-| `server.env` | `object` | No | stdio mode: additional environment variables |
+| `server.env` | `object` | No | stdio mode: additional environment variables. With an empty `env_passthrough` (default), semantics match the underlying MCP SDK — providing `env` **replaces** the parent env, omitting it inherits the parent env |
+| `server.cwd` | `string` | No | stdio mode: working directory for the subprocess, forwarded to `StdioServerParameters(cwd=...)` |
+| `server.env_passthrough` | `array[string]` | No | stdio mode: allowlist of parent env vars (e.g. `["PATH", "HOME"]`). When non-empty, listed vars from `os.environ` are merged into the child env; explicit `server.env` keys win on collisions. Default empty list = historical behaviour preserved |
+| `server.init_timeout_ms` | `int` | No | Timeout for `ClientSession.initialize()` in milliseconds. On timeout both contexts unwind and a `TimeoutError` propagates. Default `None` = unbounded |
 | `server.url` | `string` | Conditional | HTTP/SSE mode: server endpoint URL |
 | `server.headers` | `object` | No | HTTP/SSE mode: request headers |
 | `tools` | `array[string]` | No | Allowlist of tool names to expose; empty list means all tools |
 | `connection_mode` | `string` | No | `per_call` (default) or `pooled` — controls session lifetime; see below |
+| `prelaunch` | `string` | No | `off` (default) or `eager`. `eager` requires `connection_mode=pooled` — the shared session is opened at session warmup so the first `invoke` has zero spawn latency; mismatched pairing raises `ConfigError` at construction time |
 | `probe_on_preflight` | `bool` | No | Defaults to `false`; when `true`, `preflight()` opens a throwaway session and calls `list_tools` once to verify reachability |
 | `dedup_inflight` | `bool` | No | Defaults to `true`; in `per_call` mode, coalesces concurrent calls with the same `(tool, arguments)` |
+
+!!! tip "Environment variable interpolation (`${VAR}`)"
+    `${VAR}` / `${VAR:-default}` placeholders in `server.env`, `server.headers`, `server.url`, and `server.args` are expanded by the config loader on the raw JSON text; missing variables raise `ConfigLoadError` during `load_config`. Note: expansion only runs for `Runtime.from_config(path)` — `Runtime.from_dict(payload)` does no text-layer substitution.
 
 **Invoke parameters**
 
@@ -1042,16 +1049,48 @@ Forward tool calls to an external MCP (Model Context Protocol) server. Supports 
 **Connection modes: per_call vs pooled**
 
 - `per_call` (default): each `invoke()` opens a fresh stdio subprocess (or SSE session) and closes it before returning, all within the same event-loop task. This keeps anyio cancel scopes strictly bounded to the call, so a subprocess crash cannot cancel the caller's next `await`. The cost is one subprocess spawn per tool call — heavy for node-based or slow-import servers in long ReAct loops.
-- `pooled`: the first call opens a long-lived session and subsequent calls reuse it, serialized through an internal `asyncio.Lock`. N tool calls cost one subprocess spawn. **Trade-off**: if the pooled subprocess dies, its cancel scope may escape into the caller. We mitigate this by swapping the dead session on the *next* call (never inside the failing call), but you still must call `tool.close()` on runtime shutdown to drain the pool. An `atexit` hook performs a best-effort drain if the process is killed.
+- `pooled`: the first call opens a long-lived session and subsequent calls reuse it, serialized through an internal `asyncio.Lock`. N tool calls cost one subprocess spawn. **Trade-off**: if the pooled subprocess dies, its cancel scope may escape into the caller. We mitigate this by swapping the dead session on the *next* call (never inside the failing call). Under `DefaultRuntime`, draining happens via `runtime.close()` / `runtime.release_session()` / `runtime.reload()`; `atexit` is only a last-resort safety net.
 - Use `pooled` when the same MCP server is hit many times per run and the server is stable; keep the default `per_call` when the server is unstable or you want strict cancel-scope isolation per call.
+
+**Session-level shared pool (new in 0.4.x)**
+
+`DefaultRuntime` maintains one MCP pool per `session_id`, keyed inside the pool by `server.identifier()` (`command` for stdio, `url` for HTTP):
+
+- Multiple `McpTool` instances in the same session with `connection_mode=pooled` and identical server config share a **single** subprocess / SSE session. MCP stdio is single-stream, so calls are serialized through one per-entry `asyncio.Lock`. Two agents in the same session pointing at the same MCP server do not fork two processes.
+- The pool is **kept alive across runs** on the same session. The Nth `runtime.run_detailed` for a given `session_id` reuses the conn opened by the first run.
+- With `prelaunch="eager"`, the shared conn is opened at the "after-preflight, before pattern execution" point of the session's first run, so the very first tool call has zero spawn latency.
+- Pools are drained on any of: `runtime.close()`, `runtime.release_session(session_id)`, `runtime.reload()` when it detects agent config changes. If `DefaultRuntime` isn't in use (or the pool reference is not in context), `McpTool._PooledStrategy` transparently falls back to its own per-instance pool (backward compatible).
+
+Runtime-level knobs tune pool caps:
+
+```json
+{
+  "runtime": {
+    "type": "default",
+    "config": {
+      "mcp": {
+        "max_pooled_sessions": 32,
+        "max_idle_seconds": 300,
+        "preflight_cache_success_ttl": null
+      }
+    }
+  }
+}
+```
+
+- `max_pooled_sessions`: hard cap on the number of live session pools; excess triggers LRU eviction (closes the pool with the oldest `last_used`). Default `None` = unbounded.
+- `max_idle_seconds`: idle-age ceiling; every `get_or_create` purges expired pools first. Default `None` = unbounded.
+- `preflight_cache_success_ttl`: reserved (current behaviour: successful preflight results persist for the pool's lifetime).
 
 **Preflight validation**
 
-`McpTool.preflight()` is invoked once per session by the runtime before the first agent turn. It surfaces misconfiguration up-front instead of mid-run:
+`McpTool.preflight()` runs on every `runtime.run_detailed` after tool binding but before the agent loop. It surfaces misconfiguration up front:
 
 1. Verifies the `mcp` Python SDK is importable — raises `PermanentToolError` with an `uv sync --extra mcp` hint if missing.
 2. Validates the `server` config: stdio mode uses `shutil.which` to confirm `command` is on `PATH`; HTTP/SSE mode uses `urllib.parse` to reject malformed URLs.
 3. When `probe_on_preflight=true`, opens a throwaway connection and calls `list_tools` to confirm reachability (costs one extra subprocess spawn per session; off by default).
+
+**Per-session dedup**: `DefaultRuntime` caches successful preflight results inside the session pool. Subsequent runs on the same session skip the call and emit `tool.preflight` with `result="cached-ok"`. Failures are **not cached** — users can fix their config and retry without rebuilding the runtime.
 
 A preflight failure turns into a `RunResult` with `stop_reason=failed`, and the error message names the failing tool id. The agent loop never runs.
 
@@ -1066,9 +1105,10 @@ When a `RunContext` with an event bus is available, the MCP tool emits structure
 
 **Notes**
 
-- In `per_call` mode the connection is opened and closed around each call; in `pooled` mode the first call establishes and later calls reuse it.
+- In `per_call` mode the connection is opened and closed around each call; in `pooled` mode the first call establishes and later calls reuse it; with `prelaunch=eager` the first-call cost is paid during session warmup instead.
 - Invoking a tool not in the `tools` allowlist raises `ValueError`.
-- With `connection_mode="pooled"`, ensure the tool's `close()` is called on runtime shutdown (the runtime's own `close` cascades into plugin close). The `atexit` hook is only a last-resort safety net.
+- Under `DefaultRuntime`, `connection_mode="pooled"` draining is cascaded by the runtime itself: `runtime.close()` / `runtime.release_session(sid)` / `runtime.reload()`. The `atexit` hook and `McpTool.close()` are fallback paths.
+- `env_passthrough` and `${VAR}` interpolation do not bypass your secret-handling policy: interpolation runs at config-load time, so any snapshot of the parsed config contains the plaintext values — don't commit those.
 
 ---
 

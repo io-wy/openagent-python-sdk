@@ -545,6 +545,70 @@ async def test_preflight_runs_once_per_session_for_tool_with_override():
 
 
 @pytest.mark.asyncio
+async def test_preflight_dedup_across_runs_on_same_session():
+    """Second run on the same session skips preflight (cached ok)."""
+    from tests.fixtures import preflight_tools
+
+    preflight_tools.reset()
+    config = _preflight_agent_config(
+        "tests.fixtures.preflight_tools.RecordingPreflightTool",
+        "recording_preflight_tool",
+    )
+    runtime = Runtime(config)
+
+    for _ in range(2):
+        result = await runtime.run_detailed(
+            request=RunRequest(
+                agent_id="preflight_agent",
+                session_id="dedup-session",
+                input_text="hello",
+            )
+        )
+        assert result.stop_reason == "completed"
+
+    # Preflight was called exactly once despite two runs on the same session.
+    assert preflight_tools.PREFLIGHT_CALLS == ["recording_preflight_tool"]
+
+    preflight_events = [evt for evt in runtime.event_bus.history if evt.name == "tool.preflight"]
+    assert len(preflight_events) == 2
+    assert preflight_events[0].payload["result"] == "ok"
+    assert preflight_events[1].payload["result"] == "cached-ok"
+
+    await runtime.close()
+
+
+@pytest.mark.asyncio
+async def test_preflight_dedup_does_not_cross_sessions():
+    """Different session_ids maintain independent preflight caches."""
+    from tests.fixtures import preflight_tools
+
+    preflight_tools.reset()
+    config = _preflight_agent_config(
+        "tests.fixtures.preflight_tools.RecordingPreflightTool",
+        "recording_preflight_tool",
+    )
+    runtime = Runtime(config)
+
+    for sid in ("session-A", "session-B"):
+        result = await runtime.run_detailed(
+            request=RunRequest(
+                agent_id="preflight_agent",
+                session_id=sid,
+                input_text="hello",
+            )
+        )
+        assert result.stop_reason == "completed"
+
+    # Two distinct sessions → two preflight invocations.
+    assert preflight_tools.PREFLIGHT_CALLS == [
+        "recording_preflight_tool",
+        "recording_preflight_tool",
+    ]
+
+    await runtime.close()
+
+
+@pytest.mark.asyncio
 async def test_preflight_default_no_op_does_not_break_runtime():
     """A tool without a preflight override still runs through the runtime cleanly."""
     config = _preflight_agent_config(

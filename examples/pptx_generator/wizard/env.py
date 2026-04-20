@@ -9,6 +9,7 @@ from openagents.cli.wizard import StepResult, Wizard
 from openagents.utils.env_doctor import CheckStatus, EnvironmentDoctor
 
 from ..state import DeckProject
+from ._layout import repaint
 
 _KEY_LIKE_PREFIXES = ("LLM_", "TAVILY_", "OPENAI_", "ANTHROPIC_")
 
@@ -22,8 +23,11 @@ class EnvDoctorWizardStep:
     doctor: EnvironmentDoctor
     title: str = "env"
     description: str = "Check required binaries and API keys."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         report = await self.doctor.run()
         project.env_report = report
         if console is not None:

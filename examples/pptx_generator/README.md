@@ -26,6 +26,16 @@ pptx-agent memory list [--section ...]   # list stored preferences
 pptx-agent memory forget <entry_id>      # delete one preference
 ```
 
+## Replay a finished run
+
+Every `pptx-agent new` / `resume` run appends its full event stream to `outputs/<slug>/events.jsonl` via the builtin `FileLoggingEventBus`. The file is append-only NDJSON with one record per line in the `{"name", "payload", "ts"}` shape that `openagents replay` consumes directly:
+
+```bash
+openagents replay outputs/<slug>/events.jsonl
+```
+
+Payload keys matching `api_key` / `authorization` / `token` / `secret` / `password` are redacted on write, so sharing the JSONL with collaborators is safe. To redirect the log to a custom path for a single run, set `PPTX_EVENTS_LOG` before invoking `pptx-agent`.
+
 ## Resume safety
 
 Project state is persisted to `outputs/<slug>/project.json` with atomic writes and a rolling `project.json.bak` backup. Ctrl+C at any stage flushes state (exit code 130) and `pptx-agent resume <slug>` picks up from there. If `project.json` is corrupt, the CLI offers to restore from backup, start fresh, or abort.
@@ -49,3 +59,4 @@ Cross-session preferences live in `~/.config/pptx-agent/memory/` as human-readab
 | `LLM_MODEL` | yes | Model name. |
 | `TAVILY_API_KEY` | no | Enables the research stage. |
 | `PPTX_AGENT_OUTPUTS` | no | Override the project output directory (default: `examples/pptx_generator/outputs`). |
+| `PPTX_EVENTS_LOG` | no | Override the per-project event log path (default: `outputs/<slug>/events.jsonl`). |

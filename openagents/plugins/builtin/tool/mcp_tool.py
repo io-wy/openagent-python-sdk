@@ -34,27 +34,32 @@ import atexit
 import hashlib
 import json
 import logging
+import os
 import shutil
+import sys
 import time
 import urllib.parse
 import weakref
 from contextlib import AsyncExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from openagents.errors.exceptions import PermanentToolError
+from openagents.errors.exceptions import ConfigError, PermanentToolError
 from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup  # noqa: F401  (backport needed pre-3.11)
 
 logger = logging.getLogger(__name__)
 
 
 def _unwrap_single_exception(err: BaseException) -> BaseException:
     """Peel a chain of single-child ExceptionGroups down to the real cause."""
-    while isinstance(err, BaseExceptionGroup) and len(err.exceptions) == 1:  # noqa: F821
+    while isinstance(err, BaseExceptionGroup) and len(err.exceptions) == 1:
         err = err.exceptions[0]
     return err
 
@@ -74,6 +79,9 @@ class McpServerConfig:
     command: str | None = None
     args: list[str] | None = None
     env: dict[str, str] | None = None
+    cwd: str | None = None
+    env_passthrough: list[str] = field(default_factory=list)
+    init_timeout_ms: int | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
 
@@ -81,6 +89,32 @@ class McpServerConfig:
         if self.url:
             return self.url
         return self.command or "<unset>"
+
+    def resolved_stdio_env(self) -> dict[str, str] | None:
+        """Return the effective stdio env map, honouring ``env_passthrough``.
+
+        Semantics:
+
+        - ``env_passthrough=[]`` (default) preserves historical behaviour
+          exactly: returns ``self.env`` unchanged — ``None`` means "inherit
+          the full parent env", a dict means "replace the parent env" (the
+          MCP SDK's default for ``StdioServerParameters.env``).
+        - ``env_passthrough=[name, ...]`` forces materialisation: the
+          returned dict contains each whitelisted variable copied from
+          ``os.environ`` (skipped silently when the parent doesn't define
+          it), overlaid by any explicit ``self.env`` entries (user wins on
+          collisions).
+        """
+        if not self.env_passthrough:
+            return self.env
+        merged: dict[str, str] = {}
+        for name in self.env_passthrough:
+            value = os.environ.get(name)
+            if value is not None:
+                merged[name] = value
+        if self.env:
+            merged.update(self.env)
+        return merged
 
 
 class McpConnection:
@@ -110,7 +144,19 @@ class McpConnection:
                 await self._connect_http(stack)
             else:
                 await self._connect_stdio(stack)
-            await self._session.initialize()
+            init_coro = self._session.initialize()
+            timeout_ms = self.config.init_timeout_ms
+            if timeout_ms is not None:
+                try:
+                    await asyncio.wait_for(init_coro, timeout=timeout_ms / 1000.0)
+                except asyncio.TimeoutError as exc:
+                    raise TimeoutError(
+                        f"MCP session.initialize() exceeded "
+                        f"init_timeout_ms={timeout_ms} for server "
+                        f"{self.config.identifier()!r}"
+                    ) from exc
+            else:
+                await init_coro
         except BaseException:
             await stack.__aexit__(None, None, None)
             raise
@@ -134,11 +180,14 @@ class McpConnection:
         if not self.config.command:
             raise ValueError("stdio MCP connection requires a 'command'")
 
-        server_params = StdioServerParameters(
-            command=self.config.command,
-            args=self.config.args or [],
-            env=self.config.env,
-        )
+        stdio_kwargs: dict[str, Any] = {
+            "command": self.config.command,
+            "args": self.config.args or [],
+            "env": self.config.resolved_stdio_env(),
+        }
+        if self.config.cwd is not None:
+            stdio_kwargs["cwd"] = self.config.cwd
+        server_params = StdioServerParameters(**stdio_kwargs)
         reader, writer = await stack.enter_async_context(stdio_client(server_params))
         self._session = await stack.enter_async_context(ClientSession(reader, writer))
 
@@ -216,6 +265,11 @@ class _PerCallStrategy:
     ordering (stdio:enter → session:enter → session:initialize →
     session:call_tool → session:exit → stdio:exit), best-effort
     ``list_tools``, ExceptionGroup unwrapping.
+
+    ``context`` is accepted for interface symmetry with the pooled
+    strategy but ignored here — per_call mode deliberately opens its
+    own short-lived conn and does not participate in the session
+    shared pool.
     """
 
     def __init__(self, tool: "McpTool"):
@@ -225,6 +279,7 @@ class _PerCallStrategy:
         self,
         tool_name: str,
         arguments: dict[str, Any],
+        context: Any = None,
     ) -> dict[str, Any]:
         tool = self._tool
         try:
@@ -234,7 +289,7 @@ class _PerCallStrategy:
                 except Exception:
                     logger.debug("MCP list_tools failed", exc_info=True)
                 return await connection.call_tool(tool_name, arguments)
-        except BaseExceptionGroup as eg:  # noqa: F821
+        except BaseExceptionGroup as eg:
             inner = _unwrap_single_exception(eg)
             if isinstance(inner, Exception):
                 raise inner from eg
@@ -254,6 +309,14 @@ class _PooledStrategy:
     Dead-session detection swaps on the *next* call, not inside the
     failing call. Swapping inside the failing call would keep us inside
     the dying session's cancel scope.
+
+    When a session-level MCP pool is attached to ``context.scratch``
+    (``__mcp_session_pool__``), pooled calls prefer the shared conn for
+    the matching ``server.identifier()`` instead of opening their own.
+    This means two ``McpTool`` instances with identical server config in
+    the same session share one subprocess. If no shared pool is present
+    (raw McpTool usage without ``DefaultRuntime``, or fixtures), we fall
+    back to the per-instance pool path.
     """
 
     def __init__(self, tool: "McpTool"):
@@ -263,6 +326,41 @@ class _PooledStrategy:
         self._stale = False
 
     async def call(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        context: Any = None,
+    ) -> dict[str, Any]:
+        shared_pool = _find_shared_pool(context)
+        if shared_pool is not None:
+            return await self._call_through_shared(shared_pool, tool_name, arguments)
+        return await self._call_through_own_pool(tool_name, arguments)
+
+    async def _call_through_shared(
+        self,
+        shared_pool: Any,
+        tool_name: str,
+        arguments: dict[str, Any],
+    ) -> dict[str, Any]:
+        tool = self._tool
+        identifier = tool._server_config.identifier()
+        entry = await shared_pool.get_or_open_shared(identifier, tool._server_config)
+        if entry.tools_cache is not None:
+            tool._last_available_tools = entry.tools_cache
+        try:
+            async with entry.lock:
+                return await entry.conn.call_tool(tool_name, arguments)
+        except BaseExceptionGroup as eg:
+            shared_pool.mark_stale(identifier)
+            inner = _unwrap_single_exception(eg)
+            if isinstance(inner, Exception):
+                raise inner from eg
+            raise
+        except Exception:
+            shared_pool.mark_stale(identifier)
+            raise
+
+    async def _call_through_own_pool(
         self,
         tool_name: str,
         arguments: dict[str, Any],
@@ -288,7 +386,7 @@ class _PooledStrategy:
 
             try:
                 return await self._conn.call_tool(tool_name, arguments)
-            except BaseExceptionGroup as eg:  # noqa: F821
+            except BaseExceptionGroup as eg:
                 self._stale = True
                 inner = _unwrap_single_exception(eg)
                 if isinstance(inner, Exception):
@@ -308,6 +406,26 @@ class _PooledStrategy:
             await conn.__aexit__(None, None, None)
         except Exception:
             logger.debug("MCP pooled close failed", exc_info=True)
+
+
+def _find_shared_pool(context: Any) -> Any | None:
+    """Look up the session MCP pool stashed by ``DefaultRuntime``.
+
+    Returns the ``_SessionMcpPool`` (duck-typed — we never import the
+    coordinator module from here to avoid circular imports) or ``None``
+    when no coordinator is in play.
+    """
+    if context is None:
+        return None
+    scratch = getattr(context, "scratch", None)
+    if not isinstance(scratch, dict):
+        return None
+    pool = scratch.get("__mcp_session_pool__")
+    if pool is None:
+        return None
+    if not callable(getattr(pool, "get_or_open_shared", None)):
+        return None
+    return pool
 
 
 # ---------------------------------------------------------------------------
@@ -392,16 +510,32 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         connection_mode: Literal["per_call", "pooled"] = "per_call"
         probe_on_preflight: bool = False
         dedup_inflight: bool = True
+        prelaunch: Literal["eager", "off"] = "off"
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
         self._init_typed_config()
 
         server_config = self.cfg.server
+        env_passthrough = server_config.get("env_passthrough") or []
+        if not isinstance(env_passthrough, list) or not all(isinstance(name, str) and name for name in env_passthrough):
+            raise ConfigError(
+                "'server.env_passthrough' must be a list of non-empty strings",
+                hint='Example: ["PATH", "HOME"]',
+            )
+        init_timeout_ms = server_config.get("init_timeout_ms")
+        if init_timeout_ms is not None and (not isinstance(init_timeout_ms, int) or init_timeout_ms <= 0):
+            raise ConfigError(
+                "'server.init_timeout_ms' must be a positive integer",
+                hint="Use milliseconds, e.g. 10000 for 10 seconds",
+            )
         self._server_config = McpServerConfig(
             command=server_config.get("command"),
             args=server_config.get("args"),
             env=server_config.get("env"),
+            cwd=server_config.get("cwd"),
+            env_passthrough=list(env_passthrough),
+            init_timeout_ms=init_timeout_ms,
             url=server_config.get("url"),
             headers=server_config.get("headers"),
         )
@@ -410,6 +544,16 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         self._connection_mode = self.cfg.connection_mode
         self._probe_on_preflight = self.cfg.probe_on_preflight
         self._dedup_inflight = self.cfg.dedup_inflight
+        self._prelaunch = self.cfg.prelaunch
+        if self._prelaunch == "eager" and self._connection_mode != "pooled":
+            raise ConfigError(
+                "'prelaunch=\"eager\"' requires 'connection_mode=\"pooled\"'",
+                hint=(
+                    "Eager pre-launch establishes a long-lived session that "
+                    "per_call mode would tear down immediately. Either set "
+                    "connection_mode to 'pooled' or remove the prelaunch key."
+                ),
+            )
         self._inflight: dict[tuple[str, str], asyncio.Future[dict[str, Any]]] = {}
         self._inflight_lock = asyncio.Lock()
 
@@ -463,7 +607,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
                 async with McpConnection(self._server_config) as connection:
                     tools = await connection.list_tools()
                     tool_count = len(tools)
-            except BaseExceptionGroup as eg:  # noqa: F821
+            except BaseExceptionGroup as eg:
                 inner = _unwrap_single_exception(eg)
                 msg = f"[tool:{tool_id}] preflight probe failed: {inner}"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
@@ -478,6 +622,34 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
             duration_ms=_ms_since(started),
             tool_count=tool_count,
         )
+
+    async def invoke_batch(self, items, context):
+        """MCP-aware batch — in pooled mode, reuse the single session across items.
+
+        In ``per_call`` mode we fall back to the default sequential behavior
+        (cancel-scope safety is more important than throughput). In ``pooled``
+        mode, all items share the long-lived session; each ``invoke`` still
+        goes through the pooled strategy's ``asyncio.Lock``.
+        """
+        from openagents.interfaces.tool import BatchResult
+
+        if self._connection_mode != "pooled":
+            return await super().invoke_batch(items, context)
+
+        results: list[BatchResult] = []
+        for item in items:
+            try:
+                data = await self.invoke(item.params, context)
+                results.append(BatchResult(item_id=item.item_id, success=True, data=data))
+            except Exception as exc:  # noqa: BLE001
+                results.append(
+                    BatchResult(
+                        item_id=item.item_id,
+                        success=False,
+                        error=str(exc),
+                    )
+                )
+        return results
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         """Forward tool call to MCP server.
@@ -502,7 +674,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         if not dedup_active:
             await emit_events.connect()
             try:
-                result = await self._strategy.call(tool_name, arguments)
+                result = await self._strategy.call(tool_name, arguments, context)
             except Exception as exc:
                 await emit_events.call_failed(tool_name, started, exc)
                 raise
@@ -527,7 +699,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
 
         await emit_events.connect()
         try:
-            result = await self._strategy.call(tool_name, arguments)
+            result = await self._strategy.call(tool_name, arguments, context)
         except BaseException as exc:
             async with self._inflight_lock:
                 self._inflight.pop(key, None)

@@ -11,6 +11,7 @@ from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject, ThemeCandidateList, ThemeSelection
 from ._editors import edit_theme_custom
+from ._layout import repaint
 
 
 @dataclass
@@ -18,8 +19,11 @@ class ThemeWizardStep:
     runtime: Any
     title: str = "theme"
     description: str = "Pick palette, fonts, and style."
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         bundle = await self._invoke_agent(project)
         if console is not None:
             with contextlib.suppress(Exception):

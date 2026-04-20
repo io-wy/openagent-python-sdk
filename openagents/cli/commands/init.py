@@ -98,21 +98,61 @@ _AGENT_CODING = """{
 
 _AGENT_PPTX = """{
   "version": "1.0",
+  "events": {"type": "async"},
   "agents": [
     {
-      "id": "pptx_generator",
-      "name": "{{ project_name }}",
-      "memory": {"type": "markdown_memory", "config": {"path": "./memory.md"}},
-      "pattern": {"type": "react", "config": {"max_steps": 8}},
+      "id": "intent-analyst",
+      "name": "{{ project_name }} · intent",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            {"type": "window_buffer", "config": {"window_size": 12}},
+            {"type": "markdown_memory", "config": {"memory_dir": "./memory"}}
+          ]
+        }
+      },
+      "pattern": {"type": "react", "config": {"max_steps": 3}},
+      "context_assembler": {"type": "truncating", "config": {"max_messages": 8}},
       "llm": {
         "provider": "{{ provider }}",
         "model": "PLACEHOLDER_MODEL_NAME",
         "api_key_env": "{{ api_key_env }}",
-        "temperature": 0
+        "temperature": 0.3
       },
       "tools": [],
       "runtime": {
-        "max_steps": 16,
+        "max_steps": 8,
+        "step_timeout_ms": 30000,
+        "session_queue_size": 500,
+        "event_queue_size": 1000
+      }
+    },
+    {
+      "id": "slide-generator",
+      "name": "{{ project_name }} · slides",
+      "memory": {
+        "type": "chain",
+        "on_error": "continue",
+        "config": {
+          "memories": [
+            {"type": "window_buffer", "config": {"window_size": 12}},
+            {"type": "markdown_memory", "config": {"memory_dir": "./memory"}}
+          ]
+        }
+      },
+      "pattern": {"type": "react", "config": {"max_steps": 2}},
+      "context_assembler": {"type": "truncating", "config": {"max_messages": 6}},
+      "llm": {
+        "provider": "{{ provider }}",
+        "model": "PLACEHOLDER_MODEL_NAME",
+        "api_key_env": "{{ api_key_env }}",
+        "temperature": 0.3
+      },
+      "tools": [],
+      "runtime": {
+        "max_steps": 8,
         "step_timeout_ms": 30000,
         "session_queue_size": 500,
         "event_queue_size": 1000
@@ -120,6 +160,32 @@ _AGENT_PPTX = """{
     }
   ]
 }
+"""
+
+
+_PPTX_README = """# {{ project_name }}
+
+Scaffolded with `openagents init --template pptx-wizard`. Two-agent slice
+(intent analyst + slide generator) wired with `chain` memory
+(`window_buffer` + `markdown_memory`) and `truncating` context assembler.
+
+Run either agent directly:
+
+```bash
+openagents validate ./agent.json
+openagents run ./agent.json --input "hello" --agent intent-analyst
+```
+
+Provider: `{{ provider }}`
+API-key env var: `{{ api_key_env }}`
+
+## See the full pipeline
+
+This scaffold is a minimal slice of the flagship PPT example in the
+OpenAgents SDK repo. For the complete 7-stage wizard (env doctor,
+research via Tavily MCP, outline, theme gallery, slide retry/fallback,
+compile via PptxGenJS, QA via MarkItDown), clone the SDK and see
+`examples/pptx_generator/README.md`.
 """
 
 
@@ -134,7 +200,7 @@ _TEMPLATE_FILES: dict[str, dict[str, str]] = {
     },
     "pptx-wizard": {
         "agent.json": _AGENT_PPTX,
-        "README.md": _README_TEMPLATE,
+        "README.md": _PPTX_README,
     },
 }
 

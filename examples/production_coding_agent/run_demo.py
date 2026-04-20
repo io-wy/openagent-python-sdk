@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from openagents.interfaces.runtime import RunBudget, RunRequest
 from openagents.runtime.runtime import Runtime
 
 
@@ -40,25 +41,37 @@ async def main() -> None:
     print("[INFO] Workspace:", root / "workspace")
     print()
 
-    first = await runtime.run(
-        agent_id="production-coding-agent",
-        session_id=session_id,
-        input_text="create a python-todo-cli project",
+    # Durable=True opts into auto-checkpoint + auto-resume. On LLMRateLimitError /
+    # LLMConnectionError / ToolRateLimitError / ToolUnavailableError the runtime
+    # will load the most recent per-step checkpoint and re-invoke the pattern.
+    # Bounded by RunBudget.max_resume_attempts (default 3).
+    first_result = await runtime.run_detailed(
+        request=RunRequest(
+            agent_id="production-coding-agent",
+            session_id=session_id,
+            input_text="create a python-todo-cli project",
+            durable=True,
+            budget=RunBudget(max_resume_attempts=3),
+        )
     )
     print("RUN 1:")
-    print(first)
+    print(first_result.final_output)
     print()
 
-    second = await runtime.run(
-        agent_id="production-coding-agent",
-        session_id=session_id,
-        input_text=(
-            "what tools did you just call? please continue developing this project"
-            " based on the results of the tool calls."
-        ),
+    second_result = await runtime.run_detailed(
+        request=RunRequest(
+            agent_id="production-coding-agent",
+            session_id=session_id,
+            input_text=(
+                "what tools did you just call? please continue developing this project"
+                " based on the results of the tool calls."
+            ),
+            durable=True,
+            budget=RunBudget(max_resume_attempts=3),
+        )
     )
     print("RUN 2:")
-    print(second)
+    print(second_result.final_output)
 
     await runtime.close()
 

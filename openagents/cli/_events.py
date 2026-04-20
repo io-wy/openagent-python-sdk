@@ -80,6 +80,20 @@ class EventFormatter:
             self._render_tool_succeeded(payload)
         elif name == "tool.failed":
             self._render_tool_failed(payload)
+        elif name == "tool.batch.started":
+            self._render_generic(name, payload)
+        elif name == "tool.batch.completed":
+            self._render_generic(name, payload)
+        elif name == "tool.approval_needed":
+            self._render_generic(name, payload)
+        elif name == "tool.cancelled":
+            self._render_generic(name, payload)
+        elif name == "tool.background.submitted":
+            self._render_generic(name, payload)
+        elif name == "tool.background.polled":
+            self._render_generic(name, payload)
+        elif name == "tool.background.completed":
+            self._render_generic(name, payload)
         elif name == "llm.called":
             self._render_llm_called(payload)
         elif name == "llm.succeeded":

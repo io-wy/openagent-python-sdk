@@ -11,6 +11,7 @@ from openagents.cli.wizard import StepResult, Wizard
 from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 
 from ..state import DeckProject
+from ._layout import repaint
 from ._slide_runner import LiveStatusTable, SlideRunRecord, SlideStatus, generate_slide
 
 
@@ -21,8 +22,11 @@ class SlideGeneratorWizardStep:
     title: str = "slides"
     description: str = "Generate each slide via retry/fallback loop."
     max_retries: int = 2
+    layout: Any = None
+    log_ring: Any = None
 
     async def render(self, console: Any, project: DeckProject) -> StepResult:
+        repaint(console, self.layout, project)
         assert project.outline is not None, "SlideGeneratorWizardStep requires outline"
         sem = asyncio.Semaphore(self.concurrency)
         live_table = LiveStatusTable()

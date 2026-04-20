@@ -34,6 +34,8 @@ class ShellExecTool(TypedConfigPluginMixin, ToolPlugin):
         asyncio stdlib only. Pair with a strict ``tool_executor``.
     """
 
+    durable_idempotent = False
+
     class Config(BaseModel):
         cwd: str | None = None
         env_passthrough: list[str] = []

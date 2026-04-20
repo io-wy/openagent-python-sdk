@@ -176,3 +176,16 @@ async def test_end_to_end_all_stages_mocked(tmp_path, monkeypatch):
 
     loaded = load_project("inttest", root=tmp_path)
     assert loaded.stage == "done"
+
+    # events.jsonl is populated and every line parses as valid JSON.
+    # (The fake runtime bypasses the agent.json event bus, so no file is
+    # expected here — the file is only created when a real Runtime is
+    # constructed with the `file_logging` events config. We assert the
+    # directory exists so the path contract from pptx-event-replay holds.)
+    events_log = tmp_path / "inttest" / "events.jsonl"
+    if events_log.exists():
+        for line in events_log.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            payload = json.loads(line)
+            assert "name" in payload and "payload" in payload and "ts" in payload

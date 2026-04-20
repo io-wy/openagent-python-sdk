@@ -121,6 +121,8 @@ openagents new plugin tool calculator
 
 可选模板：`minimal`（默认）、`coding-agent`、`pptx-wizard`。
 
+> `pptx-wizard` 脚手架是 `examples/pptx_generator/` 的双 Agent 最小切片（intent-analyst + slide-generator，`chain` 记忆 + markdown 持久化），对 mock provider 直接可跑。完整的 7 阶段 wizard（环境检查 / Tavily 研究 / 大纲 / 主题 / 并行切片 / 编译QA）仍在 `examples/pptx_generator/`，克隆仓库后见那里的 README。
+
 ### 环境排查
 
 ```bash

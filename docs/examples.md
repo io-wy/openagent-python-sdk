@@ -158,6 +158,7 @@ pattern 层用的是 `FollowupFirstReActPattern`（`examples/research_analyst/ap
 - 运行：`pptx-agent new --topic "..."` 或 `pptx-agent resume <slug>`
 - 查看已保存的用户偏好：`pptx-agent memory list`
 - 删除偏好：`pptx-agent memory forget <id>`
+- 回放已完成的运行：`openagents replay outputs/<slug>/events.jsonl`（每次 `new` / `resume` 都会落盘 NDJSON 事件流，敏感字段自动脱敏）
 - 详细 CLI 说明：[`docs/pptx-agent-cli.md`](pptx-agent-cli.md)（[EN](pptx-agent-cli.en.md)）
 
 7 阶段的交互细节——意图逐字段编辑、大纲增删改重排、主题 3–5 候选图库 + 自定义编辑器、切片 schema 校验-重试 ≤2-fallback 到 freeform、跨会话偏好写回——详见 CLI 指南。
