@@ -393,6 +393,99 @@ async def test_explicit_resume_from_checkpoint_rehydrates_state():
 
 
 @pytest.mark.asyncio
+async def test_explicit_resume_actually_rehydrates_usage_and_artifacts():
+    """Exercise the live resume path: second run with resume_from_checkpoint
+    loads the checkpoint, rehydrates transcript/usage/artifacts/state onto
+    the new RunUsage+artifacts list, and emits context.assemble.completed
+    with the resumed_from_checkpoint metadata."""
+    cfg = _build_config(
+        [
+            [
+                ("llm", None),
+                ("tool", "t1"),
+                ("final", {"answer": 1}),
+            ],
+            # Second execute() call (resumed run) just finalizes.
+            [("final", {"answer": 2})],
+        ]
+    )
+    runtime = Runtime(load_config_dict(cfg))
+    session_id = "s-resume-live"
+    first = await runtime.run_detailed(
+        request=RunRequest(
+            agent_id="assistant",
+            session_id=session_id,
+            input_text="hi",
+            durable=True,
+        )
+    )
+    assert first.stop_reason == StopReason.COMPLETED
+
+    saved = [e for e in runtime.event_bus.history if e.name == "run.checkpoint_saved"]
+    assert saved, "expected at least one checkpoint"
+    last_checkpoint_id = saved[-1].payload["checkpoint_id"]
+
+    # Seed a synthetic artifact into the checkpoint's durable blob so the
+    # "rehydrate artifacts from blob" branch (lines 676-683) is exercised.
+    ckpt = await runtime.session_manager.load_checkpoint(session_id, last_checkpoint_id)
+    assert ckpt is not None
+    blob = dict(ckpt.state.get("__durable__") or {})
+    blob["artifacts"] = [
+        {
+            "name": "seed",
+            "kind": "text",
+            "content": "from-checkpoint",
+            "metadata": {"source": "resume-test"},
+        },
+        # Malformed entry — should hit the `except` branch and be skipped.
+        {"__invalid__": True, "name": 123},
+    ]
+    # Seed a usage payload so the RunUsage rehydration branch runs.
+    blob["usage"] = {
+        "llm_calls": 7,
+        "tool_calls": 3,
+        "input_tokens": 11,
+        "output_tokens": 13,
+        "total_tokens": 24,
+        "input_tokens_cached": 2,
+        "input_tokens_cache_creation": 1,
+        "cost_usd": 0.5,
+        "cost_breakdown": {"input": 0.3, "output": 0.2},
+    }
+    # Mutate the persisted checkpoint via the session state directly —
+    # the default SessionManager stores checkpoints under _session_checkpoints.
+    sm_state = await runtime.session_manager.get_state(session_id)
+    ckpts = dict(sm_state.get("_session_checkpoints", {}))
+    ckpt_raw = dict(ckpts[last_checkpoint_id])
+    new_ckpt_state = dict(ckpt_raw.get("state") or {})
+    new_ckpt_state["__durable__"] = blob
+    # Add a non-private state key to exercise the state-merge loop.
+    new_ckpt_state["custom_key"] = "resumed-value"
+    ckpt_raw["state"] = new_ckpt_state
+    ckpts[last_checkpoint_id] = ckpt_raw
+    sm_state["_session_checkpoints"] = ckpts
+    await runtime.session_manager.set_state(session_id, sm_state)
+
+    # Second run with resume_from_checkpoint.
+    second = await runtime.run_detailed(
+        request=RunRequest(
+            agent_id="assistant",
+            session_id=session_id,
+            input_text="continue",
+            resume_from_checkpoint=last_checkpoint_id,
+        )
+    )
+    assert second.stop_reason == StopReason.COMPLETED
+    # Usage fields were rehydrated from the blob (and pattern didn't emit more).
+    assert second.usage.llm_calls == 7
+    assert second.usage.input_tokens == 11
+    assert second.usage.cost_breakdown == {"input": 0.3, "output": 0.2}
+    # The seeded valid artifact survived; the malformed one was silently dropped.
+    names = [a.name for a in second.artifacts]
+    assert "seed" in names
+
+
+@pytest.mark.asyncio
 async def test_list_checkpoints_returns_ids_in_order():
     cfg = _build_config(
         [

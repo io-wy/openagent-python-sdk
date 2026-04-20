@@ -112,6 +112,46 @@ async def test_runtime_memory_error_fail():
 
 
 @pytest.mark.asyncio
+async def test_runtime_writeback_error_continue():
+    """on_error='continue' should swallow writeback exceptions, log+emit, then finish."""
+    config = load_config_dict(
+        _payload(
+            "tests.fixtures.runtime_plugins.FailingWritebackMemory",
+            "tests.fixtures.runtime_plugins.FinalPattern",
+            on_error="continue",
+        )
+    )
+    runtime = Runtime(config)
+
+    result = await runtime.run(agent_id="assistant", session_id="s-wb-cont", input_text="hi")
+
+    # Pattern ran to completion and inject succeeded → pattern emitted "injected=True".
+    assert result == "injected=True"
+    event_names = [evt.name for evt in runtime.event_bus.history]
+    assert "memory.writeback.started" in event_names
+    # The failed-variant event fires because writeback raised.
+    assert "memory.writeback_failed" in event_names
+    # ...and writeback.completed is NOT emitted when writeback raises.
+    assert "memory.writeback.completed" not in event_names
+
+
+@pytest.mark.asyncio
+async def test_runtime_writeback_error_fail():
+    """on_error='fail' should surface the writeback exception to the caller."""
+    config = load_config_dict(
+        _payload(
+            "tests.fixtures.runtime_plugins.FailingWritebackMemory",
+            "tests.fixtures.runtime_plugins.FinalPattern",
+            on_error="fail",
+        )
+    )
+    runtime = Runtime(config)
+
+    with pytest.raises(PatternError, match="writeback failed"):
+        await runtime.run(agent_id="assistant", session_id="s-wb-fail", input_text="hi")
+
+
+@pytest.mark.asyncio
 async def test_runtime_same_session_serial_execution():
     payload = _payload(
         "tests.fixtures.runtime_plugins.InjectWritebackMemory",
