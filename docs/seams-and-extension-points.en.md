@@ -73,6 +73,9 @@ These should generally **not** become SDK seams.
 
 These are the official extension points in the codebase — **8 total**.
 
+!!! note "Durable execution is not a new seam"
+    `RunRequest.durable=True` opts into auto-checkpoint + auto-resume for retryable errors. This is a runtime-level behavior decoration — **not a new seam**. See [api-reference.en.md §8 Durable execution](api-reference.en.md#durable-execution).
+
 !!! info "Seam consolidation (2026-04-18, 11 → 8)"
     `execution_policy`, `followup_resolver`, and `response_repair_policy` were removed as independent seams. Their functionality was folded into overridable methods on existing seams:
 

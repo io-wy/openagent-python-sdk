@@ -195,9 +195,7 @@ class ProductionCodingPattern(PatternPlugin):
         super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE, PATTERN_REACT})
         self.context: RunContext[Any] | None = None
 
-    async def resolve_followup(
-        self, *, context: RunContext[Any]
-    ) -> FollowupResolution | None:
+    async def resolve_followup(self, *, context: RunContext[Any]) -> FollowupResolution | None:
         """Resolve common local follow-up questions from the coding journal."""
         text = str(context.input_text or "").strip().lower()
         markers = ("你刚干了什么", "上一轮做了什么", "刚才做了什么", "what did you do", "what happened last turn")
@@ -280,13 +278,15 @@ class ProductionCodingPattern(PatternPlugin):
         matched_files = [item.get("display_path", item["path"]) for item in inspection["read_results"]]
         entries = list(ctx.state.get("coding_journal", []))
         artifact_paths = [task_brief_path, report_path, patch_plan_path, verification_path]
-        entries.append({
-            "timestamp": _now_iso(),
-            "objective": plan.objective,
-            "summary": delivery.summary,
-            "matched_files": matched_files,
-            "artifacts": artifact_paths,
-        })
+        entries.append(
+            {
+                "timestamp": _now_iso(),
+                "objective": plan.objective,
+                "summary": delivery.summary,
+                "matched_files": matched_files,
+                "artifacts": artifact_paths,
+            }
+        )
         ctx.state["coding_journal"] = entries[-10:]
         ctx.state["_runtime_last_output"] = delivery.summary
         return {
@@ -363,7 +363,9 @@ class ProductionCodingPattern(PatternPlugin):
             target_files=[item for item in manifest if item.endswith((".py", ".md"))][:3],
             deliverables=["delivery-report.md", "patch-plan.md"],
             success_criteria=[
-                "Find the relevant files", "Explain the likely root cause", "Produce actionable next steps"
+                "Find the relevant files",
+                "Explain the likely root cause",
+                "Produce actionable next steps",
             ],
             risks_to_check=["Missing validation", "Unclear ownership", "Insufficient tests"],
         )
@@ -416,8 +418,12 @@ class ProductionCodingPattern(PatternPlugin):
         verification = ["python -m py_compile src/**/*.py", "pytest -q"]
         _ = packet
         return ProjectBlueprint(
-            project_name=project_name, package_name=package_name, project_type=project_type,
-            summary=summary, goals=goals, generated_files=generated_files,
+            project_name=project_name,
+            package_name=package_name,
+            project_type=project_type,
+            summary=summary,
+            goals=goals,
+            generated_files=generated_files,
             verification_commands=verification,
         )
 
@@ -474,11 +480,13 @@ class ProductionCodingPattern(PatternPlugin):
                 display_path = resolved.relative_to(workspace_path).as_posix()
             except ValueError:
                 display_path = str(resolved)
-            read_results.append({
-                "path": result["path"],
-                "content": _trim_text(result["content"], limit=1200),
-                "size": result.get("size", 0),
-            })
+            read_results.append(
+                {
+                    "path": result["path"],
+                    "content": _trim_text(result["content"], limit=1200),
+                    "size": result.get("size", 0),
+                }
+            )
             read_results[-1]["display_path"] = display_path
         return {
             "workspace_files": list(files_manifest.get("files", [])),
@@ -525,7 +533,8 @@ class ProductionCodingPattern(PatternPlugin):
                 "The request needs file-level validation before code changes."
             ),
             recommended_changes=[
-                "Tighten validation around the hotspot", "Add explicit regression coverage",
+                "Tighten validation around the hotspot",
+                "Add explicit regression coverage",
                 "Document operational fallbacks",
             ],
             tests_to_run=["pytest -q", "targeted regression tests", "manual validation of the reported scenario"],
@@ -645,10 +654,7 @@ class ProductionCodingPattern(PatternPlugin):
         )
 
     def _project_init(self, blueprint: ProjectBlueprint) -> str:
-        return (
-            f'"""Package for {blueprint.project_name}."""\n\n'
-            '__all__ = ["build_message", "run"]\n'
-        )
+        return f'"""Package for {blueprint.project_name}."""\n\n__all__ = ["build_message", "run"]\n'
 
     def _project_service(self, blueprint: ProjectBlueprint) -> str:
         return (

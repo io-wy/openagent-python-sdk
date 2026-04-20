@@ -71,9 +71,7 @@ class FollowupFirstReActPattern(ReActPattern):
                     f"FollowupFirstReActPattern: could not read rules_file '{rules_file}': {exc}"
                 ) from exc
             if not isinstance(raw, list):
-                raise PluginLoadError(
-                    f"FollowupFirstReActPattern: rules_file '{rules_file}' must be a JSON array"
-                )
+                raise PluginLoadError(f"FollowupFirstReActPattern: rules_file '{rules_file}' must be a JSON array")
             for item in raw:
                 file_rules.append(_Rule.model_validate(item))
         all_rules = [*file_rules, *[_Rule.model_validate(r) for r in inline_rules]]
@@ -82,14 +80,10 @@ class FollowupFirstReActPattern(ReActPattern):
             try:
                 compiled = re.compile(r.pattern, re.IGNORECASE)
             except re.error as exc:
-                raise PluginLoadError(
-                    f"FollowupFirstReActPattern: invalid pattern in rule '{r.name}': {exc}"
-                ) from exc
+                raise PluginLoadError(f"FollowupFirstReActPattern: invalid pattern in rule '{r.name}': {exc}") from exc
             self._rules.append((r, compiled))
 
-    async def resolve_followup(
-        self, *, context: RunContext[Any]
-    ) -> FollowupResolution | None:
+    async def resolve_followup(self, *, context: RunContext[Any]) -> FollowupResolution | None:
         text = str(getattr(context, "input_text", "") or "")
         for rule, compiled in self._rules:
             if not compiled.search(text):

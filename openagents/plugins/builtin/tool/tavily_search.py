@@ -45,9 +45,7 @@ class TavilySearchTool(TypedConfigPluginMixin, ToolPlugin):
 
         api_key = os.environ.get(self.cfg.api_key_env)
         if not api_key:
-            raise RuntimeError(
-                f"{self.cfg.api_key_env} is not set; cannot call Tavily"
-            )
+            raise RuntimeError(f"{self.cfg.api_key_env} is not set; cannot call Tavily")
 
         payload: dict[str, Any] = {
             "api_key": api_key,
@@ -68,9 +66,7 @@ class TavilySearchTool(TypedConfigPluginMixin, ToolPlugin):
             try:
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                raise RuntimeError(
-                    f"Tavily API returned HTTP {exc.response.status_code}"
-                ) from None
+                raise RuntimeError(f"Tavily API returned HTTP {exc.response.status_code}") from None
             data = resp.json()
         return {
             "query": data.get("query", query),

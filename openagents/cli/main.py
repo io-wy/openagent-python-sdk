@@ -30,9 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
     for name in COMMANDS:
-        module = importlib.import_module(
-            f"openagents.cli.commands.{module_name_for(name)}"
-        )
+        module = importlib.import_module(f"openagents.cli.commands.{module_name_for(name)}")
         module.add_parser(sub)
     return parser
 

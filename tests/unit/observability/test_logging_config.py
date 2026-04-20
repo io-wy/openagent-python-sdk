@@ -65,9 +65,7 @@ class TestEnvParser:
         assert config.pretty is True
 
     def test_levels_map_parsed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv(
-            "OPENAGENTS_LOG_LEVELS", "openagents.llm=DEBUG,openagents.events=WARNING"
-        )
+        monkeypatch.setenv("OPENAGENTS_LOG_LEVELS", "openagents.llm=DEBUG,openagents.events=WARNING")
         config = load_from_env()
         assert config is not None
         assert config.per_logger_levels == {

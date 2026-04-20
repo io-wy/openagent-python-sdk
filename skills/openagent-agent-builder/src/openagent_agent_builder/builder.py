@@ -21,11 +21,7 @@ def _build_handoff_contract(payload: OpenAgentSkillInput, archetype: dict) -> di
     base = dict(archetype.get("handoff_contract", {}))
     expected_input = payload.handoff_expectation.get("input") or base.get("expected_input") or "task brief"
     expected_output = payload.handoff_expectation.get("output") or base.get("expected_output") or "agent artifact"
-    artifact_format = (
-        payload.handoff_expectation.get("artifact_format")
-        or base.get("artifact_format")
-        or "markdown"
-    )
+    artifact_format = payload.handoff_expectation.get("artifact_format") or base.get("artifact_format") or "markdown"
     return {
         "expected_input": expected_input,
         "expected_output": expected_output,

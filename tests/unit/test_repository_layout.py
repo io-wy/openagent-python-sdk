@@ -36,11 +36,7 @@ def _read(path: Path) -> str:
 
 def _example_dirs() -> set[str]:
     examples_dir = REPO_ROOT / "examples"
-    return {
-        item.name
-        for item in examples_dir.iterdir()
-        if item.is_dir() and not item.name.startswith("__")
-    }
+    return {item.name for item in examples_dir.iterdir() if item.is_dir() and not item.name.startswith("__")}
 
 
 def _referenced_examples(path: Path) -> set[str]:

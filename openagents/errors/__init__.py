@@ -25,9 +25,14 @@ from .exceptions import (
     PluginLoadError,
     RetryableToolError,
     SessionError,
+    ToolAuthError,
+    ToolCancelledError,
     ToolError,
     ToolNotFoundError,
+    ToolRateLimitError,
     ToolTimeoutError,
+    ToolUnavailableError,
+    ToolValidationError,
     UserError,
 )
 
@@ -56,8 +61,13 @@ __all__ = [
     "PluginLoadError",
     "RetryableToolError",
     "SessionError",
+    "ToolAuthError",
+    "ToolCancelledError",
     "ToolError",
     "ToolNotFoundError",
+    "ToolRateLimitError",
     "ToolTimeoutError",
+    "ToolUnavailableError",
+    "ToolValidationError",
     "UserError",
 ]

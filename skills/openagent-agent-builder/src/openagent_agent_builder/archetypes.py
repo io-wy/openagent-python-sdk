@@ -52,7 +52,10 @@ _ARCHETYPES: dict[str, dict[str, Any]] = {
         "llm": {"provider": "mock", "temperature": 0.0},
         "tool_executor": {"type": "safe", "config": {"default_timeout_ms": 30000}},
         "tools": [
-            _tool("read_file"), _tool("list_files"), _tool("grep_files"), _tool("ripgrep"),
+            _tool("read_file"),
+            _tool("list_files"),
+            _tool("grep_files"),
+            _tool("ripgrep"),
             _tool("search", "builtin_search"),
         ],
         "runtime": {"max_steps": 6, "step_timeout_ms": 30000, "session_queue_size": 1000, "event_queue_size": 2000},

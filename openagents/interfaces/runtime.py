@@ -38,6 +38,7 @@ class RunBudget(BaseModel):
     max_tool_calls: int | None = None
     max_validation_retries: int | None = 3
     max_cost_usd: float | None = None
+    max_resume_attempts: int | None = 3
 
 
 class RunArtifact(BaseModel):
@@ -82,6 +83,8 @@ class RunRequest(BaseModel):
     budget: RunBudget | None = None
     deps: Any = None
     output_type: type[BaseModel] | None = None
+    durable: bool = False
+    resume_from_checkpoint: str | None = None
 
 
 OutputT = TypeVar("OutputT")
@@ -111,6 +114,9 @@ class RunStreamChunkKind(str, Enum):
     TOOL_FINISHED = "tool.finished"
     ARTIFACT = "artifact"
     VALIDATION_RETRY = "validation.retry"
+    CHECKPOINT_SAVED = "run.checkpoint_saved"
+    RESUME_ATTEMPTED = "run.resume_attempted"
+    RESUME_SUCCEEDED = "run.resume_succeeded"
     RUN_FINISHED = "run.finished"
 
 

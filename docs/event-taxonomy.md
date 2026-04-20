@@ -25,12 +25,25 @@ Regenerate this file via::
 | `pattern.plan_created` | `plan` | — | PlanExecutePattern produced its plan. |
 | `pattern.step_finished` | `step`, `action` | — | Pattern completed an execution step. |
 | `pattern.step_started` | `step` | `plan_step` | Pattern began an execution step. |
+| `run.checkpoint_failed` | `run_id`, `checkpoint_id`, `error`, `error_type` | — | create_checkpoint raised during a durable run; the run continues. |
+| `run.checkpoint_saved` | `run_id`, `checkpoint_id`, `step_index`, `transcript_length` | — | DefaultRuntime persisted a step checkpoint during a durable run. |
+| `run.durable_idempotency_warning` | `run_id`, `tool_id` | `hint` | A tool declaring durable_idempotent=False was invoked inside a durable run (one-shot per run/tool). |
+| `run.resume_attempted` | `run_id`, `checkpoint_id`, `error_type`, `attempt_index` | — | Durable run caught a retryable error and is about to load a checkpoint. |
+| `run.resume_exhausted` | `run_id`, `attempt_index`, `error_type`, `limit` | — | Durable run exceeded max_resume_attempts; the last retryable error propagates. |
+| `run.resume_succeeded` | `run_id`, `checkpoint_id`, `attempt_index` | — | Durable run successfully rehydrated from a checkpoint and continues. |
 | `session.run.completed` | `agent_id`, `session_id`, `stop_reason` | `run_id`, `duration_ms` | Runtime finished a single run. |
 | `session.run.started` | `agent_id`, `session_id` | `run_id`, `input_text` | Runtime begins a single run. |
-| `tool.called` | `tool_id`, `params` | — | Pattern is about to invoke a tool. |
-| `tool.failed` | `tool_id`, `error` | — | Tool raised; final after fallback. Use 'tool.retry_requested' for ModelRetry signal. |
-| `tool.retry_requested` | `tool_id`, `attempt`, `error` | — | Pattern caught ModelRetryError and is retrying. |
-| `tool.succeeded` | `tool_id`, `result` | `executor_metadata` | Tool returned successfully. |
+| `tool.approval_needed` | `tool_id`, `call_id`, `params` | `reason` | Tool requires human approval; app must inject approvals[call_id] in next run. |
+| `tool.background.completed` | `tool_id`, `call_id`, `job_id`, `status` | — | Background tool job reached terminal state (succeeded/failed/cancelled). |
+| `tool.background.polled` | `tool_id`, `call_id`, `job_id`, `status` | `progress` | Background tool job was polled. |
+| `tool.background.submitted` | `tool_id`, `call_id`, `job_id` | — | Background tool job was submitted; handle returned. |
+| `tool.batch.completed` | `batch_id`, `successes`, `failures` | `duration_ms` | A batched tool invocation finished. |
+| `tool.batch.started` | `batch_id`, `call_ids`, `concurrent_count` | — | A batched tool invocation started. |
+| `tool.called` | `tool_id`, `params` | `call_id` | Pattern is about to invoke a tool. |
+| `tool.cancelled` | `tool_id`, `call_id` | `reason` | Tool invocation was cancelled via cancel_event before completion. |
+| `tool.failed` | `tool_id`, `error` | `call_id` | Tool raised; final after fallback. Use 'tool.retry_requested' for ModelRetry signal. |
+| `tool.retry_requested` | `tool_id`, `attempt`, `error` | `call_id` | Pattern caught ModelRetryError and is retrying. |
+| `tool.succeeded` | `tool_id`, `result` | `executor_metadata`, `call_id` | Tool returned successfully. |
 | `usage.updated` | `usage` | — | RunUsage object was updated; emitted after every LLM call. |
 
 ## OpenTelemetry mapping

@@ -138,9 +138,7 @@ async def run_wizard(
         return 0
 
     if runtime is None:
-        runtime = _Runtime.from_config(
-            Path("examples/pptx_generator/agent.json")
-        )
+        runtime = _Runtime.from_config(Path("examples/pptx_generator/agent.json"))
     if shell_tool is None:
         shell_tool = ShellExecTool(
             config={

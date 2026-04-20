@@ -78,6 +78,7 @@ class DecoratorTool:
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         return {"from_decorator": True, "params": params}
 
+
 @tool_executor(name="decorated_tool_executor")
 class DecoratorToolExecutor:
     def __init__(self, *, config: dict[str, Any] | None = None):

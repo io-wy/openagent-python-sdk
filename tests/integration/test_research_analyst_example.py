@@ -132,11 +132,15 @@ async def test_research_analyst_end_to_end(monkeypatch):
         runtime = Runtime.from_config(_EXAMPLE_DIR / "agent.json")
 
         # --- Sub-run A: http_request to stub server (exercises network policy + tool) ---
-        client.push(json.dumps({
-            "type": "tool_call",
-            "tool": "http_request",
-            "params": {"url": f"{base_url}/pages/topic-a", "method": "GET"},
-        }))
+        client.push(
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "http_request",
+                    "params": {"url": f"{base_url}/pages/topic-a", "method": "GET"},
+                }
+            )
+        )
         result_a = await runtime.run(
             agent_id="research-analyst",
             session_id="http-check",
@@ -157,11 +161,15 @@ async def test_research_analyst_end_to_end(monkeypatch):
         # requests time out (stub server sleeps 500ms > executor's 200ms timeout),
         # so the executor retries.  The third attempt succeeds.  We then assert
         # directly on executor_metadata.retry_attempts in events.ndjson.
-        client.push(json.dumps({
-            "type": "tool_call",
-            "tool": "http_request",
-            "params": {"url": f"{base_url}/pages/flaky", "method": "GET"},
-        }))
+        client.push(
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "http_request",
+                    "params": {"url": f"{base_url}/pages/flaky", "method": "GET"},
+                }
+            )
+        )
         await runtime.run(
             agent_id="research-analyst",
             session_id="flaky-check",
@@ -172,16 +180,15 @@ async def test_research_analyst_end_to_end(monkeypatch):
         events = [json.loads(line) for line in events_lines if line.strip()]
         flaky_event = next(
             (
-                e for e in events
+                e
+                for e in events
                 if e.get("name") == "tool.succeeded"
                 and e.get("payload", {}).get("tool_id") == "http_request"
                 and "/pages/flaky" in str((e.get("payload", {}).get("result") or {}).get("url", ""))
             ),
             None,
         )
-        assert flaky_event is not None, (
-            "expected a tool.succeeded event for the /pages/flaky http_request"
-        )
+        assert flaky_event is not None, "expected a tool.succeeded event for the /pages/flaky http_request"
         executor_metadata = flaky_event["payload"].get("executor_metadata") or {}
         assert executor_metadata.get("retry_attempts", 0) >= 3, (
             f"expected retry_attempts >= 3 (the executor should retry past the two "
@@ -189,14 +196,18 @@ async def test_research_analyst_end_to_end(monkeypatch):
         )
 
         # --- Sub-run B: write_file exercises filesystem policy + report persistence ---
-        client.push(json.dumps({
-            "type": "tool_call",
-            "tool": "write_file",
-            "params": {
-                "path": str(report_path),
-                "content": "# research report\n\ncovered topic-a.\n",
-            },
-        }))
+        client.push(
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "write_file",
+                    "params": {
+                        "path": str(report_path),
+                        "content": "# research report\n\ncovered topic-a.\n",
+                    },
+                }
+            )
+        )
         result_b = await runtime.run(
             agent_id="research-analyst",
             session_id="report-write",
@@ -227,9 +238,7 @@ async def test_research_analyst_end_to_end(monkeypatch):
         )
         assert result_c is not None
         # Rule template: "上一轮工具：{tool_ids}"
-        assert "write_file" in str(result_c), (
-            f"followup output should mention write_file from run B, got: {result_c!r}"
-        )
+        assert "write_file" in str(result_c), f"followup output should mention write_file from run B, got: {result_c!r}"
 
         # JsonlFileSessionManager can replay the session written by run B
         from openagents.plugins.builtin.session.jsonl_file import JsonlFileSessionManager
@@ -253,11 +262,13 @@ async def test_research_analyst_policy_denial(monkeypatch):
     async with start_stub_server() as base_url:
         _ = base_url  # stub server running but we deliberately use an evil URL
         script = [
-            json.dumps({
-                "type": "tool_call",
-                "tool": "http_request",
-                "params": {"url": "http://evil.test/anything", "method": "GET"},
-            }),
+            json.dumps(
+                {
+                    "type": "tool_call",
+                    "tool": "http_request",
+                    "params": {"url": "http://evil.test/anything", "method": "GET"},
+                }
+            ),
             json.dumps({"type": "final", "content": "I tried but was denied."}),
         ]
         client = _ScriptedResearchLLM(script)
@@ -286,8 +297,7 @@ async def test_research_analyst_policy_denial(monkeypatch):
         # pattern.call_tool() catches the PermissionError and emits tool.failed with
         # that message.  Either "not in allow_hosts" or "evil.test" confirms denial.
         assert "not in allow_hosts" in text or "evil.test" in text, (
-            f"expected denial signal ('not in allow_hosts' or 'evil.test') in "
-            f"events.ndjson, got: {text[:800]}"
+            f"expected denial signal ('not in allow_hosts' or 'evil.test') in events.ndjson, got: {text[:800]}"
         )
 
         if hasattr(runtime, "close"):

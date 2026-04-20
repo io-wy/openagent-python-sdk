@@ -118,9 +118,7 @@ class LayoutRenderer:
             Layout(name="sidebar", size=26),
             Layout(name="main", ratio=1),
         )
-        layout["status"].update(
-            Panel(Text(self.status_bar_text(), style="bold"), border_style="cyan")
-        )
+        layout["status"].update(Panel(Text(self.status_bar_text(), style="bold"), border_style="cyan"))
         sidebar_table = Table.grid(padding=(0, 1))
         sidebar_table.add_column()
         for line in self.sidebar_entries():
@@ -128,9 +126,7 @@ class LayoutRenderer:
         layout["sidebar"].update(Panel(sidebar_table, title="Steps", border_style="blue"))
         layout["main"].update(self.main_panel or Panel("", title="Main"))
         tail = self.log.snapshot() or ["(no log entries yet)"]
-        layout["logs"].update(
-            Panel("\n".join(tail), title="Log (tail)", border_style="dim")
-        )
+        layout["logs"].update(Panel("\n".join(tail), title="Log (tail)", border_style="dim"))
         return layout
 
     def render(self, project: Any = None) -> Any:

@@ -74,11 +74,7 @@ class MarkdownMemory(TypedConfigPluginMixin, MemoryPlugin):
         timestamp = datetime.now(timezone.utc).isoformat()
         rule_flat = rule.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
         reason_flat = (reason or "(no reason given)").replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
-        block = (
-            f"### {entry_id} · {timestamp}\n"
-            f"**Rule:** {rule_flat}\n"
-            f"**Why:** {reason_flat}\n\n"
-        )
+        block = f"### {entry_id} · {timestamp}\n**Rule:** {rule_flat}\n**Why:** {reason_flat}\n\n"
         path = self._dir / f"{section}.md"
         with path.open("a", encoding="utf-8") as fh:
             fh.write(block)
@@ -114,9 +110,7 @@ class MarkdownMemory(TypedConfigPluginMixin, MemoryPlugin):
     # ---- plugin lifecycle ------------------------------------------
     async def inject(self, context: Any) -> None:
         for section in self.cfg.sections:
-            context.memory_view[section] = self._parse(
-                section, max_chars=self.cfg.max_chars_per_section
-            )
+            context.memory_view[section] = self._parse(section, max_chars=self.cfg.max_chars_per_section)
 
     async def writeback(self, context: Any) -> None:
         pending = context.state.get("_pending_memory_writes") or []

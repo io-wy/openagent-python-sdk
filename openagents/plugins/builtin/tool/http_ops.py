@@ -24,6 +24,10 @@ class HttpRequestTool(TypedConfigPluginMixin, ToolPlugin):
     Depends on: stdlib ``urllib.request``; pair with ``network_allowlist`` execution policy.
     """
 
+    # Conservative default: any HTTP method may have side effects.
+    # Read-only GET agents can subclass and override to True if needed.
+    durable_idempotent = False
+
     class Config(BaseModel):
         timeout: int = 30
 

@@ -27,10 +27,7 @@ def test_list_plugins_json_includes_context_assembler():
     result = _run(["list-plugins", "--format", "json"])
     assert result.returncode == 0, result.stderr
     rows = json.loads(result.stdout)
-    assert any(
-        r.get("seam") == "context_assembler" and r.get("name") == "truncating"
-        for r in rows
-    )
+    assert any(r.get("seam") == "context_assembler" and r.get("name") == "truncating" for r in rows)
 
 
 def test_validate_minimal_config(tmp_path):
@@ -43,9 +40,7 @@ def test_validate_minimal_config(tmp_path):
                     {
                         "id": "a",
                         "name": "x",
-                        "memory": {
-                            "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                        },
+                        "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                         "pattern": {"type": "react"},
                         "llm": {"provider": "mock", "model": "m"},
                         "tools": [],

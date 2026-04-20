@@ -60,7 +60,9 @@ def _parse_input(text: str) -> list[dict[str, Any]]:
             return [_coerce_event(item) for item in data["events"]]
         if "transcript" in data and isinstance(data["transcript"], list):
             return [_session_artifact_to_event(item) for item in data["transcript"]]
-    raise ValueError("unrecognised replay file shape — expected JSONL, a JSON array, or a dict with 'events' / 'transcript'")
+    raise ValueError(
+        "unrecognised replay file shape — expected JSONL, a JSON array, or a dict with 'events' / 'transcript'"
+    )
 
 
 def _coerce_event(obj: Any) -> dict[str, Any]:

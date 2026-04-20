@@ -89,9 +89,7 @@ def _debounced(runtime: Runtime, *, debounce_ms: int, stderr=None) -> callable: 
     return _schedule
 
 
-def _watch_with_watchdog(
-    path: Path, runtime: Runtime, *, debounce_ms: int, stderr=None
-) -> None:
+def _watch_with_watchdog(path: Path, runtime: Runtime, *, debounce_ms: int, stderr=None) -> None:
     if stderr is None:
         stderr = sys.stderr
     from watchdog.events import FileSystemEventHandler  # type: ignore
@@ -135,9 +133,7 @@ def _watch_polling(
 ) -> None:
     if stderr is None:
         stderr = sys.stderr
-    stderr.write(
-        f"[watch] watchdog not installed; polling {path} every {poll_interval}s (Ctrl+C to exit)\n"
-    )
+    stderr.write(f"[watch] watchdog not installed; polling {path} every {poll_interval}s (Ctrl+C to exit)\n")
     last_mtime: float | None = None
     try:
         last_mtime = path.stat().st_mtime

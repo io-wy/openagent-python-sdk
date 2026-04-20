@@ -153,11 +153,15 @@ Runtime.from_config("agent.json")      # 完整 JSON
 
 ### `await runtime.close_session(session_id: str) -> None`
 
-关闭一个 session 的插件 bundle。
+关闭一个 session 的插件 bundle。也会级联调用 `release_session(session_id)` 释放 runtime 级共享资源（如 MCP session pool）。
+
+### `await runtime.release_session(session_id: str) -> None`
+
+释放 runtime 自身持有、与 `session_id` 挂钩的共享资源（当前：`DefaultRuntime` 的 MCP 会话池共享连接），不动 session 的 agent plugin bundle。幂等，未使用过的 `session_id` 也安全调用。
 
 ### `await runtime.close() -> None`
 
-关闭 runtime 及可关闭的下游资源。
+关闭 runtime 及可关闭的下游资源。对 `DefaultRuntime`，会级联排空所有 MCP session pool。
 
 ### `runtime.event_bus`
 
@@ -425,6 +429,7 @@ answer: Answer = result.final_output
 | `max_tool_calls` | `int \| None` | `None` | 最大工具调用次数 |
 | `max_validation_retries` | `int \| None` | `3` | 结构化输出校验最大重试次数 |
 | `max_cost_usd` | `float \| None` | `None` | 最大成本上限（美元） |
+| `max_resume_attempts` | `int \| None` | `3` | durable run 的最大自动恢复次数（0.4.x 新增） |
 
 ### `RunArtifact`
 
@@ -463,6 +468,51 @@ run 的 usage 聚合：
 - `budget: RunBudget | None`
 - `deps: Any`
 - `output_type: type[BaseModel] | None` — 结构化输出目标类型（0.3.0 新增）
+- `durable: bool = False` — 开启 durable execution：每个 step 边界自动 checkpoint，retryable 错误自动从最近 checkpoint 恢复（0.4.x 新增）
+- `resume_from_checkpoint: str | None = None` — 显式从给定 checkpoint 恢复一个新 run；`DefaultRuntime` 会跳过 `context_assembler.assemble()` 和 `memory.inject()`，直接从 checkpoint 的 transcript / artifacts / usage 重建状态（0.4.x 新增）
+
+### Durable execution
+
+Durable execution 是 runtime 层面的容错机制，不是新 seam。开启方式：
+
+```python
+from openagents.interfaces.runtime import RunBudget, RunRequest
+
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    durable=True,  # 自动 checkpoint + 自动 resume
+    budget=RunBudget(max_resume_attempts=3),
+)
+result = await runtime.run_detailed(request=request)
+```
+
+**checkpoint 粒度**：每次成功的 `llm.succeeded` / `tool.succeeded` 事件后写一个 checkpoint，`checkpoint_id = f"{run_id}:step:{n}"`。批量工具调用（`call_tool_batch`）整体算一个 step。
+
+**retryable 错误分类**：`LLMRateLimitError`、`LLMConnectionError`、`ToolRateLimitError`、`ToolUnavailableError` 会触发自动 resume；其余错误（`PermanentToolError`、`ConfigError`、`BudgetExhausted`、`OutputValidationError`）直接终止 run。
+
+**显式恢复**：若进程崩溃，可以用持久化的 session backend（`jsonl_file` / `sqlite`）跨进程恢复：
+
+```python
+# 在新进程里
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    resume_from_checkpoint="abc123:step:7",  # 从第 7 步继续
+)
+```
+
+**事件**：durable execution 会发出五个新事件：
+- `run.checkpoint_saved` — 每次成功 checkpoint 后
+- `run.checkpoint_failed` — create_checkpoint 抛错（run 继续，不失败）
+- `run.resume_attempted` — 捕获 retryable 错误后准备 resume
+- `run.resume_succeeded` — resume 状态重建完成
+- `run.resume_exhausted` — 达到 `max_resume_attempts` 上限
+- `run.durable_idempotency_warning` — 工具声明 `durable_idempotent=False` 时一次性提示（每 (run, tool) 只发一次）
+
+**ToolPlugin.durable_idempotent**（类属性，默认 `True`）：写文件、发 HTTP、shell 子进程等有副作用的工具应声明为 `False`，在 durable run 中被调用时 runtime 会发出一次性警告。内建工具中 `WriteFileTool`、`DeleteFileTool`、`HttpRequestTool`、`ShellExecTool`、`ExecuteCommandTool`、`SetEnvTool` 已默认标为 `False`。
 
 ### `RunResult[T]`
 
@@ -644,6 +694,17 @@ policy 输出：
 - `get_dependencies() -> list[str]`
 - `async fallback(error, params, context) -> Any`
 
+**扩展方法（2026-04-19）**—— 全部带默认实现，单工具按需覆写：
+
+- `async invoke_batch(items: list[BatchItem], context) -> list[BatchResult]` —— 默认顺序循环 `invoke`；可覆写以下沉（MCP 单会话批量、多文件批读等）。结果顺序与 `item_id` 与输入严格一致。
+- `async invoke_background(params, context) -> JobHandle` —— 提交长任务，立即返回句柄；默认 `NotImplementedError`。
+- `async poll_job(handle, context) -> JobStatus` —— 查询后台任务状态；默认 `NotImplementedError`。
+- `async cancel_job(handle, context) -> bool` —— 取消后台任务；默认 `NotImplementedError`。
+- `requires_approval(params, context) -> bool` —— 是否需要人工审批；默认读 `execution_spec().approval_mode == "always"`。
+- `async before_invoke(params, context)` / `async after_invoke(params, context, result, exception=None)` —— 每次调用前/后钩子（区别于每 run 一次的 `preflight`）。`after_invoke` 在成功与失败分支都会运行。
+
+伴随的新 pydantic 模型：`BatchItem` / `BatchResult` / `JobHandle` / `JobStatus`（见 `openagents.interfaces.tool`）。
+
 ### `ToolExecutorPlugin`
 
 主要方法：
@@ -651,6 +712,14 @@ policy 输出：
 - `async evaluate_policy(request) -> PolicyDecision` — override to restrict tool execution (default：allow all)
 - `async execute(request) -> ToolExecutionResult`
 - `async execute_stream(request)`
+- `async execute_batch(requests) -> list[ToolExecutionResult]` —— 默认顺序循环 `execute`；builtin `ConcurrentBatchExecutor` 按 `execution_spec.concurrency_safe` 分组并发。
+
+`ToolExecutionRequest` 新增 `cancel_event: asyncio.Event | None` 字段；`DefaultRuntime` 在每个 run 前种入 `ctx.scratch['__cancel_event__']`，`_BoundTool.invoke` 把它串入 request，`SafeToolExecutor.execute` 会与 `cancel_event` / `timeout` 三方竞速。`ToolExecutionSpec.interrupt_behavior == "block"` 时忽略 cancel 并等待 tool 自然完成。
+
+**新错误子类（`openagents.errors.exceptions`）**：
+`ToolValidationError` / `ToolAuthError`（不重试）、`ToolRateLimitError` / `ToolUnavailableError`（`RetryToolExecutor` 默认重试）、`ToolCancelledError`（cancel_event 触发时由 `SafeToolExecutor` 抛出，不重试）。
+
+**Pattern 便捷方法**：`PatternPlugin.call_tool_batch(requests: list[tuple[str, dict]]) -> list[Any]` —— 按 `tool_id` 分组调用 `invoke_batch`，保持输入顺序；发 `tool.batch.started` / `tool.batch.completed` 事件。
 
 ### `MemoryPlugin`
 

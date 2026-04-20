@@ -83,9 +83,7 @@ def _instantiate(factory: Any, config: dict[str, Any]) -> Any:
     try:
         return factory(config=config)
     except TypeError as exc:
-        raise PluginLoadError(
-            f"Could not instantiate plugin from {factory!r}: {exc}"
-        ) from exc
+        raise PluginLoadError(f"Could not instantiate plugin from {factory!r}: {exc}") from exc
 
 
 def _validate_class_methods(factory: Any, *, required_methods: tuple[str, ...], where: str) -> None:
@@ -93,9 +91,7 @@ def _validate_class_methods(factory: Any, *, required_methods: tuple[str, ...], 
         return
     for method_name in required_methods:
         if not callable(getattr(factory, method_name, None)):
-            raise CapabilityError(
-                f"{where} '{factory.__name__}' must implement '{method_name}'"
-            )
+            raise CapabilityError(f"{where} '{factory.__name__}' must implement '{method_name}'")
 
 
 def _load_plugin_impl(kind: str, ref: PluginRef, *, required_methods: tuple[str, ...] = ()) -> Any:
@@ -120,9 +116,7 @@ def _load_plugin_impl(kind: str, ref: PluginRef, *, required_methods: tuple[str,
             available = list_builtin_plugins(kind)
             guess = near_match(ref.type, available)
             if guess:
-                hint_text = (
-                    f"Did you mean '{guess}'? Available {kind} plugins: {available}"
-                )
+                hint_text = f"Did you mean '{guess}'? Available {kind} plugins: {available}"
             else:
                 hint_text = f"Available {kind} plugins: {available}"
             raise PluginLoadError(
@@ -159,8 +153,7 @@ def _load_plugin(kind: str, ref: PluginRef, *, required_methods: tuple[str, ...]
     Emits a DeprecationWarning at call time.
     """
     warnings.warn(
-        "openagents.plugins.loader._load_plugin is deprecated; "
-        "use openagents.plugins.loader.load_plugin",
+        "openagents.plugins.loader._load_plugin is deprecated; use openagents.plugins.loader.load_plugin",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -175,8 +168,7 @@ def _validate_method_for_capability(plugin: Any, capability: str, method_name: s
     capabilities = _capability_set(plugin)
     if capability in capabilities and not callable(getattr(plugin, method_name, None)):
         raise CapabilityError(
-            f"Plugin '{type(plugin).__name__}' declares '{capability}' "
-            f"but does not implement '{method_name}'"
+            f"Plugin '{type(plugin).__name__}' declares '{capability}' but does not implement '{method_name}'"
         )
 
 
@@ -187,9 +179,7 @@ def _validate_required_capabilities(
 ) -> None:
     missing = required - _capability_set(plugin)
     if missing:
-        raise CapabilityError(
-            f"{where} is missing required capabilities: {sorted(missing)}"
-        )
+        raise CapabilityError(f"{where} is missing required capabilities: {sorted(missing)}")
 
 
 def load_memory_plugin(ref: MemoryRef) -> Any:
@@ -219,13 +209,9 @@ def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
         return None
     plugin = _load_plugin_impl("tool_executor", ref, required_methods=("execute", "execute_stream"))
     if not callable(getattr(plugin, "execute", None)):
-        raise CapabilityError(
-            f"tool executor '{type(plugin).__name__}' must implement 'execute'"
-        )
+        raise CapabilityError(f"tool executor '{type(plugin).__name__}' must implement 'execute'")
     if not callable(getattr(plugin, "execute_stream", None)):
-        raise CapabilityError(
-            f"tool executor '{type(plugin).__name__}' must implement 'execute_stream'"
-        )
+        raise CapabilityError(f"tool executor '{type(plugin).__name__}' must implement 'execute_stream'")
     return plugin
 
 
@@ -234,13 +220,9 @@ def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None
         return None
     plugin = _load_plugin_impl("context_assembler", ref, required_methods=("assemble", "finalize"))
     if not callable(getattr(plugin, "assemble", None)):
-        raise CapabilityError(
-            f"context assembler '{type(plugin).__name__}' must implement 'assemble'"
-        )
+        raise CapabilityError(f"context assembler '{type(plugin).__name__}' must implement 'assemble'")
     if not callable(getattr(plugin, "finalize", None)):
-        raise CapabilityError(
-            f"context assembler '{type(plugin).__name__}' must implement 'finalize'"
-        )
+        raise CapabilityError(f"context assembler '{type(plugin).__name__}' must implement 'finalize'")
     return plugin
 
 
@@ -297,9 +279,7 @@ def load_skills_plugin(ref: SkillsRef | None) -> SkillsPlugin:
     plugin = _load_plugin_impl("skills", actual, required_methods=("prepare_session", "load_references", "run_skill"))
     for method_name in ("prepare_session", "load_references", "run_skill"):
         if not callable(getattr(plugin, method_name, None)):
-            raise CapabilityError(
-                f"skills component '{type(plugin).__name__}' must implement '{method_name}'"
-            )
+            raise CapabilityError(f"skills component '{type(plugin).__name__}' must implement '{method_name}'")
     return plugin
 
 

@@ -112,6 +112,75 @@ class PatternPlugin(BasePlugin):
             **payload,
         )
 
+    async def call_tool_batch(
+        self,
+        requests: list[tuple[str, dict[str, Any]]],
+    ) -> list[Any]:
+        """Batch-dispatch N tool calls through the bound-tool layer.
+
+        Groups calls by ``tool_id`` so each tool's ``invoke_batch`` can optimize
+        (MCP bulk calls, multi-file reads, pipelined HTTP). Results are returned
+        in the same order as ``requests``. Emits ``tool.batch.started`` /
+        ``tool.batch.completed`` events.
+        """
+        import time
+        from uuid import uuid4
+
+        from .tool import BatchItem
+
+        ctx = self.context
+        if ctx is None:
+            raise RuntimeError("PatternPlugin.call_tool_batch requires setup() first")
+
+        call_ids: list[str] = [uuid4().hex for _ in requests]
+        batch_id = uuid4().hex
+        await self.emit(
+            "tool.batch.started",
+            batch_id=batch_id,
+            call_ids=list(call_ids),
+            concurrent_count=len(requests),
+        )
+
+        groups: dict[str, list[tuple[int, BatchItem]]] = {}
+        for idx, (tool_id, params) in enumerate(requests):
+            item = BatchItem(params=params or {}, item_id=call_ids[idx])
+            groups.setdefault(tool_id, []).append((idx, item))
+
+        results: list[Any] = [None] * len(requests)
+        successes = 0
+        failures = 0
+        started = time.perf_counter()
+        ctx.scratch["__in_batch__"] = True
+        try:
+            for tool_id, pairs in groups.items():
+                if tool_id not in ctx.tools:
+                    failures += len(pairs)
+                    err = KeyError(f"Tool '{tool_id}' is not registered")
+                    for idx, _ in pairs:
+                        results[idx] = err
+                    continue
+                tool = ctx.tools[tool_id]
+                items = [it for _, it in pairs]
+                batch_results = await tool.invoke_batch(items, ctx)
+                for (idx, _), br in zip(pairs, batch_results):
+                    if br.success:
+                        successes += 1
+                        results[idx] = br.data
+                    else:
+                        failures += 1
+                        results[idx] = br.exception or RuntimeError(br.error or "batch item failed")
+        finally:
+            ctx.scratch.pop("__in_batch__", None)
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            await self.emit(
+                "tool.batch.completed",
+                batch_id=batch_id,
+                successes=successes,
+                failures=failures,
+                duration_ms=duration_ms,
+            )
+        return results
+
     async def call_tool(
         self,
         tool_id: str,
@@ -127,9 +196,7 @@ class PatternPlugin(BasePlugin):
             available = sorted(ctx.tools.keys())
             guess = near_match(tool_id, available)
             extra = f" Did you mean '{guess}'?" if guess else ""
-            raise KeyError(
-                f"Tool '{tool_id}' is not registered.{extra} Available tools: {available}"
-            )
+            raise KeyError(f"Tool '{tool_id}' is not registered.{extra} Available tools: {available}")
         tool = ctx.tools[tool_id]
         await self.emit("tool.called", tool_id=tool_id, params=params or {})
         before_tool_calls = ctx.usage.tool_calls if ctx.usage is not None else None
@@ -140,9 +207,7 @@ class PatternPlugin(BasePlugin):
             counts[tool_id] = counts.get(tool_id, 0) + 1
             budget = ctx.run_request.budget if ctx.run_request is not None else None
             limit = (
-                budget.max_validation_retries
-                if budget is not None and budget.max_validation_retries is not None
-                else 3
+                budget.max_validation_retries if budget is not None and budget.max_validation_retries is not None else 3
             )
             if counts[tool_id] > limit:
                 await self.emit("tool.failed", tool_id=tool_id, error=str(retry_exc))
@@ -156,13 +221,15 @@ class PatternPlugin(BasePlugin):
                 attempt=counts[tool_id],
                 error=str(retry_exc),
             )
-            ctx.transcript.append({
-                "role": "system",
-                "content": (
-                    f"Tool '{tool_id}' requested a retry (attempt {counts[tool_id]}): {retry_exc}. "
-                    "Please adjust your arguments and try again."
-                ),
-            })
+            ctx.transcript.append(
+                {
+                    "role": "system",
+                    "content": (
+                        f"Tool '{tool_id}' requested a retry (attempt {counts[tool_id]}): {retry_exc}. "
+                        "Please adjust your arguments and try again."
+                    ),
+                }
+            )
             raise
         except Exception as exc:
             await self.emit("tool.failed", tool_id=tool_id, error=str(exc))
@@ -178,11 +245,7 @@ class PatternPlugin(BasePlugin):
         if counts and tool_id in counts:
             counts.pop(tool_id, None)
         ctx.tool_results.append({"tool_id": tool_id, "result": data})
-        if (
-            ctx.usage is not None
-            and before_tool_calls is not None
-            and ctx.usage.tool_calls == before_tool_calls
-        ):
+        if ctx.usage is not None and before_tool_calls is not None and ctx.usage.tool_calls == before_tool_calls:
             ctx.usage.tool_calls += 1
         await self.emit(
             "tool.succeeded",
@@ -214,9 +277,7 @@ class PatternPlugin(BasePlugin):
             and ctx.usage is not None
             and ctx.usage.cost_usd is not None
         ):
-            est_tokens = sum(
-                ctx.llm_client.count_tokens(m.get("content", "") or "") for m in messages
-            )
+            est_tokens = sum(ctx.llm_client.count_tokens(m.get("content", "") or "") for m in messages)
             projected = ctx.usage.cost_usd + (est_tokens / 1_000_000.0) * rate_in
             if projected > max_cost_usd:
                 raise BudgetExhausted(
@@ -225,10 +286,7 @@ class PatternPlugin(BasePlugin):
                     current=ctx.usage.cost_usd,
                     limit=max_cost_usd,
                 )
-        elif max_cost_usd is not None and (
-            rate_in is None
-            or (ctx.usage is not None and ctx.usage.cost_usd is None)
-        ):
+        elif max_cost_usd is not None and (rate_in is None or (ctx.usage is not None and ctx.usage.cost_usd is None)):
             if not ctx.scratch.get("__cost_skipped_emitted__"):
                 await self.emit(
                     "budget.cost_skipped",
@@ -359,9 +417,7 @@ class PatternPlugin(BasePlugin):
                 validation_error=exc,
             )
 
-    async def resolve_followup(
-        self, *, context: "RunContext[Any]"
-    ) -> "FollowupResolution | None":
+    async def resolve_followup(self, *, context: "RunContext[Any]") -> "FollowupResolution | None":
         """Override to answer follow-ups locally. Return None to abstain (call LLM)."""
         return None
 
@@ -389,12 +445,14 @@ class PatternPlugin(BasePlugin):
         err = self.context.scratch.pop("last_validation_error", None) if self.context else None
         if err is None:
             return
-        self.context.transcript.append({
-            "role": "system",
-            "content": (
-                f"Your previous final output failed validation "
-                f"(attempt {err['attempt']}): {err['message']}\n"
-                f"Expected schema: {json.dumps(err['expected_schema'], indent=2)}\n"
-                f"Please produce a corrected final output."
-            ),
-        })
+        self.context.transcript.append(
+            {
+                "role": "system",
+                "content": (
+                    f"Your previous final output failed validation "
+                    f"(attempt {err['attempt']}): {err['message']}\n"
+                    f"Expected schema: {json.dumps(err['expected_schema'], indent=2)}\n"
+                    f"Please produce a corrected final output."
+                ),
+            }
+        )

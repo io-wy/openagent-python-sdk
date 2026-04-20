@@ -288,8 +288,7 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
         return {
             "type": "final",
             "content": (
-                f"{self._echo_prefix()}: {raw_input}\n\n"
-                f"[Conversation History ({history_count} items)]:\n{history_text}"
+                f"{self._echo_prefix()}: {raw_input}\n\n[Conversation History ({history_count} items)]:\n{history_text}"
             ),
         }
 
@@ -319,9 +318,7 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
             try:
                 action = await asyncio.wait_for(self.react(), timeout=timeout_s)
             except asyncio.TimeoutError as exc:
-                raise TimeoutError(
-                    f"Pattern step timed out after {self._step_timeout_ms()}ms at step {step}"
-                ) from exc
+                raise TimeoutError(f"Pattern step timed out after {self._step_timeout_ms()}ms at step {step}") from exc
 
             await self.emit("pattern.step_finished", step=step, action=action)
 
@@ -333,8 +330,7 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
                 raise ValueError("Pattern action must include a non-empty string 'type'")
             if action_type not in allowed_action_types:
                 raise ValueError(
-                    f"Unsupported pattern action type: '{action_type}'. "
-                    f"Allowed: {sorted(allowed_action_types)}"
+                    f"Unsupported pattern action type: '{action_type}'. Allowed: {sorted(allowed_action_types)}"
                 )
 
             if action_type == "tool_call":

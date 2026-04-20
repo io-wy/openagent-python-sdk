@@ -21,6 +21,9 @@ EVENT_TO_CHUNK_KIND: dict[str, RunStreamChunkKind] = {
     "tool.failed": RunStreamChunkKind.TOOL_FINISHED,
     "validation.retry": RunStreamChunkKind.VALIDATION_RETRY,
     "artifact.emitted": RunStreamChunkKind.ARTIFACT,
+    "run.checkpoint_saved": RunStreamChunkKind.CHECKPOINT_SAVED,
+    "run.resume_attempted": RunStreamChunkKind.RESUME_ATTEMPTED,
+    "run.resume_succeeded": RunStreamChunkKind.RESUME_SUCCEEDED,
 }
 
 

@@ -56,6 +56,7 @@ class TokenBudgetContextAssembler(ContextAssemblerPlugin):
         if provider == "openai_compatible":
             try:
                 import tiktoken  # type: ignore  # noqa: F401
+
                 return "tiktoken"
             except ImportError:
                 return "fallback_len//4"
@@ -68,9 +69,7 @@ class TokenBudgetContextAssembler(ContextAssemblerPlugin):
         session_state: dict[str, Any],
         session_manager: Any,
     ) -> ContextAssemblyResult:
-        llm_client = (
-            session_state.get("llm_client") if isinstance(session_state, dict) else None
-        )
+        llm_client = session_state.get("llm_client") if isinstance(session_state, dict) else None
         transcript = await session_manager.load_messages(request.session_id)
         artifacts = await session_manager.list_artifacts(request.session_id)
 
@@ -78,15 +77,11 @@ class TokenBudgetContextAssembler(ContextAssemblerPlugin):
         kept, omitted_messages = self._trim_by_budget(llm_client, transcript, budget)
         kept_tokens = sum(self._measure(llm_client, m) for m in kept)
         # For omitted-token count, use the messages that were not kept.
-        omitted_tokens = sum(
-            self._measure(llm_client, m)
-            for m in transcript
-            if m not in kept
-        )
+        omitted_tokens = sum(self._measure(llm_client, m) for m in transcript if m not in kept)
 
         if len(artifacts) > self._max_artifacts:
             omitted_artifacts = len(artifacts) - self._max_artifacts
-            artifacts = artifacts[-self._max_artifacts:]
+            artifacts = artifacts[-self._max_artifacts :]
         else:
             omitted_artifacts = 0
 

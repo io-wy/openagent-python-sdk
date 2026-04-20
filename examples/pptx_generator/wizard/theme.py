@@ -27,9 +27,7 @@ class ThemeWizardStep:
 
         pick_choices = [f"pick {i + 1}" for i in range(len(bundle.candidates))]
         pick_choices += ["regenerate", "custom editor", "abort"]
-        action = await Wizard.select(
-            "Theme action?", choices=pick_choices, default=pick_choices[0]
-        )
+        action = await Wizard.select("Theme action?", choices=pick_choices, default=pick_choices[0])
         if action == "abort":
             return StepResult(status="aborted")
         if action == "regenerate":

@@ -93,7 +93,7 @@ async def test_generate_passes_tools_and_parses_tool_calls_and_usage(monkeypatch
                                 "type": "function",
                                 "function": {
                                     "name": "search",
-                                    "arguments": "{\"query\":\"weather\"}",
+                                    "arguments": '{"query":"weather"}',
                                 },
                             }
                         ],
@@ -153,7 +153,7 @@ async def test_generate_parses_structured_output_from_response_format(monkeypatc
                 {
                     "message": {
                         "role": "assistant",
-                        "content": "{\"city\":\"Shanghai\",\"unit\":\"celsius\"}",
+                        "content": '{"city":"Shanghai","unit":"celsius"}',
                     },
                     "finish_reason": "stop",
                 }
@@ -187,7 +187,7 @@ async def test_generate_parses_structured_output_from_response_format(monkeypatc
     )
 
     assert fake_client.requests[0]["json"]["response_format"]["type"] == "json_schema"
-    assert result.output_text == "{\"city\":\"Shanghai\",\"unit\":\"celsius\"}"
+    assert result.output_text == '{"city":"Shanghai","unit":"celsius"}'
     assert result.structured_output == {"city": "Shanghai", "unit": "celsius"}
 
 
@@ -196,15 +196,15 @@ async def test_complete_stream_emits_tool_use_chunks_and_usage(monkeypatch):
     stream_response = _FakeResponse(
         records=[
             (
-                b"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\","
-                b"\"function\":{\"name\":\"read\"}}]}}]}\n\n"
+                b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function",'
+                b'"function":{"name":"read"}}]}}]}\n\n'
             ),
             (
-                b"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":"
-                b"\"{\\\"path\\\":\\\"README.md\\\"}\"}}]}}]}\n\n"
+                b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":'
+                b'"{\\"path\\":\\"README.md\\"}"}}]}}]}\n\n'
             ),
-            b"data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n",
-            b"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":4,\"total_tokens\":13}}\n\n",
+            b'data: {"choices":[{"finish_reason":"tool_calls"}]}\n\n',
+            b'data: {"choices":[],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13}}\n\n',
             b"data: [DONE]\n\n",
         ]
     )
@@ -232,7 +232,7 @@ async def test_complete_stream_emits_tool_use_chunks_and_usage(monkeypatch):
         "message_stop",
     ]
     assert chunks[0].content == {"type": "tool_use", "id": "call_1", "name": "read"}
-    assert chunks[1].delta == {"type": "input_json_delta", "partial_json": "{\"path\":\"README.md\"}"}
+    assert chunks[1].delta == {"type": "input_json_delta", "partial_json": '{"path":"README.md"}'}
     assert chunks[2].content == {"stop_reason": "tool_use"}
     assert chunks[2].usage.input_tokens == 9
     assert chunks[2].usage.output_tokens == 4
@@ -391,9 +391,7 @@ def test_reasoning_tokens_missing_is_tolerated():
         api_base="https://api.openai.com/v1",
         model="o3-mini",
     )
-    usage = client._normalize_usage(
-        {"prompt_tokens": 10, "completion_tokens": 50}
-    )
+    usage = client._normalize_usage({"prompt_tokens": 10, "completion_tokens": 50})
     assert "reasoning_tokens" not in usage.metadata
 
 
@@ -422,6 +420,7 @@ async def test_generate_maps_tool_calls_finish_reason_to_tool_use(monkeypatch):
     from tests.unit.test_openai_compatible_client import (
         _install_fake_httpx as _install,
     )
+
     resp = _TFR(
         status_code=200,
         json_data={
@@ -439,7 +438,7 @@ async def test_generate_maps_tool_calls_finish_reason_to_tool_use(monkeypatch):
                                 "type": "function",
                                 "function": {
                                     "name": "read",
-                                    "arguments": "{\"path\":\"x\"}",
+                                    "arguments": '{"path":"x"}',
                                 },
                             }
                         ],
@@ -466,6 +465,7 @@ async def test_generate_preserves_length_finish_reason_unchanged(monkeypatch):
     from tests.unit.test_openai_compatible_client import (
         _install_fake_httpx as _install,
     )
+
     resp = _TFR(
         status_code=200,
         json_data={
@@ -512,9 +512,7 @@ def test_api_style_defaults_to_chat_completions():
 
 
 def test_api_style_autodetected_responses_from_suffix():
-    client = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1/responses", model="gpt-5"
-    )
+    client = OpenAICompatibleClient(api_base="https://api.openai.com/v1/responses", model="gpt-5")
     assert client.api_style == "responses"
 
 
@@ -548,9 +546,7 @@ def test_response_format_translation_json_schema_flattens_wrapper():
 
 
 def test_response_format_translation_json_object_passthrough():
-    assert _response_format_to_responses_text({"type": "json_object"}) == {
-        "type": "json_object"
-    }
+    assert _response_format_to_responses_text({"type": "json_object"}) == {"type": "json_object"}
 
 
 def test_response_format_translation_text_passthrough():
@@ -563,17 +559,11 @@ def test_response_format_translation_none_and_unknown():
 
 
 def test_responses_endpoint_routing():
-    c1 = OpenAICompatibleClient(
-        api_base="https://api.openai.com", model="gpt-5", api_style="responses"
-    )
+    c1 = OpenAICompatibleClient(api_base="https://api.openai.com", model="gpt-5", api_style="responses")
     assert c1._responses_endpoint() == "https://api.openai.com/v1/responses"
-    c2 = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    c2 = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     assert c2._responses_endpoint() == "https://api.openai.com/v1/responses"
-    c3 = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1/responses", model="gpt-5"
-    )
+    c3 = OpenAICompatibleClient(api_base="https://api.openai.com/v1/responses", model="gpt-5")
     assert c3._responses_endpoint() == "https://api.openai.com/v1/responses"
 
 
@@ -583,16 +573,12 @@ def test_endpoint_for_style_picks_chat_by_default():
 
 
 def test_endpoint_for_style_picks_responses_when_style_is_responses():
-    c = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    c = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     assert c._endpoint_for_style().endswith("/responses")
 
 
 def test_responses_payload_splits_system_to_instructions():
-    client = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    client = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     payload = client._build_payload(
         messages=[
             {"role": "system", "content": "be helpful"},
@@ -608,9 +594,7 @@ def test_responses_payload_splits_system_to_instructions():
 
 
 def test_responses_payload_concatenates_multiple_system_messages():
-    client = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    client = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     payload = client._build_payload(
         messages=[
             {"role": "system", "content": "sys1"},
@@ -622,9 +606,7 @@ def test_responses_payload_concatenates_multiple_system_messages():
 
 
 def test_responses_payload_extracts_text_blocks_from_list_system():
-    client = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    client = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     payload = client._build_payload(
         messages=[
             {"role": "system", "content": [{"type": "text", "text": "block sys"}]},
@@ -635,9 +617,7 @@ def test_responses_payload_extracts_text_blocks_from_list_system():
 
 
 def test_responses_payload_response_format_lands_in_text_format():
-    client = OpenAICompatibleClient(
-        api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses"
-    )
+    client = OpenAICompatibleClient(api_base="https://api.openai.com/v1", model="gpt-5", api_style="responses")
     rf = {
         "type": "json_schema",
         "json_schema": {
@@ -879,9 +859,7 @@ async def test_complete_stream_responses_falls_back_to_single_delta(monkeypatch)
     )
 
     chunks = []
-    async for chunk in client.complete_stream(
-        messages=[{"role": "user", "content": "go"}]
-    ):
+    async for chunk in client.complete_stream(messages=[{"role": "user", "content": "go"}]):
         chunks.append(chunk)
 
     # Responses streaming falls back to non-streaming + single delta + stop

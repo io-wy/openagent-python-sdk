@@ -51,11 +51,7 @@ class GrepFilesTool(ToolPlugin):
                     with open(file, "r", encoding="utf-8") as f:
                         for line_num, line in enumerate(f, 1):
                             if regex.search(line):
-                                matches.append({
-                                    "file": str(file),
-                                    "line": line_num,
-                                    "content": line.rstrip()
-                                })
+                                matches.append({"file": str(file), "line": line_num, "content": line.rstrip()})
                 except (UnicodeDecodeError, PermissionError):
                     continue
 
@@ -117,11 +113,13 @@ class RipgrepTool(ToolPlugin):
                     data = json.loads(line)
                     if data.get("type") == "match":
                         match_data = data.get("data", {})
-                        matches.append({
-                            "file": match_data.get("path", {}).get("text", ""),
-                            "line": match_data.get("line_number", 0),
-                            "content": match_data.get("lines", {}).get("text", "").rstrip(),
-                        })
+                        matches.append(
+                            {
+                                "file": match_data.get("path", {}).get("text", ""),
+                                "line": match_data.get("line_number", 0),
+                                "content": match_data.get("lines", {}).get("text", "").rstrip(),
+                            }
+                        )
                 except json.JSONDecodeError:
                     continue
 

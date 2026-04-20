@@ -52,12 +52,14 @@ class CompositePolicy:
                         "children": child_metadata,
                     },
                 )
-            child_metadata.append({
-                "index": index,
-                "allowed": decision.allowed,
-                "reason": decision.reason,
-                "metadata": dict(decision.metadata),
-            })
+            child_metadata.append(
+                {
+                    "index": index,
+                    "allowed": decision.allowed,
+                    "reason": decision.reason,
+                    "metadata": dict(decision.metadata),
+                }
+            )
             if self._mode == "all" and not decision.allowed:
                 return PolicyDecision(
                     allowed=False,

@@ -101,9 +101,7 @@ class PrettyEventBus(EventBusPlugin):
                 pass
         return event
 
-    async def get_history(
-        self, event_name: str | None = None, limit: int | None = None
-    ) -> list[RuntimeEvent]:
+    async def get_history(self, event_name: str | None = None, limit: int | None = None) -> list[RuntimeEvent]:
         return await self._inner.get_history(event_name=event_name, limit=limit)
 
     async def clear_history(self) -> None:

@@ -10,6 +10,9 @@ It demonstrates:
 - local follow-up semantics
 - structured delivery artifacts
 - benchmark-style evaluation harness
+- **durable execution**: `run_demo.py` passes `durable=True` — if an upstream LLM
+  rate-limit / connection error hits mid-run, the runtime auto-loads the most
+  recent step checkpoint and resumes (bounded by `RunBudget.max_resume_attempts`).
 
 It is intentionally a strong example, not a claim that local tests alone can
 certify market readiness.

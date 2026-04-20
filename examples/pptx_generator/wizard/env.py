@@ -10,7 +10,6 @@ from openagents.utils.env_doctor import CheckStatus, EnvironmentDoctor
 
 from ..state import DeckProject
 
-
 _KEY_LIKE_PREFIXES = ("LLM_", "TAVILY_", "OPENAI_", "ANTHROPIC_")
 
 

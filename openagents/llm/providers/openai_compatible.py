@@ -33,9 +33,9 @@ logger = logging.getLogger("openagents.llm.providers.openai_compatible")
 
 
 _OPENAI_PRICE_TABLE: dict[str, dict[str, float]] = {
-    "gpt-4o":         {"in": 2.50, "out": 10.00, "cached_read": 1.25},
-    "gpt-4o-mini":    {"in": 0.15, "out":  0.60, "cached_read": 0.075},
-    "o1":             {"in": 15.00, "out": 60.00, "cached_read": 7.50},
+    "gpt-4o": {"in": 2.50, "out": 10.00, "cached_read": 1.25},
+    "gpt-4o-mini": {"in": 0.15, "out": 0.60, "cached_read": 0.075},
+    "o1": {"in": 15.00, "out": 60.00, "cached_read": 7.50},
 }
 
 
@@ -318,11 +318,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
         return f"{self.api_base}/v1/responses"
 
     def _endpoint_for_style(self) -> str:
-        return (
-            self._responses_endpoint()
-            if self._api_style == "responses"
-            else self._chat_completions_endpoint()
-        )
+        return self._responses_endpoint() if self._api_style == "responses" else self._chat_completions_endpoint()
 
     def _normalize_usage(self, raw_usage: dict[str, Any] | None) -> LLMUsage:
         raw = raw_usage or {}
@@ -415,9 +411,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
     ) -> dict[str, Any]:
         chosen_model = model or self.model
         chosen_temp = self.default_temperature if temperature is None else temperature
-        is_reasoning = _is_reasoning_model(
-            chosen_model or "", opt_in=self._reasoning_model_opt_in
-        )
+        is_reasoning = _is_reasoning_model(chosen_model or "", opt_in=self._reasoning_model_opt_in)
 
         payload: dict[str, Any] = {
             "model": chosen_model,
@@ -477,9 +471,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
         """
         chosen_model = model or self.model
         chosen_temp = self.default_temperature if temperature is None else temperature
-        is_reasoning = _is_reasoning_model(
-            chosen_model or "", opt_in=self._reasoning_model_opt_in
-        )
+        is_reasoning = _is_reasoning_model(chosen_model or "", opt_in=self._reasoning_model_opt_in)
 
         instructions_parts: list[str] = []
         input_messages: list[dict[str, Any]] = []
@@ -585,11 +577,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
         output_text = _extract_text_content(message.get("content"))
 
         raw_usage = data.get("usage")
-        normalized_usage = (
-            self._normalize_usage(raw_usage).normalized()
-            if isinstance(raw_usage, dict)
-            else None
-        )
+        normalized_usage = self._normalize_usage(raw_usage).normalized() if isinstance(raw_usage, dict) else None
         if normalized_usage is not None:
             normalized_usage = self._compute_cost_for(
                 usage=normalized_usage,
@@ -619,11 +607,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
         output_text, content_blocks, tool_calls = _parse_responses_output(data)
 
         raw_usage = data.get("usage")
-        normalized_usage = (
-            _normalize_responses_usage(raw_usage).normalized()
-            if isinstance(raw_usage, dict)
-            else None
-        )
+        normalized_usage = _normalize_responses_usage(raw_usage).normalized() if isinstance(raw_usage, dict) else None
         if normalized_usage is not None:
             normalized_usage = self._compute_cost_for(
                 usage=normalized_usage,
@@ -740,9 +724,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
             if response.status_code != 200:
                 body = await response.aread()
                 error_text = body.decode("utf-8", errors="replace")
-                classifier = _classify_status(
-                    int(response.status_code), self._retry_policy.retryable_status
-                )
+                classifier = _classify_status(int(response.status_code), self._retry_policy.retryable_status)
                 yield LLMChunk(
                     type="error",
                     error=f"HTTP {response.status_code}: {error_text[:500]}",
@@ -832,9 +814,7 @@ class OpenAICompatibleClient(HTTPProviderClient):
 
                         finish_reason = choice.get("finish_reason")
                         if isinstance(finish_reason, str) and finish_reason:
-                            pending_stop_reason = (
-                                "tool_use" if finish_reason == "tool_calls" else finish_reason
-                            )
+                            pending_stop_reason = "tool_use" if finish_reason == "tool_calls" else finish_reason
 
                     if pending_stop_reason is not None and latest_usage is not None:
                         yield LLMChunk(

@@ -46,6 +46,7 @@ def test_tool_decorator_without_args():
 
 def test_tool_decorator_with_args():
     """Test @tool decorator with name and description."""
+
     @tool(name="search", description="Search the web")
     async def search_tool(params, context):
         return {"result": []}
@@ -57,6 +58,7 @@ def test_tool_decorator_with_args():
 
 def test_tool_decorator_class():
     """Test @tool decorator with a class."""
+
     @tool(name="my_class", description="A tool class")
     class MyToolClass:
         pass
@@ -79,6 +81,7 @@ def test_tool_decorator_warns_when_shadowing_builtin_name():
 
 def test_pattern_decorator_without_args():
     """Test @pattern decorator without arguments."""
+
     @pattern
     class MyPattern:
         async def execute(self):
@@ -94,6 +97,7 @@ def test_pattern_decorator_without_args():
 
 def test_pattern_decorator_with_name():
     """Test @pattern decorator with custom name."""
+
     @pattern(name="custom_pattern")
     class CustomPattern:
         pass
@@ -104,6 +108,7 @@ def test_pattern_decorator_with_name():
 
 def test_pattern_decorator_syntax():
     """Test @pattern() syntax (with parentheses)."""
+
     @pattern(name="another_pattern")
     class AnotherPattern:
         pass
@@ -113,6 +118,7 @@ def test_pattern_decorator_syntax():
 
 def test_memory_decorator_without_args():
     """Test @memory decorator without arguments."""
+
     @memory
     class MyMemory:
         async def inject(self, context):
@@ -128,6 +134,7 @@ def test_memory_decorator_without_args():
 
 def test_memory_decorator_with_name():
     """Test @memory decorator with custom name."""
+
     @memory(name="custom_memory")
     class CustomMemory:
         pass
@@ -137,6 +144,7 @@ def test_memory_decorator_with_name():
 
 def test_runtime_decorator_without_args():
     """Test @runtime decorator without arguments."""
+
     @runtime
     class MyRuntime:
         pass
@@ -148,14 +156,17 @@ def test_runtime_decorator_without_args():
 
 def test_runtime_decorator_with_name():
     """Test @runtime decorator with custom name."""
+
     @runtime(name="custom_runtime")
     class CustomRuntime:
         pass
 
     assert get_runtime("custom_runtime") is CustomRuntime
 
+
 def test_session_decorator_without_args():
     """Test @session decorator without arguments."""
+
     @session
     class MySession:
         pass
@@ -167,6 +178,7 @@ def test_session_decorator_without_args():
 
 def test_session_decorator_with_name():
     """Test @session decorator with custom name."""
+
     @session(name="custom_session")
     class CustomSession:
         pass
@@ -256,11 +268,13 @@ def test_get_nonexistent():
 
 def test_decorator_preserves_functionality():
     """Test that decorators preserve original function/class functionality."""
+
     @tool(name="preserved")
     async def my_func(x, y):
         return x + y
 
     # Original function should still work
     import asyncio
+
     result = asyncio.run(my_func(1, 2))
     assert result == 3

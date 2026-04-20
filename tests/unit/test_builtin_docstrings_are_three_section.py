@@ -32,9 +32,7 @@ def test_every_builtin_class_has_three_section_docstring():
             continue
         for header in REQUIRED_SECTIONS:
             if header not in doc:
-                missing.append(
-                    f"{cls.__module__}.{cls.__name__}: missing '{header}' section"
-                )
+                missing.append(f"{cls.__module__}.{cls.__name__}: missing '{header}' section")
     assert not missing, "\n  " + "\n  ".join(missing)
 
 
@@ -45,6 +43,4 @@ def test_docstring_first_line_ends_with_period(cls):
     if not doc:
         pytest.fail(f"{cls.__name__}: missing docstring")
     first = doc.splitlines()[0].rstrip()
-    assert first.endswith("."), (
-        f"{cls.__name__}: first docstring line should end with a period, got: {first!r}"
-    )
+    assert first.endswith("."), f"{cls.__name__}: first docstring line should end with a period, got: {first!r}"

@@ -238,6 +238,7 @@ class Runtime:
                     payload=data,
                 )
                 await queue.put(chunk)
+
             return handler
 
         handler = _make_handler()
@@ -322,9 +323,7 @@ class Runtime:
             or new_config.session != self._config.session
             or new_config.events != self._config.events
         ):
-            raise ConfigError(
-                "Hot reload does not support changing top-level runtime/session/events."
-            )
+            raise ConfigError("Hot reload does not support changing top-level runtime/session/events.")
 
         old_version = self._config_version
         old_agents = {agent.id: agent for agent in self._config.agents}
@@ -340,6 +339,10 @@ class Runtime:
         self._config = new_config
         self._agents_by_id = new_agents
         await self._invalidate_runtime_agent_cache(changed_agent_ids)
+        if changed_agent_ids or removed_agent_ids:
+            invalidate_mcp = getattr(self._runtime, "invalidate_mcp_pools_for_agents", None)
+            if callable(invalidate_mcp):
+                await invalidate_mcp(changed_agent_ids | removed_agent_ids)
 
         for session_plugins in self._session_plugins.values():
             for agent_id in removed_agent_ids:
@@ -428,15 +431,9 @@ class Runtime:
             "loaded_plugins": {
                 "memory": type(plugins.memory).__name__ if plugins else None,
                 "pattern": type(plugins.pattern).__name__ if plugins else None,
-                "tool_executor": (
-                    type(plugins.tool_executor).__name__
-                    if plugins and plugins.tool_executor
-                    else None
-                ),
+                "tool_executor": (type(plugins.tool_executor).__name__ if plugins and plugins.tool_executor else None),
                 "context_assembler": (
-                    type(plugins.context_assembler).__name__
-                    if plugins and plugins.context_assembler
-                    else None
+                    type(plugins.context_assembler).__name__ if plugins and plugins.context_assembler else None
                 ),
                 "tools": list(plugins.tools.keys()) if plugins else [],
             },
@@ -449,6 +446,18 @@ class Runtime:
                 if hasattr(plugins.memory, "close"):
                     await plugins.memory.close()
             del self._session_plugins[session_id]
+        await self.release_session(session_id)
+
+    async def release_session(self, session_id: str) -> None:
+        """Drop runtime-owned per-session resources (e.g. shared MCP pool).
+
+        Lighter than :meth:`close_session`: leaves agent plugins alone but
+        releases any runtime-level shared state (today: the MCP session
+        pool) tied to ``session_id``. Idempotent.
+        """
+        release = getattr(self._runtime, "release_session", None)
+        if callable(release):
+            await release(session_id)
 
     async def close(self) -> None:
         """Cleanup runtime resources."""

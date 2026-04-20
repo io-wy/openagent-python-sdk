@@ -29,9 +29,7 @@ def _walk(node: Any, keys_lower: set[str], max_len: int, seen: set[int]) -> Any:
         seen = seen | {node_id}
         return {
             key: (
-                "***"
-                if isinstance(key, str) and key.lower() in keys_lower
-                else _walk(val, keys_lower, max_len, seen)
+                "***" if isinstance(key, str) and key.lower() in keys_lower else _walk(val, keys_lower, max_len, seen)
             )
             for key, val in node.items()
         }

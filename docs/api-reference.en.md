@@ -153,11 +153,15 @@ Returns:
 
 ### `await runtime.close_session(session_id: str) -> None`
 
-Closes the plugin bundle for one session.
+Closes the plugin bundle for one session. Also cascades into `release_session(session_id)` to release runtime-level shared resources such as the MCP session pool.
+
+### `await runtime.release_session(session_id: str) -> None`
+
+Releases the runtime-owned resources tied to `session_id` (today: the `DefaultRuntime` MCP session pool shared connections) without touching the session's agent plugin bundle. Idempotent; safe to call on a `session_id` that never allocated a pool.
 
 ### `await runtime.close() -> None`
 
-Closes the runtime and any closeable downstream resources.
+Closes the runtime and any closeable downstream resources. For `DefaultRuntime`, this cascades through every MCP session pool and drains their shared connections.
 
 ### `runtime.event_bus`
 
@@ -427,6 +431,7 @@ Optional per-run execution limits:
 | `max_tool_calls` | `int \| None` | `None` | Maximum tool call count |
 | `max_validation_retries` | `int \| None` | `3` | Maximum structured output validation retries |
 | `max_cost_usd` | `float \| None` | `None` | Maximum cost ceiling (USD) |
+| `max_resume_attempts` | `int \| None` | `3` | Maximum automatic resume attempts for durable runs (added in 0.4.x) |
 
 ### `RunArtifact`
 
@@ -465,6 +470,51 @@ Structured run input:
 - `budget: RunBudget | None`
 - `deps: Any`
 - `output_type: type[BaseModel] | None` — structured output target type (added in 0.3.0)
+- `durable: bool = False` — opt into durable execution: auto-checkpoint at every step boundary and auto-resume from the most recent checkpoint on retryable errors (added in 0.4.x)
+- `resume_from_checkpoint: str | None = None` — explicitly resume a new run from a named checkpoint; `DefaultRuntime` skips `context_assembler.assemble()` and `memory.inject()` and rehydrates transcript / artifacts / usage from the checkpoint (added in 0.4.x)
+
+### Durable execution
+
+Durable execution is a runtime-level fault-recovery mechanism, not a new seam. Enable it via:
+
+```python
+from openagents.interfaces.runtime import RunBudget, RunRequest
+
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    durable=True,  # auto-checkpoint + auto-resume
+    budget=RunBudget(max_resume_attempts=3),
+)
+result = await runtime.run_detailed(request=request)
+```
+
+**Checkpoint granularity**: a checkpoint is written after every successful `llm.succeeded` / `tool.succeeded` event, with `checkpoint_id = f"{run_id}:step:{n}"`. Batched tool calls (`call_tool_batch`) are collapsed to a single step.
+
+**Retryable error classification**: `LLMRateLimitError`, `LLMConnectionError`, `ToolRateLimitError`, `ToolUnavailableError` trigger automatic resume. Every other error (`PermanentToolError`, `ConfigError`, `BudgetExhausted`, `OutputValidationError`) terminates the run immediately.
+
+**Explicit resume**: after a process crash, use a persistent session backend (`jsonl_file` / `sqlite`) and resume in a fresh process:
+
+```python
+# Fresh process
+request = RunRequest(
+    agent_id="coding-agent",
+    session_id="my-session",
+    input_text="refactor this module...",
+    resume_from_checkpoint="abc123:step:7",
+)
+```
+
+**Events**: durable execution emits six events:
+- `run.checkpoint_saved` — after each successful checkpoint
+- `run.checkpoint_failed` — create_checkpoint raised (run continues, does not fail)
+- `run.resume_attempted` — retryable error caught, about to resume
+- `run.resume_succeeded` — state rehydration complete
+- `run.resume_exhausted` — reached `max_resume_attempts` cap
+- `run.durable_idempotency_warning` — a tool declaring `durable_idempotent=False` was invoked inside a durable run (one-shot per run/tool)
+
+**ToolPlugin.durable_idempotent** (class attribute, default `True`): side-effectful tools (write_file, HTTP, shell subprocess, etc.) should declare `durable_idempotent = False` so runtime emits a one-shot warning when invoked in a durable run. The builtins `WriteFileTool`, `DeleteFileTool`, `HttpRequestTool`, `ShellExecTool`, `ExecuteCommandTool`, `SetEnvTool` are already marked `False`.
 
 ### `RunResult[T]`
 
@@ -648,6 +698,17 @@ Key methods:
 - `get_dependencies() -> list[str]`
 - `async fallback(error, params, context) -> Any`
 
+**Extension methods (2026-04-19)** — all have default implementations; override per-tool as needed:
+
+- `async invoke_batch(items: list[BatchItem], context) -> list[BatchResult]` — default is a sequential loop over `invoke`; override to push batching down (MCP bulk calls, multi-file reads, pipelined HTTP). Result list length, order, and `item_id`s must match the input.
+- `async invoke_background(params, context) -> JobHandle` — submit a long-running job; return handle immediately. Default raises `NotImplementedError`.
+- `async poll_job(handle, context) -> JobStatus` — query background job status. Default raises `NotImplementedError`.
+- `async cancel_job(handle, context) -> bool` — cancel a background job. Default raises `NotImplementedError`.
+- `requires_approval(params, context) -> bool` — whether this call needs human approval. Default returns `execution_spec().approval_mode == "always"`.
+- `async before_invoke(params, context)` / `async after_invoke(params, context, result, exception=None)` — per-call pre/post hooks (distinct from `preflight`, which runs once per run). `after_invoke` fires on both success and failure paths.
+
+Accompanying pydantic models: `BatchItem` / `BatchResult` / `JobHandle` / `JobStatus` in `openagents.interfaces.tool`.
+
 ### `ToolExecutorPlugin`
 
 Key methods:
@@ -655,6 +716,14 @@ Key methods:
 - `async evaluate_policy(request) -> PolicyDecision` — override to restrict tool execution (default: allow all)
 - `async execute(request) -> ToolExecutionResult`
 - `async execute_stream(request)`
+- `async execute_batch(requests) -> list[ToolExecutionResult]` — default is a sequential loop over `execute`. The builtin `ConcurrentBatchExecutor` partitions by `execution_spec.concurrency_safe` and runs the safe group in parallel under a `Semaphore(max_concurrency)`.
+
+`ToolExecutionRequest` gains `cancel_event: asyncio.Event | None`. `DefaultRuntime` seeds `ctx.scratch['__cancel_event__']` before each run; `_BoundTool.invoke` threads it through to the request; `SafeToolExecutor.execute` runs a 3-way race (invoke vs. timeout vs. cancel). `ToolExecutionSpec.interrupt_behavior == "block"` makes the executor ignore cancel and wait for natural completion.
+
+**New error subclasses (`openagents.errors.exceptions`)**:
+`ToolValidationError` / `ToolAuthError` (not retried), `ToolRateLimitError` / `ToolUnavailableError` (retried by default in `RetryToolExecutor`), `ToolCancelledError` (raised by `SafeToolExecutor` when `cancel_event` fires; not retried).
+
+**Pattern convenience**: `PatternPlugin.call_tool_batch(requests: list[tuple[str, dict]]) -> list[Any]` groups calls by `tool_id`, dispatches through `invoke_batch`, and preserves input order. Emits `tool.batch.started` and `tool.batch.completed` events.
 
 ### `MemoryPlugin`
 

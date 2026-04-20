@@ -77,9 +77,7 @@ class ShellExecTool(TypedConfigPluginMixin, ToolPlugin):
             first = argv[0]
             # Reject path-like argv[0] to prevent bypassing allowlist via absolute/relative paths
             if os.sep in first or (os.altsep and os.altsep in first):
-                raise ValueError(
-                    f"command {first!r} must be a bare name (no path) when command_allowlist is active"
-                )
+                raise ValueError(f"command {first!r} must be a bare name (no path) when command_allowlist is active")
             if first not in allow:
                 raise ValueError(f"command {first!r} not in allowlist {allow!r}")
         return argv
@@ -109,9 +107,7 @@ class ShellExecTool(TypedConfigPluginMixin, ToolPlugin):
         )
         timed_out = False
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_ms / 1000.0
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_ms / 1000.0)
         except asyncio.TimeoutError:
             timed_out = True
             # NOTE: kill() only terminates the direct child process. On POSIX,

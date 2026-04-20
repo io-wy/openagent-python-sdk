@@ -30,6 +30,7 @@ from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 try:
     import aiosqlite
+
     _HAS_AIOSQLITE = True
 except ImportError:
     aiosqlite = None  # type: ignore[assignment]
@@ -130,8 +131,7 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
     async def _ensure_session_row(self, db: Any, sid: str) -> None:
         ts = _now()
         await db.execute(
-            "INSERT OR IGNORE INTO sessions(sid, created_at, updated_at) "
-            "VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO sessions(sid, created_at, updated_at) VALUES (?, ?, ?)",
             (sid, ts, ts),
         )
         await db.execute(
@@ -164,8 +164,7 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
         try:
             async with aiosqlite.connect(self._db_path) as db:
                 cursor = await db.execute(
-                    "SELECT seq, type, payload FROM events "
-                    "WHERE sid = ? ORDER BY seq",
+                    "SELECT seq, type, payload FROM events WHERE sid = ? ORDER BY seq",
                     (sid,),
                 )
                 rows = await cursor.fetchall()
@@ -217,10 +216,7 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
     async def set_state(self, session_id: str, state: dict[str, Any]) -> None:
         await self._ensure_loaded(session_id)
         self._states[session_id] = state
-        payload = {
-            k: v for k, v in state.items()
-            if k not in (_TRANSCRIPT_KEY, _ARTIFACTS_KEY, _CHECKPOINTS_KEY)
-        }
+        payload = {k: v for k, v in state.items() if k not in (_TRANSCRIPT_KEY, _ARTIFACTS_KEY, _CHECKPOINTS_KEY)}
         if payload:
             await self._insert_event(session_id, "state", payload)
 
@@ -232,12 +228,8 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
             self._loaded.discard(session_id)
             try:
                 async with aiosqlite.connect(self._db_path) as db:
-                    await db.execute(
-                        "DELETE FROM events WHERE sid = ?", (session_id,)
-                    )
-                    await db.execute(
-                        "DELETE FROM sessions WHERE sid = ?", (session_id,)
-                    )
+                    await db.execute("DELETE FROM events WHERE sid = ?", (session_id,))
+                    await db.execute("DELETE FROM sessions WHERE sid = ?", (session_id,))
                     await db.commit()
             except aiosqlite.Error as exc:
                 raise SessionError(
@@ -276,9 +268,7 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
         state[_ARTIFACTS_KEY] = artifacts
         await self._insert_event(session_id, "artifact", data)
 
-    async def create_checkpoint(
-        self, session_id: str, checkpoint_id: str
-    ) -> SessionCheckpoint:
+    async def create_checkpoint(self, session_id: str, checkpoint_id: str) -> SessionCheckpoint:
         state = await self._ensure_loaded(session_id)
         transcript = list(state.get(_TRANSCRIPT_KEY, []))
         artifacts = list(state.get(_ARTIFACTS_KEY, []))

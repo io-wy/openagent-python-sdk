@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 try:
     import httpx
+
     _CONNECTION_EXC_TYPES: tuple[type[BaseException], ...] = (
         httpx.ConnectError,
         httpx.ReadTimeout,
@@ -66,15 +67,17 @@ class _RetryPolicy:
         *,
         extra_retryable_status: frozenset[int] | None = None,
     ) -> "_RetryPolicy":
-        policy = cls() if options is None else cls(
-            max_attempts=int(options.max_attempts),
-            initial_backoff_ms=int(options.initial_backoff_ms),
-            max_backoff_ms=int(options.max_backoff_ms),
-            backoff_multiplier=float(options.backoff_multiplier),
-            retry_on_connection_errors=bool(options.retry_on_connection_errors),
-            total_budget_ms=(
-                int(options.total_budget_ms) if options.total_budget_ms is not None else None
-            ),
+        policy = (
+            cls()
+            if options is None
+            else cls(
+                max_attempts=int(options.max_attempts),
+                initial_backoff_ms=int(options.initial_backoff_ms),
+                max_backoff_ms=int(options.max_backoff_ms),
+                backoff_multiplier=float(options.backoff_multiplier),
+                retry_on_connection_errors=bool(options.retry_on_connection_errors),
+                total_budget_ms=(int(options.total_budget_ms) if options.total_budget_ms is not None else None),
+            )
         )
         if extra_retryable_status:
             policy.retryable_status = frozenset(policy.retryable_status | extra_retryable_status)
@@ -145,10 +148,7 @@ def _make_error_for_status(
     classifier = _classify_status(status, retryable_status)
     msg = f"HTTP {status}: {body_excerpt}"
     if classifier == "rate_limit":
-        hint = (
-            "provider rate-limited or overloaded; increase 'llm.retry.max_attempts' "
-            "or slow down request rate"
-        )
+        hint = "provider rate-limited or overloaded; increase 'llm.retry.max_attempts' or slow down request rate"
         return LLMRateLimitError(msg, hint=hint).with_context()
     if classifier == "connection":
         hint = f"upstream server error from {url}; check provider status"
@@ -162,10 +162,7 @@ def _make_error_for_exception(
     url: str,
     exc: BaseException,
 ) -> Exception:
-    hint = (
-        "connection or timeout error talking to the provider; "
-        "check network and provider health"
-    )
+    hint = "connection or timeout error talking to the provider; check network and provider health"
     return LLMConnectionError(
         f"{type(exc).__name__} connecting to {url}: {exc}",
         hint=hint,
@@ -202,10 +199,7 @@ class HTTPProviderClient(LLMClient):
 
     def _require_httpx(self):
         if httpx is None:
-            raise RuntimeError(
-                "httpx is required for HTTP-backed LLM providers. "
-                "Install with: uv add httpx"
-            )
+            raise RuntimeError("httpx is required for HTTP-backed LLM providers. Install with: uv add httpx")
         return httpx
 
     def _build_timeout(self, *, read_timeout_s: float | None = None):
@@ -294,10 +288,7 @@ class HTTPProviderClient(LLMClient):
                 )
             except _CONNECTION_EXC_TYPES as exc:
                 last_exc = exc
-                if (
-                    not policy.retry_on_connection_errors
-                    or attempt >= policy.max_attempts
-                ):
+                if not policy.retry_on_connection_errors or attempt >= policy.max_attempts:
                     break
                 delay = await self._compute_backoff(attempt=attempt, retry_after_s=None)
                 if remaining_ms is not None:
@@ -321,8 +312,7 @@ class HTTPProviderClient(LLMClient):
             if attempt >= policy.max_attempts:
                 break
             retry_after = _parse_retry_after_seconds(
-                _response_headers(response).get("Retry-After")
-                or _response_headers(response).get("retry-after")
+                _response_headers(response).get("Retry-After") or _response_headers(response).get("retry-after")
             )
             delay = await self._compute_backoff(attempt=attempt, retry_after_s=retry_after)
             if remaining_ms is not None:
@@ -423,10 +413,7 @@ class HTTPProviderClient(LLMClient):
                 response = await cm.__aenter__()
             except _CONNECTION_EXC_TYPES as exc:
                 last_exc = exc
-                if (
-                    not policy.retry_on_connection_errors
-                    or attempt >= policy.max_attempts
-                ):
+                if not policy.retry_on_connection_errors or attempt >= policy.max_attempts:
                     break
                 delay = await self._compute_backoff(attempt=attempt, retry_after_s=None)
                 if remaining_ms is not None:
@@ -456,8 +443,7 @@ class HTTPProviderClient(LLMClient):
             except Exception:
                 pass
             retry_after = _parse_retry_after_seconds(
-                _response_headers(response).get("Retry-After")
-                or _response_headers(response).get("retry-after")
+                _response_headers(response).get("Retry-After") or _response_headers(response).get("retry-after")
             )
             delay = await self._compute_backoff(attempt=attempt, retry_after_s=retry_after)
             if remaining_ms is not None:

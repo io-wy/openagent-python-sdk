@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 def _unwrap_single_exception(err: BaseException) -> BaseException:
     """Peel a chain of single-child ExceptionGroups down to the real cause."""
-    while isinstance(err, BaseExceptionGroup) and len(err.exceptions) == 1:
+    while isinstance(err, BaseExceptionGroup) and len(err.exceptions) == 1:  # noqa: F821
         err = err.exceptions[0]
     return err
 
@@ -129,9 +129,7 @@ class McpConnection:
             from mcp import ClientSession, StdioServerParameters
             from mcp.client.stdio import stdio_client
         except ImportError as e:
-            raise RuntimeError(
-                "MCP SDK not installed. Install with: uv sync --extra mcp"
-            ) from e
+            raise RuntimeError("MCP SDK not installed. Install with: uv sync --extra mcp") from e
 
         if not self.config.command:
             raise ValueError("stdio MCP connection requires a 'command'")
@@ -148,15 +146,14 @@ class McpConnection:
         try:
             from mcp import ClientSession
         except ImportError as e:
-            raise RuntimeError(
-                "MCP SDK not installed. Install with: uv sync --extra mcp"
-            ) from e
+            raise RuntimeError("MCP SDK not installed. Install with: uv sync --extra mcp") from e
 
         try:
             from mcp.client.sse import sse_client
         except ImportError as e:
             try:
                 import mcp as _mcp
+
                 installed = getattr(_mcp, "__version__", "unknown")
             except Exception:
                 installed = "unknown"
@@ -237,7 +234,7 @@ class _PerCallStrategy:
                 except Exception:
                     logger.debug("MCP list_tools failed", exc_info=True)
                 return await connection.call_tool(tool_name, arguments)
-        except BaseExceptionGroup as eg:
+        except BaseExceptionGroup as eg:  # noqa: F821
             inner = _unwrap_single_exception(eg)
             if isinstance(inner, Exception):
                 raise inner from eg
@@ -291,7 +288,7 @@ class _PooledStrategy:
 
             try:
                 return await self._conn.call_tool(tool_name, arguments)
-            except BaseExceptionGroup as eg:
+            except BaseExceptionGroup as eg:  # noqa: F821
                 self._stale = True
                 inner = _unwrap_single_exception(eg)
                 if isinstance(inner, Exception):
@@ -436,10 +433,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         try:
             import mcp  # noqa: F401
         except ImportError as e:
-            msg = (
-                f"[tool:{tool_id}] mcp extra not installed; "
-                f"run: uv sync --extra mcp"
-            )
+            msg = f"[tool:{tool_id}] mcp extra not installed; run: uv sync --extra mcp"
             await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
             raise PermanentToolError(msg, tool_name=tool_id) from e
 
@@ -455,16 +449,11 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         else:
             cmd = self._server_config.command
             if not cmd:
-                msg = (
-                    f"[tool:{tool_id}] server config must set either 'command' "
-                    f"(stdio) or 'url' (SSE/HTTP)"
-                )
+                msg = f"[tool:{tool_id}] server config must set either 'command' (stdio) or 'url' (SSE/HTTP)"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id)
             if shutil.which(cmd) is None:
-                msg = (
-                    f"[tool:{tool_id}] stdio command '{cmd}' was not found on PATH"
-                )
+                msg = f"[tool:{tool_id}] stdio command '{cmd}' was not found on PATH"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id)
 
@@ -474,11 +463,9 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
                 async with McpConnection(self._server_config) as connection:
                     tools = await connection.list_tools()
                     tool_count = len(tools)
-            except BaseExceptionGroup as eg:
+            except BaseExceptionGroup as eg:  # noqa: F821
                 inner = _unwrap_single_exception(eg)
-                msg = (
-                    f"[tool:{tool_id}] preflight probe failed: {inner}"
-                )
+                msg = f"[tool:{tool_id}] preflight probe failed: {inner}"
                 await emit_event(result="error", error=msg, duration_ms=_ms_since(started))
                 raise PermanentToolError(msg, tool_name=tool_id) from eg
             except Exception as exc:
@@ -510,9 +497,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         emit_events = _emit_call_events_factory(self, context)
         started = time.perf_counter()
 
-        dedup_active = (
-            self._dedup_inflight and self._connection_mode == "per_call"
-        )
+        dedup_active = self._dedup_inflight and self._connection_mode == "per_call"
 
         if not dedup_active:
             await emit_events.connect()
@@ -547,9 +532,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
             async with self._inflight_lock:
                 self._inflight.pop(key, None)
             if not future_to_await.done():
-                future_to_await.set_exception(
-                    exc if isinstance(exc, Exception) else RuntimeError(str(exc))
-                )
+                future_to_await.set_exception(exc if isinstance(exc, Exception) else RuntimeError(str(exc)))
             if isinstance(exc, Exception):
                 await emit_events.call_failed(tool_name, started, exc)
             raise

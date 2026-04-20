@@ -47,10 +47,7 @@ class IntentWizardStep:
             mem = MarkdownMemory(config={"memory_dir": "~/.config/pptx-agent/memory"})
             mem.capture(
                 category="user_goals",
-                rule=(
-                    f"tone={report.tone}; slide_count≈{report.slide_count_hint}; "
-                    f"language={report.language}"
-                ),
+                rule=(f"tone={report.tone}; slide_count≈{report.slide_count_hint}; language={report.language}"),
                 reason="confirmed at intent stage",
             )
         except Exception:

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -75,14 +74,10 @@ async def test_end_to_end_all_stages_mocked(tmp_path, monkeypatch):
                 research_queries=[],
                 language="zh",
             )
-            return SimpleNamespace(
-                parsed=intent, state={"intent": intent.model_dump(mode="json")}
-            )
+            return SimpleNamespace(parsed=intent, state={"intent": intent.model_dump(mode="json")})
         if agent_id == "research-agent":
             r = ResearchFindings()
-            return SimpleNamespace(
-                parsed=r, state={"research": r.model_dump(mode="json")}
-            )
+            return SimpleNamespace(parsed=r, state={"research": r.model_dump(mode="json")})
         if agent_id == "outliner":
             outline = SlideOutline(
                 slides=[
@@ -122,9 +117,7 @@ async def test_end_to_end_all_stages_mocked(tmp_path, monkeypatch):
                     light="444444",
                     bg="555555",
                 ),
-                fonts=FontPairing(
-                    heading="Arial", body="Arial", cjk="Microsoft YaHei"
-                ),
+                fonts=FontPairing(heading="Arial", body="Arial", cjk="Microsoft YaHei"),
                 style="sharp",
                 page_badge_style="circle",
             )

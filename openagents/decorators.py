@@ -58,8 +58,7 @@ def _register_plugin(
 ) -> None:
     if name in registry:
         warnings.warn(
-            f"{kind.title()} '{name}' is being overridden: "
-            f"{registry[name].__name__} -> {plugin.__name__}",
+            f"{kind.title()} '{name}' is being overridden: {registry[name].__name__} -> {plugin.__name__}",
             stacklevel=3,
         )
 
@@ -114,6 +113,7 @@ def tool(name: str | None = None, description: str = ""):
             fn_or_cls._is_tool = True
 
         return fn_or_cls
+
     return decorator
 
 
@@ -150,6 +150,7 @@ def pattern(name: str | None = None):
         cls._pattern_name = pattern_name
         cls._is_pattern = True
         return cls
+
     return decorator
 
 
@@ -193,6 +194,7 @@ def memory(name: str | None = None):
         cls._memory_name = memory_name
         cls._is_memory = True
         return cls
+
     return decorator
 
 
@@ -226,6 +228,7 @@ def runtime(name: str | None = None):
         cls._runtime_name = runtime_name
         cls._is_runtime = True
         return cls
+
     return decorator
 
 
@@ -262,6 +265,7 @@ def session(name: str | None = None):
         cls._session_name = session_name
         cls._is_session = True
         return cls
+
     return decorator
 
 
@@ -298,6 +302,7 @@ def event_bus(name: str | None = None):
         cls._event_name = event_name
         cls._is_event_bus = True
         return cls
+
     return decorator
 
 

@@ -47,10 +47,7 @@ class LevelOverrideFilter(logging.Filter):
     def __init__(self, per_logger_levels: dict[str, str]) -> None:
         super().__init__()
         self._rules = sorted(
-            (
-                (name, _LEVEL_NAMES[level.upper()])
-                for name, level in per_logger_levels.items()
-            ),
+            ((name, _LEVEL_NAMES[level.upper()]) for name, level in per_logger_levels.items()),
             key=lambda pair: len(pair[0]),
             reverse=True,
         )
@@ -74,10 +71,28 @@ class RedactFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         skip = {
-            "args", "asctime", "created", "exc_info", "exc_text", "filename",
-            "funcName", "levelname", "levelno", "lineno", "message", "module",
-            "msecs", "msg", "name", "pathname", "process", "processName",
-            "relativeCreated", "stack_info", "thread", "threadName",
+            "args",
+            "asctime",
+            "created",
+            "exc_info",
+            "exc_text",
+            "filename",
+            "funcName",
+            "levelname",
+            "levelno",
+            "lineno",
+            "message",
+            "module",
+            "msecs",
+            "msg",
+            "name",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "stack_info",
+            "thread",
+            "threadName",
         }
         for key in list(record.__dict__.keys()):
             if key.startswith("_") or key in skip:

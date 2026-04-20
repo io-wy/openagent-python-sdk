@@ -275,6 +275,7 @@ async def test_production_coding_agent_can_generate_complete_project(monkeypatch
     sys.path.insert(0, str(package_root))
     try:
         from todo_cli_app.service import build_message  # type: ignore import-not-found
+
         assert "demo" in build_message("demo")
     finally:
         sys.path.pop(0)

@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from openagents.errors.exceptions import ToolError, ToolTimeoutError
+from openagents.errors.exceptions import ToolCancelledError, ToolError, ToolTimeoutError
 from openagents.interfaces.tool import ToolExecutionRequest, ToolExecutionResult, ToolExecutorPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -61,27 +61,89 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
 
         timeout_ms = request.execution_spec.default_timeout_ms or self._default_timeout_ms
         timeout_s = timeout_ms / 1000 if timeout_ms else None
+        cancel_event = request.cancel_event
+        interrupt_behavior = str(request.execution_spec.interrupt_behavior or "cancel").lower()
+
+        invoke_task = asyncio.create_task(request.tool.invoke(request.params or {}, request.context))
         try:
-            coro = request.tool.invoke(request.params or {}, request.context)
-            data = await asyncio.wait_for(coro, timeout=timeout_s) if timeout_s else await coro
+            if cancel_event is None and timeout_s is None:
+                data = await invoke_task
+            else:
+                waiters: list[asyncio.Task] = [invoke_task]
+                cancel_task: asyncio.Task | None = None
+                timeout_task: asyncio.Task | None = None
+                if cancel_event is not None:
+                    cancel_task = asyncio.create_task(cancel_event.wait())
+                    waiters.append(cancel_task)
+                if timeout_s is not None:
+                    timeout_task = asyncio.create_task(asyncio.sleep(timeout_s))
+                    waiters.append(timeout_task)
+                done, pending = await asyncio.wait(waiters, return_when=asyncio.FIRST_COMPLETED)
+
+                if invoke_task in done:
+                    for t in pending:
+                        t.cancel()
+                    # Raises if invoke_task failed — caught below and wrapped in ToolError.
+                    data = invoke_task.result()
+                elif cancel_task is not None and cancel_task in done:
+                    if interrupt_behavior == "block":
+                        # "block" mode trusts the tool to finish; both cancel AND timeout are ignored.
+                        if timeout_task is not None:
+                            timeout_task.cancel()
+                        data = await invoke_task
+                    else:
+                        invoke_task.cancel()
+                        if timeout_task is not None:
+                            timeout_task.cancel()
+                        try:
+                            await invoke_task
+                        except asyncio.CancelledError:
+                            pass  # expected: we just cancelled it
+                        except Exception:
+                            pass  # tool raised concurrently with cancel; cancel wins
+                        cancelled_exc = ToolCancelledError(
+                            f"Tool '{request.tool_id}' cancelled before completion",
+                            tool_name=request.tool_id,
+                        )
+                        return ToolExecutionResult(
+                            tool_id=request.tool_id,
+                            success=False,
+                            error=str(cancelled_exc),
+                            exception=cancelled_exc,
+                            metadata={"timeout_ms": timeout_ms, "cancelled": True},
+                        )
+                else:
+                    # timeout won
+                    invoke_task.cancel()
+                    if cancel_task is not None:
+                        cancel_task.cancel()
+                    try:
+                        await invoke_task
+                    except asyncio.CancelledError:
+                        pass  # expected: we just cancelled it
+                    except Exception:
+                        pass  # tool raised concurrently with timeout; timeout wins
+                    timeout_exc = ToolTimeoutError(
+                        f"Tool '{request.tool_id}' timed out after {timeout_ms}ms",
+                        tool_name=request.tool_id,
+                    )
+                    return ToolExecutionResult(
+                        tool_id=request.tool_id,
+                        success=False,
+                        error=str(timeout_exc),
+                        exception=timeout_exc,
+                        metadata={"timeout_ms": timeout_ms},
+                    )
+
             return ToolExecutionResult(
                 tool_id=request.tool_id,
                 success=True,
                 data=data,
                 metadata={"timeout_ms": timeout_ms},
             )
-        except asyncio.TimeoutError as exc:
-            timeout_exc = ToolTimeoutError(
-                f"Tool '{request.tool_id}' timed out after {timeout_ms}ms",
-                tool_name=request.tool_id,
-            )
-            return ToolExecutionResult(
-                tool_id=request.tool_id,
-                success=False,
-                error=str(timeout_exc),
-                exception=timeout_exc,
-                metadata={"timeout_ms": timeout_ms},
-            )
+        except asyncio.CancelledError:
+            # Caller cancelled us from outside — propagate, don't mask.
+            raise
         except Exception as exc:
             wrapped_exc = exc if isinstance(exc, ToolError) else ToolError(str(exc), tool_name=request.tool_id)
             return ToolExecutionResult(

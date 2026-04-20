@@ -62,6 +62,20 @@ class AsyncEventBus(TypedConfigPluginMixin, EventBusPlugin):
         """Subscribe to an event."""
         self._subscribers.setdefault(event_name, []).append(handler)
 
+    def unsubscribe(
+        self,
+        event_name: str,
+        handler: Callable[[RuntimeEvent], Awaitable[None] | None],
+    ) -> None:
+        """Remove a previously registered handler. Missing entries are ignored."""
+        handlers = self._subscribers.get(event_name)
+        if not handlers:
+            return
+        try:
+            handlers.remove(handler)
+        except ValueError:
+            return
+
     async def emit(self, event_name: str, **payload: Any) -> RuntimeEvent:
         """Emit an event.
 
@@ -70,14 +84,19 @@ class AsyncEventBus(TypedConfigPluginMixin, EventBusPlugin):
         missing required payload keys produce a ``logger.warning``;
         delivery to subscribers proceeds unchanged. Custom event
         names not present in the taxonomy are emitted without checks.
+
+        Invariant: handlers are dispatched **inline** within this call —
+        every matching subscriber (including wildcard ``*`` handlers) is
+        awaited before ``emit()`` returns. Durable execution relies on this
+        to ensure step checkpoints are written while the runtime still
+        holds the session lock.
         """
         schema = EVENT_SCHEMAS.get(event_name)
         if schema is not None:
             missing = [k for k in schema.required_payload if k not in payload]
             if missing:
                 logger.warning(
-                    "event '%s' missing required payload keys %s "
-                    "(declared in event_taxonomy.EVENT_SCHEMAS)",
+                    "event '%s' missing required payload keys %s (declared in event_taxonomy.EVENT_SCHEMAS)",
                     event_name,
                     missing,
                 )

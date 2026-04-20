@@ -18,9 +18,7 @@ def _merge_mapping(base: dict[str, Any], override: dict[str, Any]) -> dict[str, 
     return result
 
 
-def _build_tool_executor(
-    payload: OpenAgentSkillInput, tool_ids: list[str]
-) -> dict[str, Any] | None:
+def _build_tool_executor(payload: OpenAgentSkillInput, tool_ids: list[str]) -> dict[str, Any] | None:
     """Build a filesystem-aware tool executor config from workspace constraints.
 
     The legacy `execution_policy` seam has been consolidated into the

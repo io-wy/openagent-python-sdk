@@ -45,7 +45,14 @@ class RetryToolExecutor(ToolExecutorPlugin):
         backoff_multiplier: float = 2.0
         max_delay_ms: int = 5_000
         retry_on_timeout: bool = True
-        retry_on: list[str] = Field(default_factory=lambda: ["RetryableToolError", "ToolTimeoutError"])
+        retry_on: list[str] = Field(
+            default_factory=lambda: [
+                "RetryableToolError",
+                "ToolTimeoutError",
+                "ToolRateLimitError",
+                "ToolUnavailableError",
+            ]
+        )
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities=set())
@@ -75,7 +82,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
         return False
 
     def _delay_for(self, attempt: int) -> int:
-        delay = self._initial_delay_ms * (self._backoff ** attempt)
+        delay = self._initial_delay_ms * (self._backoff**attempt)
         return int(min(self._max_delay_ms, delay))
 
     async def execute(self, request: ToolExecutionRequest) -> ToolExecutionResult:

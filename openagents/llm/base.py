@@ -177,8 +177,7 @@ class LLMClient:
         """
         if not getattr(self, "_count_tokens_warned", False):
             logger.warning(
-                "LLMClient.count_tokens fallback (len//4) active for %s/%s; "
-                "token budgets will be approximate.",
+                "LLMClient.count_tokens fallback (len//4) active for %s/%s; token budgets will be approximate.",
                 self.provider_name,
                 self.model_id,
             )

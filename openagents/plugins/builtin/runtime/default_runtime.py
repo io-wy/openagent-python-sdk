@@ -68,10 +68,7 @@ logger = logging.getLogger("openagents")
 
 def _supports_parameter(fn: Any, name: str) -> bool:
     params = inspect.signature(fn).parameters.values()
-    return any(
-        param.name == name or param.kind is inspect.Parameter.VAR_KEYWORD
-        for param in params
-    )
+    return any(param.name == name or param.kind is inspect.Parameter.VAR_KEYWORD for param in params)
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -94,9 +91,7 @@ def _instantiate(factory: Any, config: dict[str, Any]) -> Any:
     try:
         return factory(config=config)
     except TypeError as exc:
-        raise TypeError(
-            f"Could not instantiate runtime dependency from {factory!r}: {exc}"
-        ) from exc
+        raise TypeError(f"Could not instantiate runtime dependency from {factory!r}: {exc}") from exc
 
 
 class _DefaultToolExecutor(ToolExecutorPlugin):
@@ -190,9 +185,7 @@ class _BoundTool:
         usage = getattr(context, "usage", None)
         if budget is not None and budget.max_tool_calls is not None and usage is not None:
             if usage.tool_calls >= budget.max_tool_calls:
-                raise MaxStepsExceeded(
-                    f"Tool call limit ({budget.max_tool_calls}) exceeded"
-                ).with_context(
+                raise MaxStepsExceeded(f"Tool call limit ({budget.max_tool_calls}) exceeded").with_context(
                     agent_id=getattr(context, "agent_id", None),
                     session_id=getattr(context, "session_id", None),
                     run_id=getattr(getattr(context, "run_request", None), "run_id", None),
@@ -324,12 +317,8 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
 
             available = sorted(agents_by_id.keys())
             guess = near_match(request.agent_id, available)
-            extra = (
-                f" Did you mean '{guess}'?" if guess else ""
-            )
-            raise ValueError(
-                f"Unknown agent id: '{request.agent_id}'.{extra} Available: {available}"
-            )
+            extra = f" Did you mean '{guess}'?" if guess else ""
+            raise ValueError(f"Unknown agent id: '{request.agent_id}'.{extra} Available: {available}")
 
         if agent_plugins is None:
             plugins = load_agent_plugins(agent)
@@ -382,9 +371,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     session_state=session_state,
                     session_manager=self._session_manager,
                 )
-                assemble_duration_ms = int(
-                    (time.perf_counter() - assemble_started_at) * 1000
-                )
+                assemble_duration_ms = int((time.perf_counter() - assemble_started_at) * 1000)
                 await self._event_bus.emit(
                     "context.assemble.completed",
                     transcript_size=len(assembly.transcript),
@@ -428,8 +415,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 output_type = request.output_type
                 max_retries = (
                     request.budget.max_validation_retries
-                    if request.budget is not None
-                    and request.budget.max_validation_retries is not None
+                    if request.budget is not None and request.budget.max_validation_retries is not None
                     else 3
                 )
                 attempts = 0
@@ -470,9 +456,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                             pattern_ctx.scratch["last_validation_error"] = {
                                 "attempt": attempts,
                                 "message": str(retry_exc),
-                                "expected_schema": (
-                                    output_type.model_json_schema() if output_type is not None else {}
-                                ),
+                                "expected_schema": (output_type.model_json_schema() if output_type is not None else {}),
                             }
                         await self._event_bus.emit(
                             "validation.retry",
@@ -673,10 +657,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         tools: dict[str, Any],
         executor: ToolExecutor,
     ) -> dict[str, Any]:
-        return {
-            tool_id: _BoundTool(tool_id=tool_id, tool=tool, executor=executor)
-            for tool_id, tool in tools.items()
-        }
+        return {tool_id: _BoundTool(tool_id=tool_id, tool=tool, executor=executor) for tool_id, tool in tools.items()}
 
     async def _run_tool_preflight(
         self,
@@ -735,9 +716,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             return
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         if elapsed_ms > budget.max_duration_ms:
-            raise BudgetExhausted(
-                f"Run duration limit ({budget.max_duration_ms}ms) exceeded"
-            ).with_context(
+            raise BudgetExhausted(f"Run duration limit ({budget.max_duration_ms}ms) exceeded").with_context(
                 agent_id=request.agent_id,
                 session_id=request.session_id,
                 run_id=request.run_id,
@@ -875,8 +854,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             factory = builtin_factories.get(dep_type.strip())
             if factory is None:
                 raise ValueError(
-                    f"Unknown runtime.config.{key}.type '{dep_type.strip()}'. "
-                    f"Available: {sorted(builtin_factories)}"
+                    f"Unknown runtime.config.{key}.type '{dep_type.strip()}'. Available: {sorted(builtin_factories)}"
                 )
         else:
             raise ValueError(f"runtime.config.{key} must set one of 'type' or 'impl'")
@@ -885,8 +863,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         for method_name in required_methods:
             if not callable(getattr(dependency, method_name, None)):
                 raise TypeError(
-                    f"runtime.config.{key} dependency '{type(dependency).__name__}' "
-                    f"must implement '{method_name}'"
+                    f"runtime.config.{key} dependency '{type(dependency).__name__}' must implement '{method_name}'"
                 )
         self._bind_runtime_dependency(dependency)
         return dependency

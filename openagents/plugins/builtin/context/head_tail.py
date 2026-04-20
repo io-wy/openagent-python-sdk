@@ -52,7 +52,7 @@ class HeadTailContextAssembler(TokenBudgetContextAssembler):
         remaining = max(0, budget - head_tokens)
 
         tail: list[dict[str, Any]] = []
-        for m in reversed(msgs[self._head_messages:]):
+        for m in reversed(msgs[self._head_messages :]):
             cost = self._measure(llm_client, m)
             if cost > remaining:
                 break

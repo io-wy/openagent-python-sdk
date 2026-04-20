@@ -41,35 +41,25 @@ def _reset_around() -> None:
 
 
 def test_auto_configure_true_calls_configure() -> None:
-    with patch(
-        "openagents.observability.logging.configure", autospec=True
-    ) as mock_configure:
-        Runtime.from_dict(
-            _base_config({"auto_configure": True, "level": "DEBUG"})
-        )
+    with patch("openagents.observability.logging.configure", autospec=True) as mock_configure:
+        Runtime.from_dict(_base_config({"auto_configure": True, "level": "DEBUG"}))
     assert mock_configure.call_count == 1
     cfg = mock_configure.call_args.args[0]
     assert cfg.level == "DEBUG"
 
 
 def test_auto_configure_false_does_not_call_configure() -> None:
-    with patch(
-        "openagents.observability.logging.configure", autospec=True
-    ) as mock_configure:
+    with patch("openagents.observability.logging.configure", autospec=True) as mock_configure:
         Runtime.from_dict(_base_config({"auto_configure": False}))
     assert mock_configure.call_count == 0
 
 
 def test_no_logging_section_does_not_call_configure() -> None:
-    with patch(
-        "openagents.observability.logging.configure", autospec=True
-    ) as mock_configure:
+    with patch("openagents.observability.logging.configure", autospec=True) as mock_configure:
         Runtime.from_dict(_base_config())
     assert mock_configure.call_count == 0
 
 
 def test_auto_configure_actually_sets_level_end_to_end() -> None:
-    Runtime.from_dict(
-        _base_config({"auto_configure": True, "level": "DEBUG"})
-    )
+    Runtime.from_dict(_base_config({"auto_configure": True, "level": "DEBUG"}))
     assert logging.getLogger("openagents").level == logging.DEBUG

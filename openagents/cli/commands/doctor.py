@@ -54,16 +54,15 @@ def _python_meets_minimum() -> tuple[bool, str, str]:
     if not match:
         return True, detected, required_raw or "(unparseable)"
     required_tuple = tuple(int(p) if p else 0 for p in match.groups())
-    return sys.version_info[:3] >= required_tuple, detected, ".".join(
-        str(n) for n in required_tuple[: len(match.groups())] if n is not None
+    return (
+        sys.version_info[:3] >= required_tuple,
+        detected,
+        ".".join(str(n) for n in required_tuple[: len(match.groups())] if n is not None),
     )
 
 
 def _extras_status() -> list[dict[str, Any]]:
-    return [
-        {"name": name, "installed": importlib.util.find_spec(name) is not None}
-        for name in _OPTIONAL_EXTRAS
-    ]
+    return [{"name": name, "installed": importlib.util.find_spec(name) is not None} for name in _OPTIONAL_EXTRAS]
 
 
 def _env_var_status() -> list[dict[str, Any]]:

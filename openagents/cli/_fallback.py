@@ -18,8 +18,7 @@ from types import ModuleType
 _HINT_SHOWN: bool = False
 
 _HINT_MESSAGE = (
-    "hint: install io-openagent-sdk[cli] for the full CLI experience "
-    "(rich output, interactive prompts, hot-reload)"
+    "hint: install io-openagent-sdk[cli] for the full CLI experience (rich output, interactive prompts, hot-reload)"
 )
 
 
