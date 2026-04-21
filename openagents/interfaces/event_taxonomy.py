@@ -62,8 +62,8 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "llm.succeeded": EventSchema(
         "llm.succeeded",
         ("model",),
-        (),
-        "LLM returned successfully.",
+        ("_metrics",),
+        "LLM returned successfully. Optional '_metrics' carries LLMCallMetrics timing data.",
     ),
     "usage.updated": EventSchema(
         "usage.updated",

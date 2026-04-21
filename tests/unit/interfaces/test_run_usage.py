@@ -83,3 +83,24 @@ async def test_cost_goes_none_sticky_when_any_call_has_none():
         await pattern.call_llm(messages=[{"role": "user", "content": "q"}])
     assert pattern.context.usage.cost_usd is None
     assert pattern.context.scratch.get("__cost_unavailable__") is True
+
+
+def test_run_usage_diagnostics_fields_defaults():
+    u = RunUsage()
+    assert u.ttft_ms is None
+    assert u.llm_latency_p50_ms is None
+    assert u.llm_latency_p95_ms is None
+    assert u.llm_retry_count == 0
+
+
+def test_run_usage_diagnostics_fields_set():
+    u = RunUsage(
+        ttft_ms=42.0,
+        llm_latency_p50_ms=150.0,
+        llm_latency_p95_ms=400.0,
+        llm_retry_count=2,
+    )
+    assert u.ttft_ms == 42.0
+    assert u.llm_latency_p50_ms == 150.0
+    assert u.llm_latency_p95_ms == 400.0
+    assert u.llm_retry_count == 2

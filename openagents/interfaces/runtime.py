@@ -66,6 +66,10 @@ class RunUsage(BaseModel):
     input_tokens_cache_creation: int = 0
     cost_usd: float | None = None
     cost_breakdown: dict[str, float] = Field(default_factory=dict)
+    ttft_ms: float | None = None
+    llm_latency_p50_ms: float | None = None
+    llm_latency_p95_ms: float | None = None
+    llm_retry_count: int = 0
 
 
 class RunRequest(BaseModel):
