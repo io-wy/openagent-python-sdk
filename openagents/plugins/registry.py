@@ -19,6 +19,7 @@ from openagents.plugins.builtin.context.importance_weighted import ImportanceWei
 from openagents.plugins.builtin.context.sliding_window import SlidingWindowContextAssembler
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
 from openagents.plugins.builtin.diagnostics.null_plugin import NullDiagnosticsPlugin
+from openagents.plugins.builtin.diagnostics.rich_plugin import RichDiagnosticsPlugin
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
 from openagents.plugins.builtin.events.file_logging import FileLoggingEventBus
 from openagents.plugins.builtin.events.otel_bridge import OtelEventBusBridge
@@ -128,6 +129,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     },
     "diagnostics": {
         "null": NullDiagnosticsPlugin,
+        "rich": RichDiagnosticsPlugin,
     },
     "tool_executor": {
         "safe": SafeToolExecutor,
