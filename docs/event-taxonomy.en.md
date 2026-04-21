@@ -16,7 +16,8 @@ Regenerate this file via::
 | `context.assemble.completed` | `transcript_size` | `artifact_count`, `duration_ms` | context_assembler.assemble() returned. |
 | `context.assemble.started` | — | — | context_assembler.assemble() is about to run. |
 | `llm.called` | `model` | — | Pattern is about to call an LLM. |
-| `llm.succeeded` | `model` | — | LLM returned successfully. |
+| `llm.failed` | `model` | `_metrics` | LLM call failed. Optional '_metrics' carries LLMCallMetrics timing data. |
+| `llm.succeeded` | `model` | `_metrics` | LLM returned successfully. Optional '_metrics' carries LLMCallMetrics timing data. |
 | `memory.inject.completed` | — | `view_size` | memory.inject() returned. |
 | `memory.inject.started` | — | — | memory.inject() is about to run. |
 | `memory.writeback.completed` | — | — | memory.writeback() returned. |
