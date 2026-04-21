@@ -114,6 +114,57 @@ def test_event_formatter_plain_renders_every_event_kind():
     assert "custom.event" in out
 
 
+def test_event_formatter_llm_failed_renders_and_pops_timing():
+    """``llm.failed`` must render the model + error AND pop the timing entry
+    that ``llm.called`` put into ``_llm_start_ns``. Without popping, a later
+    ``llm.succeeded`` for the same model would report the stale start-time
+    from the failed call, producing an inflated elapsed-ms value."""
+    buf = io.StringIO()
+    console = _PlainConsole(buf)
+    fmt = EventFormatter(console, show_details=True)
+
+    fmt.render("llm.called", {"model": "m1"})
+    assert "m1" in fmt._llm_start_ns  # sanity: entry was installed
+
+    # Mimic the payload shape produced by pattern.py:319 — plain str `error`
+    # also supported as a fallback (older emitters / tests).
+    class _FakeMetrics:
+        error = "rate limited"
+
+    fmt.render("llm.failed", {"model": "m1", "_metrics": _FakeMetrics()})
+
+    # Timing entry must be gone so the next llm.succeeded for m1 can't
+    # pop the stale value.
+    assert "m1" not in fmt._llm_start_ns
+
+    out = buf.getvalue()
+    assert "m1" in out
+    assert "rate limited" in out
+
+    # Now a fresh call+success for the same model should report a fresh
+    # elapsed count (not some huge accumulated one from the failed call).
+    fmt.render("llm.called", {"model": "m1"})
+    fmt.render("llm.succeeded", {"model": "m1"})
+    # No assertion on exact ms, but the key must be popped again.
+    assert "m1" not in fmt._llm_start_ns
+
+
+def test_event_formatter_llm_failed_without_metrics_uses_plain_error():
+    """If the emitter attaches a plain ``error`` field instead of a
+    ``_metrics`` object, the renderer should still surface it."""
+    buf = io.StringIO()
+    console = _PlainConsole(buf)
+    fmt = EventFormatter(console, show_details=True)
+
+    fmt.render("llm.called", {"model": "m2"})
+    fmt.render("llm.failed", {"model": "m2", "error": "connection reset"})
+
+    out = buf.getvalue()
+    assert "m2" in out
+    assert "connection reset" in out
+    assert "m2" not in fmt._llm_start_ns
+
+
 def test_format_event_runs_with_no_timing_state():
     buf = io.StringIO()
     console = _PlainConsole(buf)

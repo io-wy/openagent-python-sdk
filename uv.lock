@@ -1039,6 +1039,7 @@ name = "io-openagent-sdk"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "httpx", extra = ["http2"] },
     { name = "pydantic" },
 ]
@@ -1133,6 +1134,7 @@ requires-dist = [
     { name = "aiosqlite", marker = "extra == 'sqlite'", specifier = ">=0.20.0" },
     { name = "arize-phoenix-otel", marker = "extra == 'phoenix'", specifier = ">=0.6.0" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=7.6.0" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'", specifier = ">=1.2.0" },
     { name = "httpx", marker = "extra == 'openai'", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'pptx'", specifier = ">=0.27.0" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },

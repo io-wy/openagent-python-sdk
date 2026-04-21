@@ -111,7 +111,7 @@ class DiagnosticsPlugin:
             session_id=session_id,
             error_type=type(exc).__name__,
             error_message=str(exc),
-            traceback=tb.format_exc(),
+            traceback="".join(tb.format_exception(type(exc), exc, exc.__traceback__)),
             tool_call_chain=chain,
             last_transcript=transcript,
             usage_at_failure=usage_dict,
