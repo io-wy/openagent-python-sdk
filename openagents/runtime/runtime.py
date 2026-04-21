@@ -51,11 +51,13 @@ class Runtime:
             session_ref=config.session,
             events_ref=config.events,
             skills_ref=config.skills,
+            diagnostics_ref=config.diagnostics,
         )
         self._runtime = components.runtime
         self._session = components.session
         self._events = components.events
         self._skills = components.skills
+        self._diagnostics = components.diagnostics
 
         self._maybe_auto_configure_logging(config)
 
@@ -99,6 +101,11 @@ class Runtime:
     def skills_manager(self) -> Any:
         """Access the host-level skills manager instance."""
         return self._skills
+
+    @property
+    def diagnostics(self) -> Any:
+        """Access the diagnostics plugin instance."""
+        return self._diagnostics
 
     async def _prepare_skills_for_session(self, session_id: str) -> None:
         prepare = getattr(self._skills, "prepare_session", None)
