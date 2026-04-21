@@ -17,6 +17,9 @@ SKILL_CONTEXT_AUGMENT = "skill.context_augment"
 SKILL_TOOL_FILTER = "skill.tool_filter"
 SKILL_PRE_RUN = "skill.pre_run"
 SKILL_POST_RUN = "skill.post_run"
+DIAG_METRICS = "diagnostics.metrics"
+DIAG_ERROR = "diagnostics.error"
+DIAG_EXPORT = "diagnostics.export"
 
 KNOWN_CAPABILITIES = {
     MEMORY_INJECT,
@@ -32,6 +35,9 @@ KNOWN_CAPABILITIES = {
     SKILL_TOOL_FILTER,
     SKILL_PRE_RUN,
     SKILL_POST_RUN,
+    DIAG_METRICS,
+    DIAG_ERROR,
+    DIAG_EXPORT,
 }
 
 
