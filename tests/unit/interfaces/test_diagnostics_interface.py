@@ -104,3 +104,72 @@ def test_capability_constants():
     assert DIAG_METRICS == "diagnostics.metrics"
     assert DIAG_ERROR == "diagnostics.error"
     assert DIAG_EXPORT == "diagnostics.export"
+
+
+def test_capture_error_snapshot_traceback_uses_exc_not_current_handler():
+    """Regression: ``capture_error_snapshot`` previously used
+    ``traceback.format_exc()``, which formats the *currently handled*
+    exception from ``sys.exc_info()``. That produced an empty or wrong
+    traceback whenever the helper was called outside an ``except:``
+    block, or while a *different* exception was being handled (e.g.,
+    diagnostics captured during cleanup that itself raised).
+
+    The fix formats the passed-in ``exc`` directly, so the snapshot is
+    self-contained and independent of ``sys.exc_info()`` state.
+    """
+    plugin = DiagnosticsPlugin()
+
+    # Build an exception with a real traceback, then let it escape the
+    # except block so sys.exc_info() goes back to (None, None, None).
+    captured: ValueError | None = None
+    try:
+        raise ValueError("boom-outer")
+    except ValueError as exc:  # noqa: BLE001
+        captured = exc
+    assert captured is not None and captured.__traceback__ is not None
+
+    # Now an unrelated exception is being handled — the naive
+    # ``format_exc()`` would serialize *this* one instead of boom-outer.
+    try:
+        raise RuntimeError("unrelated-currently-handled")
+    except RuntimeError:
+        snap = plugin.capture_error_snapshot(
+            run_id="r1",
+            agent_id="a1",
+            session_id="s1",
+            exc=captured,
+            ctx=None,
+            usage=None,
+        )
+
+    assert snap.error_type == "ValueError"
+    assert snap.error_message == "boom-outer"
+    # Traceback must describe the passed exception, not the surrounding one.
+    assert "boom-outer" in snap.traceback
+    assert "ValueError" in snap.traceback
+    assert "unrelated-currently-handled" not in snap.traceback
+
+
+def test_capture_error_snapshot_traceback_outside_except_block():
+    """Even when nothing is currently being handled, formatting from the
+    passed ``exc`` must still produce a non-empty traceback (given that
+    the exception carries a ``__traceback__``)."""
+    plugin = DiagnosticsPlugin()
+
+    try:
+        raise KeyError("missing-key")
+    except KeyError as exc:  # noqa: BLE001
+        captured = exc
+
+    # Call the helper after the except block has exited.
+    snap = plugin.capture_error_snapshot(
+        run_id="r1",
+        agent_id="a1",
+        session_id="s1",
+        exc=captured,
+        ctx=None,
+        usage=None,
+    )
+    assert snap.error_type == "KeyError"
+    assert "missing-key" in snap.traceback
+    assert "KeyError" in snap.traceback

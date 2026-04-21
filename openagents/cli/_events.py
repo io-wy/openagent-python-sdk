@@ -46,6 +46,7 @@ _TOOL_ICON = "🔧"
 _TOOL_OK_ICON = "✓"
 _TOOL_FAIL_ICON = "✗"
 _LLM_ICON = "🧠"
+_LLM_FAIL_ICON = "✗"
 
 
 def default_excludes() -> list[str]:
@@ -98,6 +99,8 @@ class EventFormatter:
             self._render_llm_called(payload)
         elif name == "llm.succeeded":
             self._render_llm_succeeded(payload)
+        elif name == "llm.failed":
+            self._render_llm_failed(payload)
         else:
             self._render_generic(name, payload)
 
@@ -186,6 +189,28 @@ class EventFormatter:
         )
         if elapsed_ms is not None:
             _append(line, f"  {elapsed_ms} ms", style="dim")
+        self._console.print(line)
+
+    def _render_llm_failed(self, payload: dict[str, Any]) -> None:
+        model = str(payload.get("model") or "?")
+        elapsed_ms = _pop_elapsed(self._llm_start_ns, model)
+        err = ""
+        metrics = payload.get("_metrics")
+        if metrics is not None:
+            err = str(getattr(metrics, "error", None) or "")
+        if not err:
+            err = str(payload.get("error") or "")
+        line = self._build_line(
+            prefix=f"{_LLM_FAIL_ICON} ",
+            prefix_style="bold red",
+            text=model,
+            text_style="bold red",
+        )
+        if elapsed_ms is not None:
+            _append(line, f"  {elapsed_ms} ms", style="dim")
+        if err:
+            _append(line, "  ")
+            _append(line, err[:200], style="red")
         self._console.print(line)
 
     # ------------------------------------------------------------- generic
