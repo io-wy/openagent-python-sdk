@@ -18,6 +18,7 @@ from openagents.plugins.builtin.context.head_tail import HeadTailContextAssemble
 from openagents.plugins.builtin.context.importance_weighted import ImportanceWeightedContextAssembler
 from openagents.plugins.builtin.context.sliding_window import SlidingWindowContextAssembler
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
+from openagents.plugins.builtin.diagnostics.langfuse_plugin import LangfuseExporter
 from openagents.plugins.builtin.diagnostics.null_plugin import NullDiagnosticsPlugin
 from openagents.plugins.builtin.diagnostics.rich_plugin import RichDiagnosticsPlugin
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
@@ -130,6 +131,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     "diagnostics": {
         "null": NullDiagnosticsPlugin,
         "rich": RichDiagnosticsPlugin,
+        "langfuse": LangfuseExporter,
     },
     "tool_executor": {
         "safe": SafeToolExecutor,
