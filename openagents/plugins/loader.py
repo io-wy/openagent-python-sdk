@@ -10,6 +10,7 @@ from typing import Any
 from openagents.config.schema import (
     AgentDefinition,
     ContextAssemblerRef,
+    DiagnosticsRef,
     EventBusRef,
     MemoryRef,
     PatternRef,
@@ -52,6 +53,7 @@ class LoadedRuntimeComponents:
     session: Any
     events: Any
     skills: Any
+    diagnostics: Any = None
 
 
 def _import_symbol(path: str) -> Any:
@@ -283,11 +285,21 @@ def load_skills_plugin(ref: SkillsRef | None) -> SkillsPlugin:
     return plugin
 
 
+def load_diagnostics_plugin(ref: DiagnosticsRef | None) -> Any:
+    """Load a diagnostics plugin. Returns NullDiagnosticsPlugin when ref is None."""
+    from openagents.plugins.builtin.diagnostics.null_plugin import NullDiagnosticsPlugin
+
+    if ref is None:
+        return NullDiagnosticsPlugin()
+    return _load_plugin_impl("diagnostics", ref)
+
+
 def load_runtime_components(
     runtime_ref: RuntimeRef,
     session_ref: SessionRef,
     events_ref: EventBusRef,
     skills_ref: SkillsRef | None,
+    diagnostics_ref: DiagnosticsRef | None = None,
 ) -> LoadedRuntimeComponents:
     """Load all runtime components from config references.
 
@@ -295,6 +307,7 @@ def load_runtime_components(
     via pydantic field defaults, so callers always pass real refs for
     those three. ``skills_ref`` remains optional because
     :func:`load_skills_plugin` owns its own default (``type=local``).
+    ``diagnostics_ref`` is optional; None yields a NullDiagnosticsPlugin.
     Handles dependency injection between components.
     """
     # Load events first (no dependencies)
@@ -308,6 +321,9 @@ def load_runtime_components(
     if hasattr(skills, "_session_manager"):
         skills._session_manager = session
 
+    # Load diagnostics plugin
+    diagnostics = load_diagnostics_plugin(diagnostics_ref)
+
     # Load runtime with injected dependencies
     runtime = load_runtime_plugin(runtime_ref)
 
@@ -316,5 +332,13 @@ def load_runtime_components(
         runtime._event_bus = events
     if hasattr(runtime, "_session_manager"):
         runtime._session_manager = session
+    if hasattr(runtime, "_diagnostics"):
+        runtime._diagnostics = diagnostics
 
-    return LoadedRuntimeComponents(runtime=runtime, session=session, events=events, skills=skills)
+    return LoadedRuntimeComponents(
+        runtime=runtime,
+        session=session,
+        events=events,
+        skills=skills,
+        diagnostics=diagnostics,
+    )

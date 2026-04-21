@@ -53,6 +53,9 @@ class DiagnosticsPlugin:
     the RunContext was fully constructed).
     """
 
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        self._config: dict[str, Any] = dict(config or {})
+
     def record_llm_call(self, run_id: str, metrics: LLMCallMetrics) -> None:
         """Accumulate metrics for one LLM call within the given run."""
 
