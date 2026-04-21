@@ -11,6 +11,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC_FILES = [
+    REPO_ROOT / "README.md",
     REPO_ROOT / "README_EN.md",
     REPO_ROOT / "README_CN.md",
     REPO_ROOT / "docs" / "examples.md",

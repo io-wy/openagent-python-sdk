@@ -393,7 +393,7 @@ Full example guide: [docs/examples.md](docs/examples.md)
 
 ## Documentation
 
-Developer docs live in [`docs/`](docs/README.md).
+Developer docs live in the [`docs`](docs/README.md) directory.
 
 | Document | Description |
 |---|---|
@@ -439,7 +439,7 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-**Rule:** When adding, removing, or changing code under `openagents/`, you **must** add/update/remove the corresponding tests in the same change. The test suite and source are co-evolved.
+**Rule:** When adding, removing, or changing code under the `openagents` package, you **must** add/update/remove the corresponding tests in the same change. The test suite and source are co-evolved.
 
 ---
 
