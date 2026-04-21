@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
 from openagents.errors.exceptions import BudgetExhausted, ModelRetryError
+from openagents.interfaces.diagnostics import LLMCallMetrics
 
 from .plugin import BasePlugin
 from .run_context import RunContext
@@ -296,12 +298,29 @@ class PatternPlugin(BasePlugin):
                 ctx.scratch["__cost_skipped_emitted__"] = True
 
         await self.emit("llm.called", model=model)
-        response = await ctx.llm_client.generate(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        _t_start = time.monotonic()
+        try:
+            response = await ctx.llm_client.generate(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except BaseException as exc:
+            latency_ms = (time.monotonic() - _t_start) * 1000.0
+            failure_metrics = LLMCallMetrics(
+                model=model or "",
+                latency_ms=latency_ms,
+                input_tokens=0,
+                output_tokens=0,
+                cached_tokens=0,
+                error=str(exc),
+            )
+            await self.emit("llm.failed", model=model, _metrics=failure_metrics)
+            raise
+        latency_ms = (time.monotonic() - _t_start) * 1000.0
+
+        call_cached_read = 0
         if ctx.usage is not None:
             ctx.usage.llm_calls += 1
             if response.usage is not None:
@@ -312,6 +331,7 @@ class PatternPlugin(BasePlugin):
                 meta = response.usage.metadata or {}
                 cached_read = int(meta.get("cache_read_input_tokens", meta.get("cached_tokens", 0)) or 0)
                 cached_write = int(meta.get("cache_creation_input_tokens", 0) or 0)
+                call_cached_read = cached_read
                 ctx.usage.input_tokens_cached += cached_read
                 ctx.usage.input_tokens_cache_creation += cached_write
 
@@ -325,8 +345,16 @@ class PatternPlugin(BasePlugin):
                     ctx.usage.cost_usd = current + float(call_cost)
                     for bucket, amount in (meta.get("cost_breakdown") or {}).items():
                         ctx.usage.cost_breakdown[bucket] = ctx.usage.cost_breakdown.get(bucket, 0.0) + float(amount)
+        call_metrics = LLMCallMetrics(
+            model=model or "",
+            latency_ms=latency_ms,
+            input_tokens=response.usage.input_tokens if response.usage is not None else 0,
+            output_tokens=response.usage.output_tokens if response.usage is not None else 0,
+            cached_tokens=call_cached_read,
+            ttft_ms=None,
+        )
         await self.emit("usage.updated", usage=ctx.usage.model_dump() if ctx.usage else None)
-        await self.emit("llm.succeeded", model=model)
+        await self.emit("llm.succeeded", model=model, _metrics=call_metrics)
 
         # Cost-budget post-call check.
         if (
