@@ -46,6 +46,10 @@ yaml = [
 langfuse = [
     "langfuse>=2.0.0",
 ]
+phoenix = [
+    "opentelemetry-api>=1.25.0",
+    "arize-phoenix-otel>=0.6.0",
+]
 cli = [
     "io-openagent-sdk[rich,yaml]",
     "questionary>=2.0.1",
@@ -58,7 +62,7 @@ pptx = [
     "httpx>=0.27.0",
 ]
 all = [
-    "io-openagent-sdk[cli,mcp,mem0,openai,otel,rich,sqlite,dev,tokenizers,yaml,pptx,langfuse]",
+    "io-openagent-sdk[cli,mcp,mem0,openai,otel,rich,sqlite,dev,tokenizers,yaml,pptx,langfuse,phoenix]",
 ]
 
 [project.scripts]
@@ -89,6 +93,7 @@ omit = [
     "openagents/plugins/builtin/session/sqlite_backed.py",
     "openagents/plugins/builtin/events/otel_bridge.py",
     "openagents/plugins/builtin/diagnostics/langfuse_plugin.py",
+    "openagents/plugins/builtin/diagnostics/phoenix_plugin.py",
 ]
 
 [dependency-groups]
