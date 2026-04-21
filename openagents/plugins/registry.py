@@ -20,6 +20,7 @@ from openagents.plugins.builtin.context.sliding_window import SlidingWindowConte
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
 from openagents.plugins.builtin.diagnostics.langfuse_plugin import LangfuseExporter
 from openagents.plugins.builtin.diagnostics.null_plugin import NullDiagnosticsPlugin
+from openagents.plugins.builtin.diagnostics.phoenix_plugin import PhoenixExporter
 from openagents.plugins.builtin.diagnostics.rich_plugin import RichDiagnosticsPlugin
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
 from openagents.plugins.builtin.events.file_logging import FileLoggingEventBus
@@ -132,6 +133,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "null": NullDiagnosticsPlugin,
         "rich": RichDiagnosticsPlugin,
         "langfuse": LangfuseExporter,
+        "phoenix": PhoenixExporter,
     },
     "tool_executor": {
         "safe": SafeToolExecutor,
