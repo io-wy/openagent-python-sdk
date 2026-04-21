@@ -101,6 +101,21 @@ class SkillsRef(PluginRef):
     """Host-level skills component reference."""
 
 
+class DiagnosticsRef(PluginRef):
+    """Diagnostics plugin reference at global level."""
+
+    error_snapshot_last_n: int = 10
+    redact_keys: list[str] = Field(
+        default_factory=lambda: [
+            "api_key",
+            "token",
+            "secret",
+            "password",
+            "authorization",
+        ]
+    )
+
+
 class RuntimeOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -265,6 +280,7 @@ class AppConfig(BaseModel):
     events: EventBusRef = Field(default_factory=lambda: EventBusRef(type="async"))
     skills: SkillsRef = Field(default_factory=lambda: SkillsRef(type="local"))
     logging: LoggingConfig | None = None
+    diagnostics: DiagnosticsRef | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -292,4 +308,6 @@ class AppConfig(BaseModel):
         self.session.validate_selector("session")
         self.events.validate_selector("events")
         self.skills.validate_selector("skills")
+        if self.diagnostics is not None:
+            self.diagnostics.validate_selector("diagnostics")
         return self

@@ -18,6 +18,7 @@ from openagents.plugins.builtin.context.head_tail import HeadTailContextAssemble
 from openagents.plugins.builtin.context.importance_weighted import ImportanceWeightedContextAssembler
 from openagents.plugins.builtin.context.sliding_window import SlidingWindowContextAssembler
 from openagents.plugins.builtin.context.truncating import TruncatingContextAssembler
+from openagents.plugins.builtin.diagnostics.null_plugin import NullDiagnosticsPlugin
 from openagents.plugins.builtin.events.async_event_bus import AsyncEventBus
 from openagents.plugins.builtin.events.file_logging import FileLoggingEventBus
 from openagents.plugins.builtin.events.otel_bridge import OtelEventBusBridge
@@ -89,6 +90,7 @@ _DECORATOR_REGISTRY_MAP: dict[str, dict[str, type[Any]]] = {
     "session": _SESSION_REGISTRY,
     "events": _EVENT_REGISTRY,
     "skills": {},
+    "diagnostics": {},
     "tool_executor": _TOOL_EXECUTOR_REGISTRY,
     "context_assembler": _CONTEXT_ASSEMBLER_REGISTRY,
     "tool": _TOOL_REGISTRY,
@@ -123,6 +125,9 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
     },
     "skills": {
         "local": LocalSkillsManager,
+    },
+    "diagnostics": {
+        "null": NullDiagnosticsPlugin,
     },
     "tool_executor": {
         "safe": SafeToolExecutor,
