@@ -522,6 +522,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         self._init_typed_config()
         self._event_bus: EventBusPlugin | None = None
         self._session_manager: Any | None = None
+        self._diagnostics: Any | None = None
         self._llm_clients: dict[str, Any | None] = {}
         self._tool_executor: ToolExecutor | None = None
         self._context_assembler: ContextAssemblerPlugin | None = None
@@ -598,6 +599,39 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         tool_executor = self._resolve_tool_executor(agent_plugins)
         context_assembler = self._resolve_context_assembler(agent_plugins)
         started_at = time.perf_counter()
+
+        # Diagnostics wiring: record metrics from pattern.call_llm and
+        # maintain a tool-call chain that capture_error_snapshot can read.
+        diag = self._diagnostics
+        diag_tool_chain: list[dict[str, Any]] = []
+        diag_llm_handler = None
+        diag_llm_fail_handler = None
+        diag_tool_called_handler = None
+        if diag is not None:
+            from openagents.interfaces.diagnostics import LLMCallMetrics as _LLMCallMetrics
+
+            def _diag_llm_handler(event):
+                metrics = (event.payload or {}).get("_metrics")
+                if isinstance(metrics, _LLMCallMetrics):
+                    diag.record_llm_call(request.run_id, metrics)
+
+            def _diag_tool_called_handler(event):
+                payload = event.payload or {}
+                entry = {
+                    "tool_id": payload.get("tool_id"),
+                    "params": payload.get("params"),
+                }
+                call_id = payload.get("call_id")
+                if call_id is not None:
+                    entry["call_id"] = call_id
+                diag_tool_chain.append(entry)
+
+            diag_llm_handler = _diag_llm_handler
+            diag_llm_fail_handler = _diag_llm_handler
+            diag_tool_called_handler = _diag_tool_called_handler
+            self._event_bus.subscribe("llm.succeeded", diag_llm_handler)
+            self._event_bus.subscribe("llm.failed", diag_llm_fail_handler)
+            self._event_bus.subscribe("tool.called", diag_tool_called_handler)
 
         resumed_from_checkpoint: SessionCheckpoint | None = None
         try:
@@ -738,6 +772,11 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 if pattern_ctx is not None and isinstance(getattr(pattern_ctx, "scratch", None), dict):
                     pattern_ctx.scratch.setdefault("__cancel_event__", _asyncio.Event())
                     pattern_ctx.scratch["__mcp_session_pool__"] = mcp_pool
+                    if diag is not None:
+                        # Expose the tool-call chain on the pattern's RunContext so
+                        # DiagnosticsPlugin.capture_error_snapshot can read it if
+                        # an exception fires before we return.
+                        pattern_ctx.scratch["_diag_tool_chain"] = diag_tool_chain
 
                 await self._event_bus.emit(
                     CONTEXT_CREATED,
@@ -968,6 +1007,11 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     stop_reason=RUN_STOP_COMPLETED,
                     duration_ms=int((time.perf_counter() - started_at) * 1000),
                 )
+                if diag is not None:
+                    try:
+                        diag.on_run_complete(run_result, None)
+                    except Exception:  # noqa: BLE001 - diagnostics must never break the run
+                        logger.exception("diagnostics on_run_complete raised; ignored")
                 return run_result
         except Exception as exc:
             wrapped_exc = exc
@@ -1025,7 +1069,47 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             )
             if finalized_result is not None:
                 run_result = finalized_result
+            if diag is not None:
+                try:
+                    pattern_ctx_for_snapshot = None
+                    if agent_plugins is not None:
+                        pattern_ctx_for_snapshot = getattr(agent_plugins.pattern, "context", None)
+                    snapshot = diag.capture_error_snapshot(
+                        run_id=request.run_id,
+                        agent_id=request.agent_id,
+                        session_id=request.session_id,
+                        exc=wrapped_exc,
+                        ctx=pattern_ctx_for_snapshot,
+                        usage=usage,
+                    )
+                    run_result.metadata["error_snapshot"] = {
+                        "run_id": snapshot.run_id,
+                        "error_type": snapshot.error_type,
+                        "error_message": snapshot.error_message,
+                        "tool_call_chain": snapshot.tool_call_chain,
+                        "last_transcript": snapshot.last_transcript,
+                        "captured_at": snapshot.captured_at,
+                    }
+                    diag.on_run_complete(run_result, snapshot)
+                except Exception:  # noqa: BLE001 - diagnostics must never mask the original error
+                    logger.exception("diagnostics failure-path hook raised; ignored")
             return run_result
+        finally:
+            if diag_llm_handler is not None:
+                try:
+                    self._event_bus.unsubscribe("llm.succeeded", diag_llm_handler)
+                except Exception:  # noqa: BLE001 - best-effort cleanup
+                    pass
+            if diag_llm_fail_handler is not None:
+                try:
+                    self._event_bus.unsubscribe("llm.failed", diag_llm_fail_handler)
+                except Exception:  # noqa: BLE001
+                    pass
+            if diag_tool_called_handler is not None:
+                try:
+                    self._event_bus.unsubscribe("tool.called", diag_tool_called_handler)
+                except Exception:  # noqa: BLE001
+                    pass
 
     def _get_llm_client(self, agent: "AgentDefinition") -> Any | None:
         if agent.id in self._llm_clients:

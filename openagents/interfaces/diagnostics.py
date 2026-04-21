@@ -87,7 +87,11 @@ class DiagnosticsPlugin:
         state: dict[str, Any] = {}
 
         if ctx is not None:
-            chain = list(getattr(ctx, "_diag_tool_chain", []) or [])
+            scratch_chain = None
+            scratch = getattr(ctx, "scratch", None)
+            if isinstance(scratch, dict):
+                scratch_chain = scratch.get("_diag_tool_chain")
+            chain = list(scratch_chain or getattr(ctx, "_diag_tool_chain", []) or [])
             raw_transcript = getattr(ctx, "transcript", []) or []
             transcript = list(raw_transcript[-last_n:])
             raw_state = getattr(ctx, "state", {}) or {}
