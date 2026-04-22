@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from pydantic import BaseModel
 
 from openagents.errors import ErrorDetails
@@ -101,8 +102,6 @@ def test_error_details_cycle_safe():
 
 
 def test_run_result_has_error_details_not_error_or_exception():
-    import pytest
-
     result = RunResult(run_id="r1")
     assert result.error_details is None
     # Breaking: old fields removed outright.
