@@ -122,6 +122,8 @@ class LoggingConfig(BaseModel):
 
 **不**为 `loguru_sinks` 结构本身设计 env var。多 sink 配置只能走 `LoggingConfig` 对象或 YAML。
 
+**与 env 合并的交互：** `merge_env_overrides(base)` 会用 `LoggingConfig(**merged)` 重建模型，这意味着 `_check_backend_exclusivity` model_validator 会**再次运行**。如果 YAML 声明了 `loguru_sinks` 而用户又设了 `OPENAGENTS_LOG_PRETTY=1`，合并后会触发互斥校验并抛 `ValidationError`。这是期望行为（loud fail 优于静默二选一），spec 要求实现与测试都覆盖这一路径。
+
 ### 3.3 典型配置样例
 
 ```yaml
@@ -235,8 +237,24 @@ def remove_installed_sinks() -> None:
     _INSTALLED_SINK_IDS.clear()
 
 
+# Python LogRecord 的标准字段集合；与 filters.RedactFilter 中的 skip set 一致
+_LOGRECORD_STD_ATTRS: frozenset[str] = frozenset({
+    "args", "asctime", "created", "exc_info", "exc_text", "filename",
+    "funcName", "levelname", "levelno", "lineno", "message", "module",
+    "msecs", "msg", "name", "pathname", "process", "processName",
+    "relativeCreated", "stack_info", "thread", "threadName",
+})
+
+
 class _LoguruInterceptHandler(logging.Handler):
-    """stdlib LogRecord → loguru.logger 的转发器。"""
+    """stdlib LogRecord → loguru.logger 的转发器。
+
+    采用 loguru 官方 README 推荐的 InterceptHandler 模式：
+    - 动态帧回溯求 depth（而非固定值）——在 stdlib logging 内部栈帧走完之前不停
+    - level 名→loguru level 查找带 ValueError fallback，自定义数字级别也不丢
+    - 非 underscore / 非标准 LogRecord 字段作为 extras 透传，让 RedactFilter
+      过滤后的结果实际落到 serialize=True 的 JSON sink 里
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -245,13 +263,33 @@ class _LoguruInterceptHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            self._logger.bind(
-                _openagents=True,
-                _oa_name=record.name,
-            ).opt(
-                depth=6,
+            # 1. level 查找 + 数字 fallback（官方 InterceptHandler 模式）
+            try:
+                level = self._logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+
+            # 2. 动态 depth：从当前帧向上走，跳过 stdlib logging 内部帧
+            import logging as _logging_mod
+            frame = logging.currentframe()
+            depth = 2
+            while frame and frame.f_code.co_filename == _logging_mod.__file__:
+                frame = frame.f_back
+                depth += 1
+
+            # 3. 收集 extras：跳过下划线开头和 LogRecord 标准字段
+            extras: dict[str, Any] = {}
+            for key, value in record.__dict__.items():
+                if key.startswith("_") or key in _LOGRECORD_STD_ATTRS:
+                    continue
+                extras[key] = value
+            extras["_openagents"] = True
+            extras["_oa_name"] = record.name
+
+            self._logger.bind(**extras).opt(
+                depth=depth,
                 exception=record.exc_info,
-            ).log(record.levelname, record.getMessage())
+            ).log(level, record.getMessage())
         except Exception:
             self.handleError(record)
 ```
@@ -265,6 +303,12 @@ def _build_handler(config: LoggingConfig) -> logging.Handler:
         loguru_disabled is not None
         and loguru_disabled.lower() in {"1", "true", "yes", "on"}
     )
+    if config.loguru_sinks and loguru_disabled_flag:
+        _OBS_LOGGER.warning(
+            "OPENAGENTS_LOG_LOGURU_DISABLE set; %d loguru sink(s) skipped, "
+            "falling back to plain StreamHandler",
+            len(config.loguru_sinks),
+        )
     if config.loguru_sinks and not loguru_disabled_flag:
         from openagents.observability._loguru import (
             _LoguruInterceptHandler,
@@ -297,11 +341,15 @@ def reset_logging() -> None:
 
 `configure()` 在 `_build_handler()` 抛异常时必须保证 sink 已回滚——`install_sinks()` 自身的 batch rollback 已负责；`configure()` 层额外加一个 try：handler 构造成功后、后续 `addFilter` 链条任何一步失败时，也要 `remove_installed_sinks()` + 重置 root logger 状态，确保不留半配置。
 
+**载荷不变量（必须写死在实现里并被测试锁定）：** `configure()` 第一行调用 `reset_logging()` 清空所有既有状态，紧接着 `_build_handler()` 里 `install_sinks()` 才会往 `_INSTALLED_SINK_IDS` 写新 sink ID。这意味着：后续 filter 链路失败触发的 `remove_installed_sinks()` 调用，`_INSTALLED_SINK_IDS` 里**有且仅有**本次 `configure()` 本调用刚安装的 batch——不会误杀任何前一次 configure 残留。这个顺序是 rollback 正确性的载荷不变量，不可调换。
+
 ### 4.3 实现要点
 
 | 选择 | 理由 |
 | --- | --- |
-| `opt(depth=6)` | 让 loguru 的 `{name}:{function}:{line}` 指向业务调用点。精确值需在测试里微调 |
+| 动态 `depth` 帧回溯 | 让 loguru 的 `{name}:{function}:{line}` 指向业务调用点；固定 `depth=N` 在 `LoggerAdapter` / 额外 filter / Python 版本差异下会指错。采用官方 README 的 InterceptHandler pattern——从 `logging.currentframe()` 出发，跳过文件名等于 `logging.__file__` 的所有栈帧 |
+| Level 名查找 + 数字 fallback | `logger.level(record.levelname).name` 覆盖标准名；`ValueError` 分支回落到 `record.levelno` 支持用户自定义数字级别，不静默丢记录 |
+| 非标准字段作为 extras 透传到 `bind(**extras)` | LogRecord 上的自定义字段（`logger.info("msg", extra={"request_id": ...})` 或直接写属性）要流进 loguru `record["extra"]`，否则 `serialize=True` JSON sink 拿不到结构化字段；使用和 `RedactFilter.skip` 同一份标准字段集合避免双份定义漂移 |
 | `bind(_openagents=True, _oa_name=record.name)` 而非改全局 state | 每条记录带 tag，sink filter 靠 tag 隔离 |
 | sink ID 存 `list` 而非 `set` | 保留 `add` 顺序；与 loguru 内部习惯一致 |
 | `_require_loguru()` 在 handler `__init__` 就调 | 早失败；不等到首条日志才抛 |
@@ -345,6 +393,7 @@ class LoguruNotInstalledError(ImportError):
 
 | # | 用例 | 依赖 loguru |
 |---|---|---|
+| 0 | `configure(loguru_sinks=[stderr])` → 发记录 → sink 收到，记录的 `function` / `line` 指向业务 caller 而非 handler（验证动态 depth 帧回溯） | ✅ |
 | 1 | `configure(loguru_sinks=[stderr])` → 发记录 → sink 收到 | ✅ |
 | 2 | 多 sink：stderr colorize + file serialize → 各收各的 | ✅ |
 | 3 | 用户自装 loguru sink 后 `configure(...)` → 用户 sink 不收 openagents 记录 | ✅ |
@@ -353,10 +402,13 @@ class LoguruNotInstalledError(ImportError):
 | 6 | `LoggingConfig(pretty=True, loguru_sinks=[...])` → pydantic `model_validator` 拒绝 | ❌ |
 | 7 | `loguru_sinks` 非空 + loguru 未装 → `LoguruNotInstalledError`（pip 指令在消息里） | 需模拟 import 失败 |
 | 8 | `OPENAGENTS_LOG_LOGURU_DISABLE=1` → 降级 plain `StreamHandler`，发 WARNING | ❌ |
-| 9 | `RedactFilter` 在转发前运行：`record.extra["api_key"]="sk-xxx"` → sink 收 `<redacted>` | ✅ |
+| 9 | `logger.info("...", extra={"api_key": "sk-xxx", "request_id": "r-1"})` + `RedactFilter` → `serialize=True` sink 收到 JSON，`api_key` 值被 redact、`request_id` 原样保留 | ✅ |
 | 10 | `logger.exception("boom")` 的 traceback 传到 loguru 侧（`opt(exception=…)` 生效） | ✅ |
 | 11 | `install_sinks` 中途一个 rotation 字符串非法 → 已装的本次 sink 回滚，异常向上抛 | ✅ |
 | 12 | `reset_logging()` 幂等：空状态下重复调不抛 | ✅ |
+| 13 | 自定义数字级别（`logging.addLevelName(25, "VERBOSE")`）→ 不被 emit 静默丢弃，loguru 侧以数字级别记录 | ✅ |
+| 14 | `LoggingConfig(loguru_sinks=[...])` + `OPENAGENTS_LOG_PRETTY=1` env → `merge_env_overrides` 重建时触发互斥校验并抛 `ValidationError` | ❌ |
+| 15 | 非 underscore 的 record 自定义属性流入 loguru `extra`：发 `logger.info("x", extra={"request_id": "r-1"})` → `serialize=True` sink 的 JSON 输出里能看到 `record.extra.request_id == "r-1"` | ✅ |
 
 fixture 复用既有 `_reset_before_and_after` autouse 模式，同时扩展清理 loguru 侧残留。
 
