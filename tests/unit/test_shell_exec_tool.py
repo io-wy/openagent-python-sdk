@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import sys
 
 import pytest
@@ -69,9 +68,9 @@ async def test_env_passthrough_and_merge(monkeypatch):
     result = await tool.invoke(
         {
             "command": [
-                sys.executable, "-c",
-                "import os; print(os.environ.get('FOO_PASS','')); "
-                "print(os.environ.get('BAR_BLOCKED',''))",
+                sys.executable,
+                "-c",
+                "import os; print(os.environ.get('FOO_PASS','')); print(os.environ.get('BAR_BLOCKED',''))",
             ],
             "env": {"EXTRA": "via_invoke"},
         },

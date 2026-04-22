@@ -24,22 +24,32 @@ from examples.pptx_generator.wizard.slides import SlideGeneratorWizardStep
 
 def _base_project(n: int = 3) -> DeckProject:
     specs = [
-        SlideSpec(index=i, type="content", title=f"S{i}", key_points=["a"], sources_cited=[])
-        for i in range(1, n + 1)
+        SlideSpec(index=i, type="content", title=f"S{i}", key_points=["a"], sources_cited=[]) for i in range(1, n + 1)
     ]
     return DeckProject(
-        slug="x", created_at=datetime.now(timezone.utc), stage="slides",
+        slug="x",
+        created_at=datetime.now(timezone.utc),
+        stage="slides",
         intent=IntentReport(
-            topic="t", audience="a", purpose="pitch", tone="formal",
-            slide_count_hint=n, required_sections=[], visuals_hint=[],
-            research_queries=[], language="zh",
+            topic="t",
+            audience="a",
+            purpose="pitch",
+            tone="formal",
+            slide_count_hint=n,
+            required_sections=[],
+            visuals_hint=[],
+            research_queries=[],
+            language="zh",
         ),
         research=ResearchFindings(),
         outline=SlideOutline(slides=specs),
         theme=ThemeSelection(
             palette=Palette(
-                primary="111111", secondary="222222", accent="333333",
-                light="444444", bg="555555",
+                primary="111111",
+                secondary="222222",
+                accent="333333",
+                light="444444",
+                bg="555555",
             ),
             fonts=FontPairing(heading="Arial", body="Arial", cjk="Microsoft YaHei"),
             style="sharp",

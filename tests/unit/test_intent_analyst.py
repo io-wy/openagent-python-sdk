@@ -17,26 +17,26 @@ def _make_context(llm_complete_return: str, user_prompt: str = "Make me a 6-slid
         tool_results=[],
         state={},
         assembly_metadata={},
-        llm_client=SimpleNamespace(
-            complete=AsyncMock(return_value=llm_complete_return)
-        ),
+        llm_client=SimpleNamespace(complete=AsyncMock(return_value=llm_complete_return)),
     )
     return ctx
 
 
 @pytest.mark.asyncio
 async def test_intent_produces_valid_report():
-    payload = json.dumps({
-        "topic": "AI backup tool",
-        "audience": "VC investors",
-        "purpose": "pitch",
-        "tone": "energetic",
-        "slide_count_hint": 6,
-        "required_sections": ["problem", "solution", "market", "ask"],
-        "visuals_hint": ["architecture diagram"],
-        "research_queries": ["enterprise backup market 2026"],
-        "language": "en",
-    })
+    payload = json.dumps(
+        {
+            "topic": "AI backup tool",
+            "audience": "VC investors",
+            "purpose": "pitch",
+            "tone": "energetic",
+            "slide_count_hint": 6,
+            "required_sections": ["problem", "solution", "market", "ask"],
+            "visuals_hint": ["architecture diagram"],
+            "research_queries": ["enterprise backup market 2026"],
+            "language": "en",
+        }
+    )
     pattern = IntentAnalystPattern(config={})
     pattern.context = _make_context(payload)
     result = await pattern.execute()
@@ -53,12 +53,19 @@ async def test_intent_invalid_json_retries_once():
         call_log.append(messages)
         if len(call_log) == 1:
             return "not json"
-        return json.dumps({
-            "topic": "t", "audience": "a", "purpose": "pitch",
-            "tone": "formal", "slide_count_hint": 5,
-            "required_sections": [], "visuals_hint": [],
-            "research_queries": [], "language": "zh",
-        })
+        return json.dumps(
+            {
+                "topic": "t",
+                "audience": "a",
+                "purpose": "pitch",
+                "tone": "formal",
+                "slide_count_hint": 5,
+                "required_sections": [],
+                "visuals_hint": [],
+                "research_queries": [],
+                "language": "zh",
+            }
+        )
 
     pattern = IntentAnalystPattern(config={"max_steps": 3})
     pattern.context = SimpleNamespace(
@@ -85,12 +92,20 @@ async def test_intent_exhaust_retries_raises():
 @pytest.mark.asyncio
 async def test_intent_handles_fenced_with_trailing_text():
     import json
-    payload = json.dumps({
-        "topic": "t", "audience": "a", "purpose": "pitch",
-        "tone": "formal", "slide_count_hint": 5,
-        "required_sections": [], "visuals_hint": [],
-        "research_queries": [], "language": "zh",
-    })
+
+    payload = json.dumps(
+        {
+            "topic": "t",
+            "audience": "a",
+            "purpose": "pitch",
+            "tone": "formal",
+            "slide_count_hint": 5,
+            "required_sections": [],
+            "visuals_hint": [],
+            "research_queries": [],
+            "language": "zh",
+        }
+    )
     fenced = f"```json\n{payload}\n```\n\n(additional commentary the LLM added)"
     pattern = IntentAnalystPattern(config={})
     pattern.context = _make_context(fenced)

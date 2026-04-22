@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,31 +8,54 @@ from unittest.mock import AsyncMock
 import pytest
 
 from examples.pptx_generator.state import (
-    DeckProject, FontPairing, IntentReport, Palette, ResearchFindings,
-    SlideIR, SlideOutline, SlideSpec, ThemeSelection,
+    DeckProject,
+    FontPairing,
+    IntentReport,
+    Palette,
+    ResearchFindings,
+    SlideIR,
+    SlideOutline,
+    SlideSpec,
+    ThemeSelection,
 )
 from examples.pptx_generator.wizard.compile_qa import CompileQAWizardStep
 
 
 def _project(n=1):
     theme = ThemeSelection(
-        palette=Palette(primary="111111", secondary="222222",
-                        accent="333333", light="444444", bg="555555"),
+        palette=Palette(primary="111111", secondary="222222", accent="333333", light="444444", bg="555555"),
         fonts=FontPairing(heading="Arial", body="Arial", cjk="Microsoft YaHei"),
-        style="sharp", page_badge_style="circle",
+        style="sharp",
+        page_badge_style="circle",
     )
-    slides = [SlideIR(index=i, type="cover" if i == 1 else "content",
-                       slots={"title": f"S{i}"},
-                       generated_at=datetime.now(timezone.utc))
-              for i in range(1, n + 1)]
-    outline_specs = [SlideSpec(index=i, type=s.type, title=f"S{i}",
-                                key_points=[], sources_cited=[])
-                     for i, s in enumerate(slides, start=1)]
+    slides = [
+        SlideIR(
+            index=i,
+            type="cover" if i == 1 else "content",
+            slots={"title": f"S{i}"},
+            generated_at=datetime.now(timezone.utc),
+        )
+        for i in range(1, n + 1)
+    ]
+    outline_specs = [
+        SlideSpec(index=i, type=s.type, title=f"S{i}", key_points=[], sources_cited=[])
+        for i, s in enumerate(slides, start=1)
+    ]
     return DeckProject(
-        slug="x", created_at=datetime.now(timezone.utc), stage="compile",
-        intent=IntentReport(topic="t", audience="a", purpose="pitch", tone="formal",
-                            slide_count_hint=max(3, n), required_sections=[],
-                            visuals_hint=[], research_queries=[], language="zh"),
+        slug="x",
+        created_at=datetime.now(timezone.utc),
+        stage="compile",
+        intent=IntentReport(
+            topic="t",
+            audience="a",
+            purpose="pitch",
+            tone="formal",
+            slide_count_hint=max(3, n),
+            required_sections=[],
+            visuals_hint=[],
+            research_queries=[],
+            language="zh",
+        ),
         research=ResearchFindings(),
         outline=SlideOutline(slides=outline_specs),
         theme=theme,
@@ -80,12 +102,15 @@ async def test_writes_slide_files_and_compiles(tmp_path, monkeypatch):
 async def test_freeform_slide_uses_verbatim_js(tmp_path, monkeypatch):
     async def fake_invoke(params, context=None):
         return {"exit_code": 0, "stdout": "", "stderr": "", "timed_out": False, "truncated": False}
+
     monkeypatch.setattr("shutil.which", lambda name: None)
 
     project = _project(n=1)
     # Replace the first slide with a freeform
     project.slides[0] = SlideIR(
-        index=1, type="freeform", slots={},
+        index=1,
+        type="freeform",
+        slots={},
         freeform_js="// custom JS\nmodule.exports = { createSlide: () => {} };\n",
         generated_at=datetime.now(timezone.utc),
     )
@@ -130,9 +155,7 @@ async def test_loopback_to_slides_when_compile_fails(tmp_path, monkeypatch):
             generated_at=datetime.now(timezone.utc),
         )
     ]
-    project.outline.slides = [
-        SlideSpec(index=1, type="cover", title="T", key_points=[], sources_cited=[])
-    ]
+    project.outline.slides = [SlideSpec(index=1, type="cover", title="T", key_points=[], sources_cited=[])]
     result = await step.render(console=None, project=project)
     assert result.status == "retry"
     assert project.stage == "slides"
@@ -154,9 +177,7 @@ async def test_runs_markitdown_when_available(tmp_path, monkeypatch):
         templates_dir=Path("examples/pptx_generator/templates"),
     )
     project = _project(n=1)
-    project.slides = [SlideIR(index=1, type="cover",
-                               slots={"title": "T"},
-                               generated_at=datetime.now(timezone.utc))]
+    project.slides = [SlideIR(index=1, type="cover", slots={"title": "T"}, generated_at=datetime.now(timezone.utc))]
     project.outline.slides = [SlideSpec(index=1, type="cover", title="T", key_points=[], sources_cited=[])]
     await step.render(console=None, project=project)
     flat = [" ".join(c) for c in calls]

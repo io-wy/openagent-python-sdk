@@ -10,7 +10,6 @@ Exercises the wiring without starting a long-running file watcher:
 from __future__ import annotations
 
 import json
-import threading
 import time
 from pathlib import Path
 
@@ -78,7 +77,6 @@ def test_dev_missing_config_returns_2(tmp_path, capsys):
 
 
 def test_reload_with_log_success(monkeypatch, capsys):
-    from openagents.runtime.runtime import Runtime
 
     class _Runtime:
         def reload(self) -> None:

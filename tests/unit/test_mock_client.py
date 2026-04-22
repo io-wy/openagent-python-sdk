@@ -91,6 +91,7 @@ async def test_generate_response_format_invalid_json_returns_none_structured():
     """If complete() output is NOT valid JSON (shouldn't happen today but
     defensive), structured_output stays None."""
     mock = MockLLMClient(model="mock-1")
+
     # Monkey-patch complete to return plain text
     async def _plain_text(**kwargs):
         return "not a json payload"
@@ -121,9 +122,7 @@ async def test_generate_is_deterministic_across_calls():
 async def test_complete_stream_emits_text_delta_then_message_stop():
     mock = MockLLMClient(model="mock-1")
     chunks: list[LLMChunk] = []
-    async for chunk in mock.complete_stream(
-        messages=[{"role": "user", "content": "INPUT: hi"}]
-    ):
+    async for chunk in mock.complete_stream(messages=[{"role": "user", "content": "INPUT: hi"}]):
         chunks.append(chunk)
 
     assert len(chunks) == 2
@@ -177,9 +176,7 @@ async def test_complete_unchanged_for_representative_prompt():
 @pytest.mark.asyncio
 async def test_complete_with_tool_directive_preserves_legacy_shape():
     mock = MockLLMClient(model="mock-1")
-    text = await mock.complete(
-        messages=[{"role": "user", "content": "INPUT: /tool lookup foo"}]
-    )
+    text = await mock.complete(messages=[{"role": "user", "content": "INPUT: /tool lookup foo"}])
     parsed = json.loads(text)
     assert parsed["type"] == "tool_call"
     assert parsed["tool"] == "lookup"
@@ -201,10 +198,7 @@ def test_mockclient_is_alias_for_mockllmclient():
 
 def test_parse_prompt_counts_user_history_markers():
     mock = MockLLMClient()
-    text = (
-        "HISTORY:\nUser: first\nAssistant: reply\nUser: second\n"
-        "INPUT: now\n"
-    )
+    text = "HISTORY:\nUser: first\nAssistant: reply\nUser: second\nINPUT: now\n"
     values = mock._parse_prompt(text)
     assert values["input"] == "now"
     assert values["history_count"] == 2

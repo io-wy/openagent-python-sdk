@@ -96,9 +96,7 @@ def test_new_plugin_no_test_skips_test_stub(workdir):
 
 def test_new_plugin_custom_path(workdir):
     target = workdir / "src" / "custom" / "my_tool.py"
-    code = cli_main(
-        ["new", "plugin", "tool", "MyTool", "--path", str(target), "--no-test"]
-    )
+    code = cli_main(["new", "plugin", "tool", "MyTool", "--path", str(target), "--no-test"])
     assert code == 0
     assert target.exists()
 

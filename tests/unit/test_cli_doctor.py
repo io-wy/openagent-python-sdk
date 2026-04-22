@@ -29,9 +29,7 @@ def _write_valid_agent(tmp_path: Path) -> Path:
                     {
                         "id": "a",
                         "name": "x",
-                        "memory": {
-                            "impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"
-                        },
+                        "memory": {"impl": "tests.fixtures.runtime_plugins.InjectWritebackMemory"},
                         "pattern": {"type": "react"},
                         "llm": {"provider": "mock", "model": "m"},
                         "tools": [],
@@ -102,9 +100,7 @@ def test_doctor_with_invalid_config_path_fails(tmp_path, capsys):
 def test_doctor_fails_when_python_below_minimum(monkeypatch, capsys):
     # Force _python_meets_minimum to return False by patching sys.version_info
     # via the module-level helper.
-    monkeypatch.setattr(
-        doctor, "_python_meets_minimum", lambda: (False, "2.7.0", "3.10")
-    )
+    monkeypatch.setattr(doctor, "_python_meets_minimum", lambda: (False, "2.7.0", "3.10"))
     code = cli_main(["doctor"])
     assert code == 1
     out = capsys.readouterr().out
