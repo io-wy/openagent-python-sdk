@@ -161,6 +161,15 @@ class TestLoguruSinkConfig:
         with pytest.raises(ValidationError):
             LoguruSinkConfig()
 
+    def test_non_string_level_rejected(self) -> None:
+        """Cover the explicit isinstance(value, str) guard in _v_level."""
+        from pydantic import ValidationError
+
+        from openagents.observability.config import LoguruSinkConfig
+
+        with pytest.raises(ValidationError, match="level must be a string"):
+            LoguruSinkConfig(target="stderr", level=42)  # type: ignore[arg-type]
+
 
 class TestLoggingConfigLoguruSinks:
     def test_default_is_empty_list(self) -> None:

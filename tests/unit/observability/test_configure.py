@@ -232,6 +232,42 @@ class TestResetLoggingLoguruCleanup:
         reset_logging()  # must not raise
 
 
+class TestLoguruImportFallbacks:
+    """Cover the ImportError-guarded paths in reset_logging() and configure()'s
+    rollback. These run when loguru is not installed; we simulate that by
+    blocking ``openagents.observability._loguru`` in sys.modules."""
+
+    def test_reset_logging_silent_when_loguru_module_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Block the module import: setitem to None makes `from X import Y` raise ImportError
+        monkeypatch.setitem(sys.modules, "openagents.observability._loguru", None)
+        # configure() with the plain branch (no loguru_sinks) so we don't hit the install path
+        configure(LoggingConfig(level="INFO"))
+        # reset_logging hits the ImportError branch and returns silently
+        reset_logging()
+        # Subsequent reset_logging calls also stay silent
+        reset_logging()
+
+    def test_configure_rollback_silent_when_loguru_module_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Filter wiring fails AND loguru module is unavailable — rollback still
+        completes without raising ImportError."""
+        # Pre-condition: configure with plain branch so reset_logging will be triggered
+        # via the rollback path.
+        import openagents.observability.logging as log_mod
+
+        monkeypatch.setitem(sys.modules, "openagents.observability._loguru", None)
+        orig_prefix = log_mod.PrefixFilter
+
+        class BoomFilter(orig_prefix):
+            def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+                raise RuntimeError("simulated filter failure")
+
+        monkeypatch.setattr(log_mod, "PrefixFilter", BoomFilter)
+
+        with pytest.raises(RuntimeError, match="simulated filter failure"):
+            configure(LoggingConfig(level="INFO"))
+        # No second exception masking the original
+
+
 class TestConfigureRollback:
     def test_filter_construction_failure_rolls_back_loguru_sinks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Load-bearing invariant from spec §4.2: configure() rollback
