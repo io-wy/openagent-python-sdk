@@ -29,6 +29,24 @@ class EventSchema:
 
 EVENT_SCHEMAS: dict[str, EventSchema] = {
     # === existing events (carried over verbatim, no rename) ===
+    "run.failed": EventSchema(
+        "run.failed",
+        ("agent_id", "session_id", "error"),
+        ("run_id", "error_details"),
+        "Run terminated with an unhandled error.",
+    ),
+    "memory.inject_failed": EventSchema(
+        "memory.inject_failed",
+        ("agent_id", "session_id", "error"),
+        ("error_details",),
+        "memory.inject() raised; run continues or fails depending on on_error config.",
+    ),
+    "memory.writeback_failed": EventSchema(
+        "memory.writeback_failed",
+        ("agent_id", "session_id", "error"),
+        ("error_details",),
+        "memory.writeback() raised; run continues or fails depending on on_error config.",
+    ),
     "tool.called": EventSchema(
         "tool.called",
         ("tool_id", "params"),
@@ -44,7 +62,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "tool.failed": EventSchema(
         "tool.failed",
         ("tool_id", "error"),
-        ("call_id",),
+        ("call_id", "error_details"),
         "Tool raised; final after fallback. Use 'tool.retry_requested' for ModelRetry signal.",
     ),
     "tool.retry_requested": EventSchema(
@@ -68,7 +86,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "llm.failed": EventSchema(
         "llm.failed",
         ("model",),
-        ("_metrics",),
+        ("_metrics", "error", "error_details"),
         "LLM call failed. Optional '_metrics' carries LLMCallMetrics timing data.",
     ),
     "usage.updated": EventSchema(
@@ -202,13 +220,13 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "run.checkpoint_failed": EventSchema(
         "run.checkpoint_failed",
         ("run_id", "checkpoint_id", "error", "error_type"),
-        (),
+        ("error_details",),
         "create_checkpoint raised during a durable run; the run continues.",
     ),
     "run.resume_attempted": EventSchema(
         "run.resume_attempted",
         ("run_id", "checkpoint_id", "error_type", "attempt_index"),
-        (),
+        ("error_code",),
         "Durable run caught a retryable error and is about to load a checkpoint.",
     ),
     "run.resume_succeeded": EventSchema(
@@ -220,7 +238,7 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
     "run.resume_exhausted": EventSchema(
         "run.resume_exhausted",
         ("run_id", "attempt_index", "error_type", "limit"),
-        (),
+        ("error_code",),
         "Durable run exceeded max_resume_attempts; the last retryable error propagates.",
     ),
     "run.durable_idempotency_warning": EventSchema(
