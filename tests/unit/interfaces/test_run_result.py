@@ -98,3 +98,23 @@ def test_error_details_cycle_safe():
     a.__cause__ = a  # self-cycle
     details = ErrorDetails.from_exception(a)
     assert details.cause is None
+
+
+def test_run_result_has_error_details_not_error_or_exception():
+    import pytest
+
+    result = RunResult(run_id="r1")
+    assert result.error_details is None
+    # Breaking: old fields removed outright.
+    with pytest.raises(AttributeError):
+        _ = result.error  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        _ = result.exception  # type: ignore[attr-defined]
+
+
+def test_run_result_error_details_roundtrip():
+    details = ErrorDetails(code="tool.timeout", message="slow", retryable=True)
+    result = RunResult(run_id="r1", stop_reason=StopReason.FAILED, error_details=details)
+    assert result.error_details.code == "tool.timeout"
+    dumped = result.model_dump()
+    assert dumped["error_details"]["code"] == "tool.timeout"

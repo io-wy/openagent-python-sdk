@@ -152,8 +152,7 @@ class RunResult(BaseModel, Generic[OutputT]):
     stop_reason: StopReason = StopReason.COMPLETED
     usage: RunUsage = Field(default_factory=RunUsage)
     artifacts: list[RunArtifact] = Field(default_factory=list)
-    error: str | None = None
-    exception: OpenAgentsError | None = None
+    error_details: ErrorDetails | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
