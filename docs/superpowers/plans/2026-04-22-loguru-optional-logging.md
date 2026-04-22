@@ -630,10 +630,19 @@ from openagents.observability._loguru import (
 
 @pytest.fixture(autouse=True)
 def _reset_loguru_state():
-    """Clean both openagents and global loguru state around every test."""
+    """Clean both openagents and global loguru state around every test.
+
+    Test-only concession: ``loguru.logger.remove()`` (no args) is called here
+    to wipe loguru's default stderr sink (ID 0, installed at import time).
+    Production code MUST NOT do this — it would clear sinks the user's app
+    installed. Tests own the process and are free to do it.
+    """
+    from loguru import logger as _lg
     from openagents.observability import reset_logging
+    _lg.remove()  # drop loguru default sink so stderr-capture tests are clean
     reset_logging()
     yield
+    _lg.remove()
     reset_logging()
 
 
@@ -861,6 +870,33 @@ class TestInstallSinks:
             # User's sink still alive
             logger.info("user-still-here")
             assert "user-still-here" in user_sink_path.read_text(encoding="utf-8")
+        finally:
+            logger.remove(user_sink_id)
+
+    def test_user_sink_never_receives_openagents_records(self, tmp_path):
+        """Spec test 3 (reverse direction): user's own sink — which filters
+        OUT our _openagents tag — must not receive records forwarded by
+        our intercept handler."""
+        from loguru import logger
+        from openagents.observability.config import LoguruSinkConfig
+        user_sink_path = tmp_path / "user.log"
+        user_sink_id = logger.add(
+            str(user_sink_path),
+            format="{message}",
+            filter=lambda r: r["extra"].get("_openagents") is not True,
+        )
+        try:
+            install_sinks([LoguruSinkConfig(target=str(tmp_path / "oa.log"), format="{message}")])
+            # Record going through our tagged intercept path
+            logger.bind(_openagents=True, _oa_name="test").info("openagents-only")
+            # Record from user's own codepath
+            logger.info("user-only")
+            user_content = user_sink_path.read_text(encoding="utf-8")
+            assert "user-only" in user_content
+            assert "openagents-only" not in user_content
+            oa_content = (tmp_path / "oa.log").read_text(encoding="utf-8")
+            assert "openagents-only" in oa_content
+            assert "user-only" not in oa_content
         finally:
             logger.remove(user_sink_id)
 
