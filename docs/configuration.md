@@ -249,8 +249,29 @@ OTel API 会 no-op，bridge 等于零成本。
 | `max_value_length` | int | `500` | 字符串 value 截断长度 |
 | `show_time` | bool | `true` | 是否显示时间列（rich 模式） |
 | `show_path` | bool | `false` | 是否显示代码路径（rich 模式） |
+| `loguru_sinks` | list[LoguruSinkConfig] | `[]` | 多 sink loguru 后端（需要 `[loguru]` extra）；与 `pretty=true` **互斥**。详见下文 LoguruSinkConfig 字段表 |
 
 如果该 section 缺失或 `auto_configure=false`，SDK 不会修改任何 logging 配置。
+
+#### LoguruSinkConfig 字段表
+
+每个 sink 是一组配置，全部映射到 `loguru.logger.add(...)` 的同名参数。`null` 表示走 loguru 默认值。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | str | （必填） | `"stderr"` / `"stdout"` / 文件路径 |
+| `level` | str | `"INFO"` | 该 sink 的级别下限 |
+| `format` | str \| null | `null` | loguru format 字符串 |
+| `serialize` | bool | `false` | `true` → 每条记录输出为一行 JSON |
+| `colorize` | bool \| null | `null` | `null` → loguru 自动检测（终端着色） |
+| `rotation` | str \| null | `null` | 轮转策略，例如 `"10 MB"`、`"00:00"`、`"1 week"` |
+| `retention` | str \| null | `null` | 保留时长，例如 `"7 days"` |
+| `compression` | str \| null | `null` | 压缩格式，例如 `"gz"`、`"zip"` |
+| `enqueue` | bool | `false` | 异步 sink（进程内队列） |
+| `filter_include` | list[str] \| null | `null` | 进一步按 logger 名前缀过滤 |
+
+环境变量补充：
+- `OPENAGENTS_LOG_LOGURU_DISABLE`：设为 `1`/`true`/`yes`/`on` 时，强制把非空 `loguru_sinks` 降级为纯文本 `StreamHandler`，CI / debug 用。`loguru_sinks` 列表本身**不**可通过环境变量配置。
 
 ## 4. AgentDefinition
 

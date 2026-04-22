@@ -32,7 +32,7 @@ SDK 主源码。
 - `plugins/builtin/` — 按 seam 分组的内置插件：`runtime/`, `session/`, `events/`, `skills/`, `memory/`, `pattern/`, `tool/`, `tool_executor/`, `execution_policy/`, `context/`, `followup/`, `response_repair/`
 - `llm/providers/` — `anthropic`、`openai_compatible`、`mock` 三个 LLM client，共享 `_http_base.py`
 - `interfaces/` — 稳定的 kernel protocol dataclass（`RunRequest`、`RunResult`、`RunContext`…）；`typed_config.py` 提供 `TypedConfigPluginMixin`；`event_taxonomy.py` 声明所有事件的 schema
-- `observability/` — 结构化日志子系统：`LoggingConfig`、`configure()`、filters（`filters.py`）、rich 渲染器（`_rich.py`）、脱敏（`redact.py`）、错误格式化（`errors.py`）
+- `observability/` — 结构化日志子系统：`LoggingConfig`、`configure()`、filters（`filters.py`）、rich 渲染器（`_rich.py`）、loguru 多 sink 后端（`_loguru.py`，可选 extra）、脱敏（`redact.py`）、错误格式化（`errors.py`）
 - `cli/` — CLI 子命令实现：`schema_cmd.py`、`validate_cmd.py`、`list_plugins_cmd.py`；入口在 `__main__.py` / `main.py`
 - `errors/` — 错误层级 + "did you mean?" 提示助手（`exceptions.py`、`suggestions.py`）
 - `utils/` — `hotreload.py`（`Runtime.reload()` 的支撑），以及其他通用工具

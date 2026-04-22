@@ -32,7 +32,7 @@ Contains:
 - `plugins/builtin/` — builtin plugins grouped by seam: `runtime/`, `session/`, `events/`, `skills/`, `memory/`, `pattern/`, `tool/`, `tool_executor/`, `execution_policy/`, `context/`, `followup/`, `response_repair/`
 - `llm/providers/` — `anthropic`, `openai_compatible`, `mock` LLM clients sharing `_http_base.py`
 - `interfaces/` — stable kernel protocol dataclasses (`RunRequest`, `RunResult`, `RunContext`, …); `typed_config.py` provides `TypedConfigPluginMixin`; `event_taxonomy.py` declares schema for all events
-- `observability/` — structured logging subsystem: `LoggingConfig`, `configure()`, filters (`filters.py`), rich renderer (`_rich.py`), redaction (`redact.py`), error formatting (`errors.py`)
+- `observability/` — structured logging subsystem: `LoggingConfig`, `configure()`, filters (`filters.py`), rich renderer (`_rich.py`), loguru multi-sink backend (`_loguru.py`, optional extra), redaction (`redact.py`), error formatting (`errors.py`)
 - `cli/` — CLI subcommand implementations: `schema_cmd.py`, `validate_cmd.py`, `list_plugins_cmd.py`; entry point at `__main__.py` / `main.py`
 - `errors/` — error hierarchy and "did you mean?" hint helpers (`exceptions.py`, `suggestions.py`)
 - `utils/` — `hotreload.py` (backing `Runtime.reload()`), and other general utilities
