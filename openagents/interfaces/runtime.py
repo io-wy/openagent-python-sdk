@@ -52,6 +52,53 @@ class RunArtifact(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ErrorDetails(BaseModel):
+    """Stable cross-process serialization of a run-ending error.
+
+    Built by :meth:`from_exception`. Replaces ``RunResult.error`` (str) and
+    ``RunResult.exception`` (live object) with a single structured field that
+    HTTP / SSE / trace exporters can consume without touching internal SDK types.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    code: str
+    message: str
+    hint: str | None = None
+    docs_url: str | None = None
+    retryable: bool = False
+    context: dict[str, Any] = Field(default_factory=dict)
+    cause: "ErrorDetails | None" = None
+
+    @classmethod
+    def from_exception(cls, exc: BaseException, *, _depth: int = 0) -> "ErrorDetails":
+        from openagents.errors.exceptions import OpenAgentsError
+
+        _MAX_DEPTH = 3
+        if isinstance(exc, OpenAgentsError):
+            data = exc.to_dict()
+            details = cls(
+                code=data["code"],
+                message=data["message"],
+                hint=data["hint"],
+                docs_url=data["docs_url"],
+                retryable=data["retryable"],
+                context=dict(data["context"]),
+            )
+        else:
+            text = str(exc)
+            message = text.splitlines()[0] if text else type(exc).__name__
+            details = cls(code="error.unknown", message=message)
+
+        cause = getattr(exc, "__cause__", None)
+        if cause is not None and cause is not exc and _depth < _MAX_DEPTH:
+            details.cause = cls.from_exception(cause, _depth=_depth + 1)
+        return details
+
+
+ErrorDetails.model_rebuild()
+
+
 class RunUsage(BaseModel):
     """Usage statistics collected during a run."""
 
