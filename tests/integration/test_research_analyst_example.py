@@ -276,7 +276,7 @@ async def test_research_analyst_policy_denial(monkeypatch):
 
         runtime = Runtime.from_config(_EXAMPLE_DIR / "agent.json")
         # PermissionError from the policy propagates as PatternError via
-        # result.exception.  Use run_detailed() to capture it without re-raising.
+        # result.error_details.  Use run_detailed() to capture it without re-raising.
         result = await runtime.run_detailed(
             request=RunRequest(
                 agent_id="research-analyst",
@@ -285,9 +285,9 @@ async def test_research_analyst_policy_denial(monkeypatch):
             )
         )
         # The run must have failed due to the policy denial.
-        assert result.stop_reason in ("failed", "error") or result.exception is not None, (
+        assert result.stop_reason in ("failed", "error") or result.error_details is not None, (
             f"expected a failed run for evil.test URL, "
-            f"got stop_reason={result.stop_reason!r}, exception={result.exception!r}"
+            f"got stop_reason={result.stop_reason!r}, error_details={result.error_details!r}"
         )
 
         events_path = _SESSIONS_DIR / "events.ndjson"
