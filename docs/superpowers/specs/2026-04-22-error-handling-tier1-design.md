@@ -41,14 +41,14 @@ class OpenAgentsError(Exception):
     # 现有实例字段保持：hint / docs_url / agent_id / session_id / run_id / tool_id / step_number
 
     def to_dict(self) -> dict[str, Any]: ...
-    # 返回 code / message / hint / docs_url / retryable / context / cause
+    # 返回 code / message / hint / docs_url / retryable / context
+    # 注意：to_dict() 本身不序列化 __cause__。cause chain 的构造是
+    # ErrorDetails.from_exception 的职责（§3.1），避免两处重复递归。
 ```
 
 `message` 由 `str(self).splitlines()[0]` 产出 —— 去掉 `hint:` / `docs:` 格式化尾行。
 
-`context` 聚合 5 个现有标识字段。
-
-`cause` 递归序列化 `__cause__`，深度上限 3 层，循环引用保护（比较 `exc is not exc.__cause__`）。
+`context` 聚合 5 个现有标识字段。rate-limit 子类把 `retry_after_ms` 也塞进 `context`（§1.3），让序列化消费者能统一从 `error_details.context["retry_after_ms"]` 读。
 
 #### 1.2 子类 code + retryable 表
 
@@ -76,7 +76,7 @@ class OpenAgentsError(Exception):
 | `ToolAuthError` | `tool.auth` | False |
 | `ToolRateLimitError` | `tool.rate_limit` | **True** |
 | `ToolUnavailableError` | `tool.unavailable` | **True** |
-| `ToolCancelledError` | `tool.cancelled` | False |
+| `ToolCancelledError` | `tool.cancelled` | False（cancel 是终态：由 `cancel_event` 或外部 CancelledError 触发，重试只会再次命中同一 cancel 信号） |
 | `LLMError` | `llm.error` | False |
 | `LLMConnectionError` | `llm.connection` | **True** |
 | `LLMRateLimitError` | `llm.rate_limit` | **True** |
@@ -107,6 +107,12 @@ class LLMRateLimitError(LLMError):
 ```
 
 `to_dict()` 把 `retry_after_ms` 放进 `context` dict（统一入口，不破 ErrorDetails schema）。
+
+**运行时 vs 序列化消费者的读取路径**：
+- `RetryToolExecutor._delay_for` 和 HTTP 层重试读 **属性** `exc.retry_after_ms`（in-process，避免绕一圈 dict）
+- 序列化消费者（HTTP API / SSE 客户端 / trace exporter）读 `error_details.context["retry_after_ms"]`
+
+两条路径读同一个源（实例字段），不是两份状态。
 
 #### 1.4 `ErrorDetails` 序列化模型
 
@@ -278,6 +284,10 @@ def from_exception(cls, exc: BaseException, *, _depth: int = 0) -> "ErrorDetails
 
 字段通过 `event_taxonomy.EVENT_SCHEMAS` 追加声明；消费者可继续读旧字段，新订阅者应读 `error_details`。旧字段在 Tier 2 评估是否废弃。
 
+**为何事件保留旧字段而 `RunResult` 做硬切换**：
+- `RunResult` 是进程内对象，`AttributeError` 立即抛出，用户迁移反馈强；且消费点集中（runtime / tests），数量可控。
+- 事件订阅者可能是外部 SSE 客户端、OTel exporter、日志聚合器等；事件 taxonomy 是持久化 wire 格式，硬切换的 blast radius 远大于进程内对象。Tier 1 以新增字段为主，在 Tier 2 单独评估废弃旧事件字段的节奏（给订阅者一个 release 周期警告）。
+
 #### 3.3 DiagnosticsPlugin snapshot
 
 `ErrorSnapshot` dataclass 新增：
@@ -353,7 +363,7 @@ Phoenix / Langfuse / Rich diagnostics 三个 plugin 同步读 `snapshot.error_co
 | `tests/unit/runtime/test_error_details_emission.py` | 运行时失败路径 → `run.failed` payload 含 `error_details`；snapshot `error_code` 与 `result.error_details.code` 一致 |
 | `tests/unit/runtime/test_durable_resume_retryable_attribute.py` | 自定义 retryable 子类参与 resume；非 retryable 直接 raise |
 | `tests/unit/llm/providers/test_retry_after_propagation.py` | httpx mock 返回 429 + `Retry-After: 5`，最终 `LLMRateLimitError.retry_after_ms == 5000` |
-| `tests/unit/docs/test_errors_md_coverage.py` | 解析 docs/errors.md，断言每个 OpenAgentsError 子类的 code 都至少出现一次（防文档漂移） |
+| `tests/unit/docs/test_errors_md_coverage.py` | 解析 `docs/errors.md` **和** `docs/errors.en.md`，分别断言每个 OpenAgentsError 子类的 code 都至少出现一次（防中英文档独立漂移） |
 
 #### 5.2 修改已有测试
 
