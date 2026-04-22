@@ -20,3 +20,9 @@ def test_llm_rate_limit_carries_retry_after_ms():
     assert exc.retry_after_ms == 2_500
     assert exc.to_dict()["context"]["retry_after_ms"] == 2_500
     assert exc.to_dict()["retryable"] is True
+
+
+def test_llm_rate_limit_defaults_none():
+    exc = LLMRateLimitError("429")
+    assert exc.retry_after_ms is None
+    assert exc.to_dict()["context"]["retry_after_ms"] is None
