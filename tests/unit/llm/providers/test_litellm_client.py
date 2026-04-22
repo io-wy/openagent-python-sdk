@@ -391,3 +391,92 @@ async def test_stream_maps_exceptions_to_error_chunks(monkeypatch, exc_class_nam
     errors = [c for c in collected if c.type == "error"]
     assert len(errors) == 1
     assert errors[0].error_type == expected_error_type
+
+
+# ---------- count_tokens, retry mapping, api_key_env, extras ----------
+
+from openagents.config.schema import LLMRetryOptions  # noqa: E402
+
+
+def test_count_tokens_uses_litellm_token_counter(monkeypatch):
+    captured: dict = {}
+
+    def fake_counter(**kwargs):
+        captured.update(kwargs)
+        return 42
+
+    monkeypatch.setattr(lc_module.litellm, "token_counter", fake_counter)
+    client = LiteLLMClient(model="bedrock/foo")
+    assert client.count_tokens("hello world") == 42
+    assert captured == {"model": "bedrock/foo", "text": "hello world"}
+
+
+def test_count_tokens_fallback_on_exception(monkeypatch):
+    def fake_counter(**kwargs):
+        raise RuntimeError("no tokenizer")
+
+    monkeypatch.setattr(lc_module.litellm, "token_counter", fake_counter)
+    client = LiteLLMClient(model="bedrock/foo")
+    n = client.count_tokens("hello")
+    assert n == max(1, len("hello") // 4)
+
+
+@pytest.mark.asyncio
+async def test_retry_options_mapped_to_litellm(monkeypatch):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_response()
+
+    monkeypatch.setattr(lc_module.litellm, "acompletion", fake_acompletion)
+    retry = LLMRetryOptions(max_attempts=3, retry_on_connection_errors=True)
+    client = LiteLLMClient(model="bedrock/foo", retry_options=retry)
+    await client.generate(messages=[{"role": "user", "content": "x"}])
+
+    assert captured["num_retries"] == 2
+    rp = captured["retry_policy"]
+    assert isinstance(rp, lc_module.litellm.RetryPolicy)
+    assert rp.TimeoutErrorRetries == 2
+    assert rp.RateLimitErrorRetries == 2
+    assert rp.AuthenticationErrorRetries == 0
+    assert rp.BadRequestErrorRetries == 0
+
+
+@pytest.mark.asyncio
+async def test_retry_options_without_connection_retries_omits_retry_policy(monkeypatch):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_response()
+
+    monkeypatch.setattr(lc_module.litellm, "acompletion", fake_acompletion)
+    retry = LLMRetryOptions(max_attempts=5, retry_on_connection_errors=False)
+    client = LiteLLMClient(model="bedrock/foo", retry_options=retry)
+    await client.generate(messages=[{"role": "user", "content": "x"}])
+
+    assert captured["num_retries"] == 4
+    assert "retry_policy" not in captured
+
+
+@pytest.mark.asyncio
+async def test_extra_kwargs_and_api_key_env_fallback(monkeypatch):
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        return _fake_response()
+
+    monkeypatch.setattr(lc_module.litellm, "acompletion", fake_acompletion)
+    monkeypatch.delenv("SOME_MISSING_KEY", raising=False)
+
+    client = LiteLLMClient(
+        model="bedrock/foo",
+        api_key_env="SOME_MISSING_KEY",
+        extra_kwargs={"aws_region_name": "us-east-1"},
+    )
+    await client.generate(messages=[{"role": "user", "content": "x"}])
+
+    assert captured["aws_region_name"] == "us-east-1"
+    assert "api_key" not in captured  # env missing → no api_key forwarded

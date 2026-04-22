@@ -62,6 +62,29 @@ _FORWARDABLE_KWARGS: frozenset[str] = frozenset(
 )
 
 
+def _build_retry_policy_kwargs(retry_options: "LLMRetryOptions | None") -> dict[str, Any]:
+    """Translate SDK ``LLMRetryOptions`` → LiteLLM kwargs (single direction).
+
+    - ``max_attempts - 1`` → ``num_retries``
+    - When ``retry_on_connection_errors`` is True and ``num_retries > 0``, add
+      a structured ``litellm.RetryPolicy`` limiting retries to Timeout +
+      RateLimit categories.
+    """
+    if retry_options is None:
+        return {}
+    num_retries = max(int(retry_options.max_attempts) - 1, 0)
+    kwargs: dict[str, Any] = {"num_retries": num_retries}
+    if retry_options.retry_on_connection_errors and num_retries > 0:
+        kwargs["retry_policy"] = litellm.RetryPolicy(
+            TimeoutErrorRetries=num_retries,
+            RateLimitErrorRetries=num_retries,
+            AuthenticationErrorRetries=0,
+            BadRequestErrorRetries=0,
+            ContentPolicyViolationErrorRetries=0,
+        )
+    return kwargs
+
+
 def _derive_provider_name(model: str) -> str:
     if not model or "/" not in model:
         return "litellm"
@@ -264,6 +287,7 @@ class LiteLLMClient(LLMClient):
         if api_key is not None:
             kwargs["api_key"] = api_key
         kwargs.update(self._extra_kwargs)
+        kwargs.update(_build_retry_policy_kwargs(self._retry_options))
         return kwargs
 
     def _resolve_api_key(self) -> str | None:
@@ -387,6 +411,12 @@ class LiteLLMClient(LLMClient):
             return
 
         yield LLMChunk(type="message_stop", usage=last_usage)
+
+    def count_tokens(self, text: str) -> int:
+        try:
+            return int(litellm.token_counter(model=self.model_id, text=text or ""))
+        except Exception:
+            return super().count_tokens(text or "")
 
     async def aclose(self) -> None:
         session = getattr(litellm, "aclient_session", None) if litellm else None
