@@ -410,6 +410,7 @@ builtin pattern：
 - `mock`
 - `anthropic`
 - `openai_compatible`
+- `litellm`（可选 extra，详见下方"LiteLLM Provider"小节）
 
 校验规则：
 
@@ -418,6 +419,64 @@ builtin pattern：
 - `timeout_ms` 必须是正整数
 - `max_tokens` 如果提供，必须是正整数
 - `temperature` 如果提供，必须在 `0.0` 到 `2.0` 之间
+
+### LiteLLM Provider（可选）
+
+`provider: "litellm"` 通过 [LiteLLM](https://docs.litellm.ai) 对接**非 OpenAI 协议**的后端：AWS Bedrock、Google Vertex AI、Gemini 原生 API、Cohere、Azure OpenAI deployment 等。**如果后端已经是 OpenAI 兼容协议，优先使用 `openai_compatible`**，更轻量。
+
+安装：
+
+```bash
+uv pip install "io-openagent-sdk[litellm]"
+```
+
+Bedrock 示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "aws_region_name": "us-east-1",
+    "max_tokens": 4096,
+    "pricing": {"input": 3.0, "output": 15.0}
+  }
+}
+```
+
+Vertex 示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "vertex_ai/gemini-1.5-pro",
+    "vertex_project": "my-gcp-project",
+    "vertex_location": "us-central1"
+  }
+}
+```
+
+Gemini 原生示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "gemini/gemini-1.5-pro",
+    "api_key_env": "GEMINI_API_KEY"
+  }
+}
+```
+
+**透传白名单**（其他 extra 字段会被忽略并告警）：
+`aws_region_name` · `aws_access_key_id` · `aws_secret_access_key` · `aws_session_token` · `aws_profile_name` · `vertex_project` · `vertex_location` · `vertex_credentials` · `azure_deployment` · `api_version` · `seed` · `top_p` · `parallel_tool_calls` · `response_format`
+
+**不支持的 LiteLLM 特性**（本 SDK 不接入，属于应用层产品语义）：router、fallback、budget manager、内置缓存、success/failure callbacks。
+
+**凭证**：`api_key_env` 给了就读环境变量塞到 `api_key`；没给则由 LiteLLM 自行从 AWS/GCP 标准环境变量链读取凭证（如 `AWS_ACCESS_KEY_ID`、`GOOGLE_APPLICATION_CREDENTIALS` 等）。
+
+**Telemetry**：实例化 `LiteLLMClient` 会在进程级禁用 LiteLLM 的 telemetry 与 success/failure callbacks，并开启 `drop_params` 以丢弃未知 kwarg。
 
 ### `pricing`（可选）
 

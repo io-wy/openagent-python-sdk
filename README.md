@@ -84,6 +84,7 @@ uv add io-openagent-sdk
 |---|---|---|
 | `cli` | `rich`, `questionary`, `watchdog`, `pyyaml` | Interactive CLI, hot reload, colour output |
 | `openai` | `openai`, `httpx` | OpenAI-compatible LLM providers |
+| `litellm` | `litellm` | Non-OpenAI backends via LiteLLM (Bedrock, Vertex, Gemini, Azure, …) |
 | `mem0` | `mem0ai` | Persistent cross-session memory |
 | `mcp` | `mcp` | MCP tool bridge |
 | `otel` | `opentelemetry-api` | OpenTelemetry event bridge |

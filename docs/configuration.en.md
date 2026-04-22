@@ -406,6 +406,7 @@ Supported providers:
 - `mock`
 - `anthropic`
 - `openai_compatible`
+- `litellm` (optional extra, see "LiteLLM Provider" section below)
 
 Validation rules:
 
@@ -414,6 +415,64 @@ Validation rules:
 - `timeout_ms` must be a positive integer
 - `max_tokens`, if provided, must be a positive integer
 - `temperature`, if provided, must be between `0.0` and `2.0`
+
+### LiteLLM Provider (Optional)
+
+`provider: "litellm"` reaches **non-OpenAI protocol** backends through [LiteLLM](https://docs.litellm.ai): AWS Bedrock, Google Vertex AI, native Gemini, Cohere, Azure OpenAI deployments. **If your backend already speaks the OpenAI protocol, prefer `openai_compatible`** — it's lighter.
+
+Install:
+
+```bash
+uv pip install "io-openagent-sdk[litellm]"
+```
+
+Bedrock example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "aws_region_name": "us-east-1",
+    "max_tokens": 4096,
+    "pricing": {"input": 3.0, "output": 15.0}
+  }
+}
+```
+
+Vertex example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "vertex_ai/gemini-1.5-pro",
+    "vertex_project": "my-gcp-project",
+    "vertex_location": "us-central1"
+  }
+}
+```
+
+Native Gemini example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "gemini/gemini-1.5-pro",
+    "api_key_env": "GEMINI_API_KEY"
+  }
+}
+```
+
+**Forwarded kwargs whitelist** (other extras are dropped with a warning):
+`aws_region_name`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, `aws_profile_name`, `vertex_project`, `vertex_location`, `vertex_credentials`, `azure_deployment`, `api_version`, `seed`, `top_p`, `parallel_tool_calls`, `response_format`.
+
+**Unsupported LiteLLM features** (intentionally excluded as product-layer concerns): router, fallback, budget manager, built-in cache, success/failure callbacks.
+
+**Credentials:** if `api_key_env` is set the SDK reads that env and passes `api_key=...`. Otherwise LiteLLM reads its own standard env chain (`AWS_ACCESS_KEY_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, etc.).
+
+**Telemetry:** instantiating `LiteLLMClient` disables LiteLLM telemetry and success/failure callbacks process-wide, and sets `drop_params = True` to silently drop unknown kwargs.
 
 ### `pricing` (optional)
 
