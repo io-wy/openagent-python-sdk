@@ -83,3 +83,43 @@ class TestRedactFilter:
         record = _make_record("openagents.x", note="a" * 20)
         f.filter(record)
         assert "(truncated 20 chars)" in record.note
+
+
+class TestLogRecordStdAttrs:
+    def test_is_frozenset_at_module_level(self) -> None:
+        from openagents.observability.filters import _LOGRECORD_STD_ATTRS
+
+        assert isinstance(_LOGRECORD_STD_ATTRS, frozenset)
+        for name in ("msg", "args", "levelname", "levelno", "name", "exc_info"):
+            assert name in _LOGRECORD_STD_ATTRS
+
+    def test_covers_canonical_logrecord_attrs(self) -> None:
+        """The constant must be a superset of (or equal to) the 22 canonical
+        LogRecord attribute names. Guards against accidental shrinkage."""
+        from openagents.observability.filters import _LOGRECORD_STD_ATTRS
+
+        canonical = {
+            "args",
+            "asctime",
+            "created",
+            "exc_info",
+            "exc_text",
+            "filename",
+            "funcName",
+            "levelname",
+            "levelno",
+            "lineno",
+            "message",
+            "module",
+            "msecs",
+            "msg",
+            "name",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "stack_info",
+            "thread",
+            "threadName",
+        }
+        assert canonical <= _LOGRECORD_STD_ATTRS
