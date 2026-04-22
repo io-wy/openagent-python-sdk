@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from openagents.errors.exceptions import BudgetExhausted, ModelRetryError
 from openagents.interfaces.diagnostics import LLMCallMetrics
+from openagents.interfaces.runtime import ErrorDetails
 
 from .plugin import BasePlugin
 from .run_context import RunContext
@@ -212,7 +213,12 @@ class PatternPlugin(BasePlugin):
                 budget.max_validation_retries if budget is not None and budget.max_validation_retries is not None else 3
             )
             if counts[tool_id] > limit:
-                await self.emit("tool.failed", tool_id=tool_id, error=str(retry_exc))
+                await self.emit(
+                    "tool.failed",
+                    tool_id=tool_id,
+                    error=str(retry_exc),
+                    error_details=ErrorDetails.from_exception(retry_exc).model_dump(),
+                )
                 raise PermanentToolError(
                     f"Tool '{tool_id}' exceeded validation retry budget ({limit})",
                     tool_name=tool_id,
@@ -234,7 +240,12 @@ class PatternPlugin(BasePlugin):
             )
             raise
         except Exception as exc:
-            await self.emit("tool.failed", tool_id=tool_id, error=str(exc))
+            await self.emit(
+                "tool.failed",
+                tool_id=tool_id,
+                error=str(exc),
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
+            )
             result = await tool.fallback(exc, params or {}, ctx)
             if result is not None:
                 return result
@@ -316,7 +327,12 @@ class PatternPlugin(BasePlugin):
                 cached_tokens=0,
                 error=str(exc),
             )
-            await self.emit("llm.failed", model=model, _metrics=failure_metrics)
+            await self.emit(
+                "llm.failed",
+                model=model,
+                _metrics=failure_metrics,
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
+            )
             raise
         latency_ms = (time.monotonic() - _t_start) * 1000.0
 

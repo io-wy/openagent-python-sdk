@@ -173,10 +173,10 @@ class Runtime:
                 deps=deps,
             )
         )
-        if result.exception is not None:
-            raise result.exception
-        if result.stop_reason == RUN_STOP_FAILED:
-            raise RuntimeError(result.error or "Agent run failed")
+        if result.stop_reason == RUN_STOP_FAILED or result.error_details is not None:
+            if result.error_details is not None:
+                raise RuntimeError(result.error_details.message or "Agent run failed")
+            raise RuntimeError("Agent run failed")
         return result.final_output
 
     async def run_detailed(self, *, request: RunRequest) -> RunResult:
@@ -256,6 +256,8 @@ class Runtime:
         request.context_hints["__runtime_streaming__"] = True
 
         async def _drive_run():
+            from openagents.interfaces.runtime import ErrorDetails as _ErrorDetails
+
             try:
                 return await self.run_detailed(request=request)
             except Exception as exc:  # noqa: BLE001
@@ -263,7 +265,7 @@ class Runtime:
                     run_id=request.run_id,
                     final_output=None,
                     stop_reason=StopReason.FAILED,
-                    error=str(exc),
+                    error_details=_ErrorDetails.from_exception(exc),
                 )
 
         run_task = asyncio.create_task(_drive_run())
