@@ -234,8 +234,8 @@ async def test_production_coding_agent_surfaces_repair_diagnostic(monkeypatch):
     )
 
     assert result.stop_reason == "failed"
-    assert "coding-delivery orchestration" in (result.error or "")
-    assert "LLM returned an empty response" in (result.error or "")
+    assert "coding-delivery orchestration" in (result.error_details.message if result.error_details else "")
+    assert "LLM returned an empty response" in (result.error_details.message if result.error_details else "")
 
     await runtime.close()
     _cleanup_generated_files()

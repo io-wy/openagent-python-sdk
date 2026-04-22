@@ -37,12 +37,13 @@ async def smoke_run_agent_spec(spec_bundle: dict[str, Any], smoke_input: str = "
         if runtime is not None:
             await runtime.close()
 
-    if result.exception is not None or result.stop_reason == RUN_STOP_FAILED:
+    if result.error_details is not None or result.stop_reason == RUN_STOP_FAILED:
+        error_msg = result.error_details.message if result.error_details is not None else "run failed"
         return {
             "status": "failed",
             "agent_id": agent_id,
             "input": input_text,
-            "error": result.error or str(result.exception),
+            "error": error_msg,
             "stop_reason": result.stop_reason,
         }
 

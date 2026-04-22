@@ -13,7 +13,6 @@ import pytest
 
 from openagents.config.loader import load_config_dict
 from openagents.errors.exceptions import (
-    ConfigError,
     LLMConnectionError,
     LLMRateLimitError,
     PermanentToolError,
@@ -527,9 +526,10 @@ async def test_unknown_checkpoint_surfaces_config_error():
     )
     result = await runtime.run_detailed(request=request)
     assert result.stop_reason == StopReason.FAILED
-    assert isinstance(result.exception, ConfigError)
+    assert result.error_details is not None
+    assert result.error_details.code == "config.error"
     # Hint should point at available checkpoints (or lack thereof)
-    hint = result.exception.hint or ""
+    hint = result.error_details.hint or ""
     assert "checkpoint" in hint.lower() or "session" in hint.lower()
 
 

@@ -39,6 +39,7 @@ class ErrorSnapshot:
     usage_at_failure: dict[str, Any]
     state_snapshot: dict[str, Any]
     captured_at: str
+    error_code: str = "error.unknown"
 
 
 class DiagnosticsPlugin:
@@ -105,6 +106,8 @@ class DiagnosticsPlugin:
         if usage is not None:
             usage_dict = usage.model_dump()
 
+        error_code = getattr(exc, "code", None) or "error.unknown"
+
         return ErrorSnapshot(
             run_id=run_id,
             agent_id=agent_id,
@@ -117,6 +120,7 @@ class DiagnosticsPlugin:
             usage_at_failure=usage_dict,
             state_snapshot=state,
             captured_at=datetime.now(timezone.utc).isoformat(),
+            error_code=error_code,
         )
 
     def on_run_complete(

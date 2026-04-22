@@ -1,5 +1,7 @@
 """SDK error types."""
 
+from openagents.interfaces.runtime import ErrorDetails  # noqa: E402  (after .exceptions import)
+
 from .exceptions import (
     AgentNotFoundError,
     BudgetExhausted,
@@ -37,6 +39,7 @@ from .exceptions import (
 )
 
 __all__ = [
+    "ErrorDetails",
     "AgentNotFoundError",
     "BudgetExhausted",
     "CapabilityError",

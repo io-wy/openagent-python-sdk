@@ -16,21 +16,24 @@ Regenerate this file via::
 | `context.assemble.completed` | `transcript_size` | `artifact_count`, `duration_ms` | context_assembler.assemble() returned. |
 | `context.assemble.started` | — | — | context_assembler.assemble() is about to run. |
 | `llm.called` | `model` | — | Pattern is about to call an LLM. |
-| `llm.failed` | `model` | `_metrics` | LLM call failed. Optional '_metrics' carries LLMCallMetrics timing data. |
+| `llm.failed` | `model` | `_metrics`, `error`, `error_details` | LLM call failed. Optional '_metrics' carries LLMCallMetrics timing data. |
 | `llm.succeeded` | `model` | `_metrics` | LLM returned successfully. Optional '_metrics' carries LLMCallMetrics timing data. |
 | `memory.inject.completed` | — | `view_size` | memory.inject() returned. |
 | `memory.inject.started` | — | — | memory.inject() is about to run. |
+| `memory.inject_failed` | `agent_id`, `session_id`, `error` | `error_details` | memory.inject() raised; run continues or fails depending on on_error config. |
 | `memory.writeback.completed` | — | — | memory.writeback() returned. |
 | `memory.writeback.started` | — | — | memory.writeback() is about to run. |
+| `memory.writeback_failed` | `agent_id`, `session_id`, `error` | `error_details` | memory.writeback() raised; run continues or fails depending on on_error config. |
 | `pattern.phase` | `phase` | — | Pattern transitioned phases (e.g. planning, executing). |
 | `pattern.plan_created` | `plan` | — | PlanExecutePattern produced its plan. |
 | `pattern.step_finished` | `step`, `action` | — | Pattern completed an execution step. |
 | `pattern.step_started` | `step` | `plan_step` | Pattern began an execution step. |
-| `run.checkpoint_failed` | `run_id`, `checkpoint_id`, `error`, `error_type` | — | create_checkpoint raised during a durable run; the run continues. |
+| `run.checkpoint_failed` | `run_id`, `checkpoint_id`, `error`, `error_type` | `error_details` | create_checkpoint raised during a durable run; the run continues. |
 | `run.checkpoint_saved` | `run_id`, `checkpoint_id`, `step_index`, `transcript_length` | — | DefaultRuntime persisted a step checkpoint during a durable run. |
 | `run.durable_idempotency_warning` | `run_id`, `tool_id` | `hint` | A tool declaring durable_idempotent=False was invoked inside a durable run (one-shot per run/tool). |
-| `run.resume_attempted` | `run_id`, `checkpoint_id`, `error_type`, `attempt_index` | — | Durable run caught a retryable error and is about to load a checkpoint. |
-| `run.resume_exhausted` | `run_id`, `attempt_index`, `error_type`, `limit` | — | Durable run exceeded max_resume_attempts; the last retryable error propagates. |
+| `run.failed` | `agent_id`, `session_id`, `error` | `run_id`, `error_details` | Run terminated with an unhandled error. |
+| `run.resume_attempted` | `run_id`, `checkpoint_id`, `error_type`, `attempt_index` | `error_code` | Durable run caught a retryable error and is about to load a checkpoint. |
+| `run.resume_exhausted` | `run_id`, `attempt_index`, `error_type`, `limit` | `error_code` | Durable run exceeded max_resume_attempts; the last retryable error propagates. |
 | `run.resume_succeeded` | `run_id`, `checkpoint_id`, `attempt_index` | — | Durable run successfully rehydrated from a checkpoint and continues. |
 | `session.run.completed` | `agent_id`, `session_id`, `stop_reason` | `run_id`, `duration_ms` | Runtime finished a single run. |
 | `session.run.started` | `agent_id`, `session_id` | `run_id`, `input_text` | Runtime begins a single run. |
@@ -42,7 +45,7 @@ Regenerate this file via::
 | `tool.batch.started` | `batch_id`, `call_ids`, `concurrent_count` | — | A batched tool invocation started. |
 | `tool.called` | `tool_id`, `params` | `call_id` | Pattern is about to invoke a tool. |
 | `tool.cancelled` | `tool_id`, `call_id` | `reason` | Tool invocation was cancelled via cancel_event before completion. |
-| `tool.failed` | `tool_id`, `error` | `call_id` | Tool raised; final after fallback. Use 'tool.retry_requested' for ModelRetry signal. |
+| `tool.failed` | `tool_id`, `error` | `call_id`, `error_details` | Tool raised; final after fallback. Use 'tool.retry_requested' for ModelRetry signal. |
 | `tool.retry_requested` | `tool_id`, `attempt`, `error` | `call_id` | Pattern caught ModelRetryError and is retrying. |
 | `tool.succeeded` | `tool_id`, `result` | `executor_metadata`, `call_id` | Tool returned successfully. |
 | `usage.updated` | `usage` | — | RunUsage object was updated; emitted after every LLM call. |

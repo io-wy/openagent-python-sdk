@@ -17,16 +17,12 @@ from pydantic import BaseModel, Field
 from openagents.errors.exceptions import (
     BudgetExhausted,
     ConfigError,
-    LLMConnectionError,
-    LLMRateLimitError,
     MaxStepsExceeded,
     ModelRetryError,
     OpenAgentsError,
     OutputValidationError,
     PatternError,
     PermanentToolError,
-    ToolRateLimitError,
-    ToolUnavailableError,
 )
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
@@ -53,6 +49,7 @@ from openagents.interfaces.runtime import (
     RUN_STOP_FAILED,
     RUN_STOP_TIMEOUT,
     RUNTIME_RUN,
+    ErrorDetails,
     RunRequest,
     RunResult,
     RuntimePlugin,
@@ -70,17 +67,6 @@ from openagents.interfaces.tool import (
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 logger = logging.getLogger("openagents")
-
-# Errors classified as retryable by the durable-run resume loop.
-# Any other OpenAgentsError subclass (PermanentToolError, ConfigError,
-# BudgetExhausted, OutputValidationError, PatternError, ModelRetryError
-# post-budget) is treated as permanent.
-RETRYABLE_RUN_ERRORS: tuple[type[OpenAgentsError], ...] = (
-    LLMRateLimitError,
-    LLMConnectionError,
-    ToolRateLimitError,
-    ToolUnavailableError,
-)
 
 # State-dict key used by the durable-run machinery to stash usage /
 # artifacts / step counter across checkpoints. Private to this module.
@@ -825,8 +811,9 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 result: Any = None
 
                 try:
-                    # Durable outer loop: catches retryable errors and
-                    # resumes from the most recent checkpoint.
+                    # Durable outer loop: catches OpenAgentsError with
+                    # exc.retryable=True and resumes from the most recent
+                    # checkpoint. Any exc.retryable=False error propagates.
                     while True:
                         try:
                             raw = await plugins.pattern.execute()
@@ -879,8 +866,8 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                                     raw = await plugins.pattern.execute()
                                     self._enforce_duration_budget(request=request, started_at=started_at)
                             break  # durable outer loop success
-                        except RETRYABLE_RUN_ERRORS as exc:
-                            if not request.durable:
+                        except OpenAgentsError as exc:
+                            if not request.durable or not exc.retryable:
                                 raise
                             durable_blob = session_state.get(_DURABLE_STATE_KEY) or {}
                             checkpoint_id = durable_blob.get("checkpoint_id")
@@ -893,6 +880,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                                     run_id=request.run_id,
                                     attempt_index=resume_attempt + 1,
                                     error_type=type(exc).__name__,
+                                    error_code=getattr(exc, "code", "error.unknown"),
                                     limit=max_resume,
                                 )
                                 raise
@@ -902,6 +890,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                                 run_id=request.run_id,
                                 checkpoint_id=checkpoint_id,
                                 error_type=type(exc).__name__,
+                                error_code=getattr(exc, "code", "error.unknown"),
                                 attempt_index=resume_attempt,
                             )
                             ckpt = await self._session_manager.load_checkpoint(request.session_id, checkpoint_id)
@@ -932,12 +921,14 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                         is_error=True,
                     )
                     await self._persist_artifacts(request.session_id, artifacts)
+                    _ve_details = ErrorDetails.from_exception(validation_exhausted)
                     await self._event_bus.emit(
                         RUN_FAILED,
                         agent_id=request.agent_id,
                         session_id=request.session_id,
                         run_id=request.run_id,
                         error=str(validation_exhausted),
+                        error_details=_ve_details.model_dump(),
                     )
                     await self._event_bus.emit(
                         "session.run.completed",
@@ -953,8 +944,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                         stop_reason=RUN_STOP_FAILED,
                         usage=usage,
                         artifacts=list(artifacts),
-                        exception=validation_exhausted,
-                        error=str(validation_exhausted),
+                        error_details=_ve_details,
                         metadata={
                             "agent_id": request.agent_id,
                             "session_id": request.session_id,
@@ -1034,12 +1024,14 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 stop_reason=stop_reason,
                 is_error=True,
             )
+            _exc_details = ErrorDetails.from_exception(wrapped_exc)
             await self._event_bus.emit(
                 RUN_FAILED,
                 agent_id=request.agent_id,
                 session_id=request.session_id,
                 run_id=request.run_id,
                 error=str(wrapped_exc),
+                error_details=_exc_details.model_dump(),
             )
             await self._event_bus.emit(
                 "session.run.completed",
@@ -1054,8 +1046,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 stop_reason=stop_reason,
                 usage=usage,
                 artifacts=list(artifacts),
-                error=str(wrapped_exc),
-                exception=wrapped_exc,
+                error_details=_exc_details,
                 metadata={
                     "agent_id": request.agent_id,
                     "session_id": request.session_id,
@@ -1085,6 +1076,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     run_result.metadata["error_snapshot"] = {
                         "run_id": snapshot.run_id,
                         "error_type": snapshot.error_type,
+                        "error_code": snapshot.error_code,
                         "error_message": snapshot.error_message,
                         "tool_call_chain": snapshot.tool_call_chain,
                         "last_transcript": snapshot.last_transcript,
@@ -1198,6 +1190,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     checkpoint_id=checkpoint_id,
                     error=str(exc),
                     error_type=type(exc).__name__,
+                    error_details=ErrorDetails.from_exception(exc).model_dump(),
                 )
                 return
             transcript = session_state.get("_session_transcript", [])
@@ -1627,6 +1620,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 agent_id=context.agent_id,
                 session_id=context.session_id,
                 error=str(exc),
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
             )
             logger.warning(
                 "Memory %s failed during inject (on_error=%s): %s",
@@ -1668,6 +1662,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                 agent_id=context.agent_id,
                 session_id=context.session_id,
                 error=str(exc),
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
             )
             logger.warning(
                 "Memory %s failed during writeback (on_error=%s): %s",

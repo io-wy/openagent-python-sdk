@@ -134,7 +134,9 @@ def _map_litellm_exception(exc: BaseException) -> Exception:
         return exc
     name = type(exc).__name__
     if name == "RateLimitError":
-        return LLMRateLimitError(str(exc))
+        ra_s = getattr(exc, "retry_after", None)
+        retry_after_ms = int(ra_s * 1000) if isinstance(ra_s, (int, float)) and ra_s > 0 else None
+        return LLMRateLimitError(str(exc), retry_after_ms=retry_after_ms)
     if name in ("APIConnectionError", "Timeout"):
         return LLMConnectionError(str(exc))
     # APIError and subclasses, plus any unclassified litellm exception

@@ -92,6 +92,7 @@ class PhoenixExporter(DiagnosticsPlugin):
 
             if snapshot is not None:
                 root_span.set_attribute("error.type", snapshot.error_type)
+                root_span.set_attribute("error.code", snapshot.error_code)
                 root_span.set_attribute("error.message", snapshot.error_message[:500])
 
             for i, call in enumerate(calls):

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import random
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from openagents.errors.exceptions import ToolTimeoutError
 from openagents.interfaces.tool import (
     ToolExecutionRequest,
     ToolExecutionResult,
@@ -16,22 +16,34 @@ from openagents.interfaces.tool import (
 
 
 class RetryToolExecutor(ToolExecutorPlugin):
-    """Wraps another ToolExecutor and retries on classified errors with exponential backoff.
+    """Wraps another ToolExecutor and retries on attribute-classified errors with exponential backoff.
 
     What:
-        Delegates to an inner executor and, on returned failures
-        whose exception type matches ``retry_on`` (or any
-        :class:`ToolTimeoutError` if ``retry_on_timeout``), sleeps
-        for an exponential delay and tries again up to
-        ``max_attempts`` times. Annotates the final result's
-        metadata with ``retry_attempts`` / ``retry_delays_ms`` /
-        ``retry_reasons``. ``execute_stream`` is a transparent
-        passthrough (no retry).
+        Delegates to an inner executor and, on returned failures whose
+        exception carries ``retryable = True``, sleeps for an exponential
+        (optionally jittered) delay and tries again up to ``max_attempts``
+        times.  When the exception also carries a ``retry_after_ms``
+        attribute, that value is used as a *floor* for the computed delay,
+        ensuring rate-limit windows are respected.  Annotates the final
+        result's metadata with ``retry_attempts`` / ``retry_delays_ms`` /
+        ``retry_reasons``.  ``execute_stream`` is a transparent passthrough
+        (no retry).
 
     Usage:
         ``{"tool_executor": {"type": "retry", "config": {"inner":
-        {"type": "safe"}, "max_attempts": 3, "initial_delay_ms":
-        200, "backoff_multiplier": 2.0, "max_delay_ms": 5000}}}``
+        {"type": "safe"}, "max_attempts": 3, "initial_delay_ms": 200,
+        "backoff_multiplier": 2.0, "max_delay_ms": 5000,
+        "jitter": "equal"}}}``
+
+    Jitter modes (AWS-standard):
+        - ``"none"``  — deterministic exponential backoff
+        - ``"full"``  — uniform in [0, delay]
+        - ``"equal"`` — half fixed + half random: delay//2 + randint(0, delay//2)
+
+    Classification:
+        An exception is retryable iff ``getattr(exc, "retryable", False) is True``.
+        This subsumes all built-in retryable error classes and any user subclass
+        that sets ``retryable = True``.
 
     Depends on:
         - the wrapped inner ``ToolExecutorPlugin`` loaded via
@@ -44,15 +56,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
         initial_delay_ms: int = 200
         backoff_multiplier: float = 2.0
         max_delay_ms: int = 5_000
-        retry_on_timeout: bool = True
-        retry_on: list[str] = Field(
-            default_factory=lambda: [
-                "RetryableToolError",
-                "ToolTimeoutError",
-                "ToolRateLimitError",
-                "ToolUnavailableError",
-            ]
-        )
+        jitter: Literal["none", "full", "equal"] = "equal"
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities=set())
@@ -61,8 +65,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
         self._initial_delay_ms = max(0, cfg.initial_delay_ms)
         self._backoff = max(1.0, cfg.backoff_multiplier)
         self._max_delay_ms = max(self._initial_delay_ms, cfg.max_delay_ms)
-        self._retry_on_timeout = cfg.retry_on_timeout
-        self._retry_on = set(cfg.retry_on)
+        self._jitter = cfg.jitter
         self._inner = self._load_inner(cfg.inner)
 
     def _load_inner(self, ref: dict[str, Any]) -> Any:
@@ -72,18 +75,18 @@ class RetryToolExecutor(ToolExecutorPlugin):
         return load_plugin("tool_executor", ToolExecutorRef(**ref), required_methods=("execute", "execute_stream"))
 
     def _should_retry(self, exc: Exception | None) -> bool:
-        if exc is None:
-            return False
-        name = type(exc).__name__
-        if name in self._retry_on:
-            return True
-        if self._retry_on_timeout and isinstance(exc, ToolTimeoutError):
-            return True
-        return False
+        return getattr(exc, "retryable", False) is True
 
-    def _delay_for(self, attempt: int) -> int:
-        delay = self._initial_delay_ms * (self._backoff**attempt)
-        return int(min(self._max_delay_ms, delay))
+    def _delay_for(self, attempt: int, exc: Exception | None = None) -> int:
+        base_ms = int(min(self._initial_delay_ms * (self._backoff**attempt), self._max_delay_ms))
+        floor_ms = int(getattr(exc, "retry_after_ms", 0) or 0)
+        delay_ms = max(base_ms, floor_ms)
+        if self._jitter == "full":
+            return random.randint(0, delay_ms)
+        if self._jitter == "equal":
+            half = delay_ms // 2
+            return half + random.randint(0, half)
+        return delay_ms  # "none"
 
     async def execute(self, request: ToolExecutionRequest) -> ToolExecutionResult:
         delays: list[int] = []
@@ -101,7 +104,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
             last_result = result
             if attempt + 1 >= self._max_attempts:
                 break
-            delay_ms = self._delay_for(attempt)
+            delay_ms = self._delay_for(attempt, result.exception)
             delays.append(delay_ms)
             reasons.append(type(result.exception).__name__ if result.exception else "unknown")
             await asyncio.sleep(delay_ms / 1000)

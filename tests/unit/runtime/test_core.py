@@ -513,7 +513,7 @@ async def test_preflight_failure_maps_to_failed_run_result():
 
     assert result.stop_reason == "failed"
     assert result.final_output is None
-    assert "failing_preflight_tool" in (result.error or "")
+    assert "failing_preflight_tool" in (result.error_details.message if result.error_details else "")
 
     await runtime.close()
 
