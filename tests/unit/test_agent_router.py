@@ -234,3 +234,77 @@ def test_load_agent_router_plugin_returns_router_when_enabled():
     router = load_agent_router_plugin(cfg)
     assert isinstance(router, DefaultAgentRouter)
     assert router._max_depth == 3
+
+
+# ---------------------------------------------------------------------------
+# Task 6: DefaultRuntime wiring
+# ---------------------------------------------------------------------------
+
+
+def test_default_runtime_has_agent_router_field():
+    from openagents.plugins.builtin.runtime.default_runtime import DefaultRuntime
+
+    runtime = DefaultRuntime()
+    assert hasattr(runtime, "_agent_router")
+    assert runtime._agent_router is None
+
+
+@pytest.mark.asyncio
+async def test_handoff_signal_caught_by_default_runtime():
+    """DefaultRuntime.run() must catch HandoffSignal and return its result."""
+    from contextlib import asynccontextmanager
+
+    from openagents.interfaces.runtime import RunRequest
+    from openagents.plugins.builtin.runtime.default_runtime import DefaultRuntime
+
+    child_result = RunResult(run_id="child", final_output="child output", stop_reason=StopReason.COMPLETED)
+
+    mock_pattern = MagicMock()
+    mock_pattern.execute = AsyncMock(side_effect=HandoffSignal(child_result))
+    mock_pattern.setup = AsyncMock()
+    mock_pattern.context = MagicMock()
+    mock_pattern.context.scratch = {}
+
+    mock_plugins = MagicMock()
+    mock_plugins.pattern = mock_pattern
+    mock_plugins.memory = MagicMock()
+    mock_plugins.memory.capabilities = set()
+    mock_plugins.tool_executor = None
+    mock_plugins.context_assembler = None
+    mock_plugins.tools = {}
+
+    runtime = DefaultRuntime()
+    mock_bus = AsyncMock()
+    mock_bus.subscribe = MagicMock()
+    mock_bus.unsubscribe = MagicMock()
+    runtime._event_bus = mock_bus
+
+    @asynccontextmanager
+    async def fake_session(session_id):
+        yield {}
+
+    mock_session = MagicMock()
+    mock_session.session = fake_session
+    mock_session.append_message = AsyncMock()
+    mock_session.save_artifact = AsyncMock()
+    mock_session.load_messages = AsyncMock(return_value=[])
+    mock_session.list_artifacts = AsyncMock(return_value=[])
+    runtime._session_manager = mock_session
+
+    mock_agent = MagicMock()
+    mock_agent.id = "test_agent"
+    mock_agent.llm = None
+    mock_agent.runtime = MagicMock(max_steps=16, step_timeout_ms=30000)
+    mock_agent.memory = MagicMock(on_error="continue")
+
+    request = RunRequest(agent_id="test_agent", session_id="s1", input_text="hi", run_id="parent-run")
+
+    result = await runtime.run(
+        request=request,
+        app_config=MagicMock(agents=[mock_agent]),
+        agents_by_id={"test_agent": mock_agent},
+        agent_plugins=mock_plugins,
+    )
+    assert result.final_output == "child output"
+    assert result.stop_reason == StopReason.COMPLETED.value
+    assert result.metadata["handoff_from"] == "child"

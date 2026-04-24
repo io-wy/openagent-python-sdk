@@ -24,6 +24,7 @@ from openagents.errors.exceptions import (
     PatternError,
     PermanentToolError,
 )
+from openagents.interfaces.agent_router import HandoffSignal
 from openagents.interfaces.capabilities import (
     MEMORY_INJECT,
     MEMORY_WRITEBACK,
@@ -512,6 +513,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         self._llm_clients: dict[str, Any | None] = {}
         self._tool_executor: ToolExecutor | None = None
         self._context_assembler: ContextAssemblerPlugin | None = None
+        self._agent_router: Any | None = None
         from ._mcp_coordinator import _McpSessionCoordinator
 
         mcp_cfg = self.cfg.mcp
@@ -1003,6 +1005,37 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                     except Exception:  # noqa: BLE001 - diagnostics must never break the run
                         logger.exception("diagnostics on_run_complete raised; ignored")
                 return run_result
+        except HandoffSignal as sig:
+            # transfer() called: parent run ends with the child's result as final output.
+            # HandoffSignal is a BaseException so it bypasses ``except Exception`` below;
+            # we catch it explicitly here to end the run cleanly.
+            await self._event_bus.emit(
+                RUN_COMPLETED,
+                agent_id=request.agent_id,
+                session_id=request.session_id,
+                run_id=request.run_id,
+                result=sig.result.final_output,
+            )
+            await self._event_bus.emit(
+                "session.run.completed",
+                agent_id=request.agent_id,
+                session_id=request.session_id,
+                run_id=request.run_id,
+                stop_reason=RUN_STOP_COMPLETED,
+                duration_ms=int((time.perf_counter() - started_at) * 1000),
+            )
+            return RunResult(
+                run_id=request.run_id,
+                final_output=sig.result.final_output,
+                stop_reason=RUN_STOP_COMPLETED,
+                usage=usage,
+                artifacts=list(artifacts),
+                metadata={
+                    "agent_id": request.agent_id,
+                    "session_id": request.session_id,
+                    "handoff_from": sig.result.run_id,
+                },
+            )
         except Exception as exc:
             wrapped_exc = exc
             if not isinstance(exc, OpenAgentsError):
@@ -1437,6 +1470,7 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         context.tool_executor = tool_executor
         context.usage = usage
         context.artifacts = artifacts
+        context.agent_router = self._agent_router
 
     def _get_tool_executor(self) -> ToolExecutor:
         from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
