@@ -3,7 +3,7 @@
 import pytest
 
 from openagents.config.schema import LLMOptions, LLMRetryOptions
-from openagents.errors.exceptions import ConfigValidationError
+from openagents.errors.exceptions import ConfigError, ConfigValidationError
 from openagents.llm.providers.anthropic import AnthropicClient
 from openagents.llm.providers.mock import MockLLMClient
 from openagents.llm.providers.openai_compatible import OpenAICompatibleClient
@@ -259,3 +259,52 @@ def test_registry_defaults_openai_api_style_to_chat_completions():
     client = create_llm_client(opts)
     assert isinstance(client, OpenAICompatibleClient)
     assert client.api_style == "chat_completions"
+
+
+def test_create_llm_client_litellm_routes_to_litellm_client():
+    _ = pytest.importorskip("litellm")
+    from openagents.llm.providers.litellm_client import LiteLLMClient
+
+    config = LLMOptions(
+        provider="litellm",
+        model="bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    )
+    client = create_llm_client(config)
+    assert isinstance(client, LiteLLMClient)
+    assert client.provider_name == "litellm:bedrock"
+
+
+def test_create_llm_client_litellm_forwards_whitelisted_kwargs():
+    _ = pytest.importorskip("litellm")
+    config = LLMOptions(
+        provider="litellm",
+        model="bedrock/foo",
+        aws_region_name="us-east-1",
+    )
+    client = create_llm_client(config)
+    assert client._extra_kwargs.get("aws_region_name") == "us-east-1"
+
+
+def test_create_llm_client_litellm_drops_non_whitelisted_kwargs(caplog):
+    _ = pytest.importorskip("litellm")
+    config = LLMOptions(
+        provider="litellm",
+        model="bedrock/foo",
+        fallbacks=["some-model"],  # blacklisted: must not forward
+        callbacks=["sentinel"],  # blacklisted
+    )
+    with caplog.at_level("WARNING", logger="openagents.llm"):
+        client = create_llm_client(config)
+    assert "fallbacks" not in client._extra_kwargs
+    assert "callbacks" not in client._extra_kwargs
+
+
+def test_create_llm_client_litellm_raises_config_error_when_package_missing(monkeypatch):
+    _ = pytest.importorskip("litellm")
+    from openagents.llm.providers import litellm_client as lc_module
+
+    monkeypatch.setattr(lc_module, "litellm", None)
+    config = LLMOptions(provider="litellm", model="bedrock/foo")
+    with pytest.raises(ConfigError) as excinfo:
+        create_llm_client(config)
+    assert "pip install" in str(excinfo.value)

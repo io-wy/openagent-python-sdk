@@ -162,7 +162,7 @@ def _emit_final_output(result: Any, fmt: str) -> None:
                         "run_id": result.run_id,
                         "stop_reason": str(result.stop_reason),
                         "final_output": str(result.final_output) if result.final_output is not None else None,
-                        "error": result.error,
+                        "error": result.error_details.message if result.error_details is not None else None,
                     },
                 )
             )
@@ -256,6 +256,6 @@ def run(args: argparse.Namespace) -> int:
         asyncio.run(runtime.close())
     except Exception:  # pragma: no cover - best-effort cleanup
         pass
-    if result.error:
+    if result.error_details is not None:
         return EXIT_RUNTIME
     return EXIT_OK

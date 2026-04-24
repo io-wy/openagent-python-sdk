@@ -70,6 +70,7 @@ async def test_main_dispatches_new(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_main_dispatches_resume_loads_existing(monkeypatch, tmp_path):
     from datetime import datetime, timezone
+
     from examples.pptx_generator.persistence import save_project
     from examples.pptx_generator.state import DeckProject
 
@@ -78,10 +79,12 @@ async def test_main_dispatches_resume_loads_existing(monkeypatch, tmp_path):
     save_project(existing, root=tmp_path)
 
     captured = {}
+
     async def fake_wizard(project, *, resume=False, **kw):
         captured["slug"] = project.slug
         captured["resume"] = resume
         return 0
+
     monkeypatch.setattr("examples.pptx_generator.cli.run_wizard", fake_wizard)
 
     rc = await main(["resume", "abc"])
@@ -214,9 +217,7 @@ async def test_resume_corrupt_offers_restore_menu(
 
 
 @pytest.mark.asyncio
-async def test_resume_restore_from_backup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_resume_restore_from_backup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PPTX_AGENT_OUTPUTS", str(tmp_path))
     save_project(
         DeckProject(slug="broken", created_at=datetime(2026, 4, 19, tzinfo=timezone.utc), stage="intent"),
@@ -269,9 +270,7 @@ async def test_keyboard_interrupt_flushes_and_exits(
 
     runtime = SimpleNamespace(run=AsyncMock())
     shell_tool = SimpleNamespace(invoke=AsyncMock())
-    rc = await cli.run_wizard(
-        project, runtime=runtime, shell_tool=shell_tool
-    )
+    rc = await cli.run_wizard(project, runtime=runtime, shell_tool=shell_tool)
     assert rc == 130
     captured = capsys.readouterr()
     assert "resume with" in captured.out
@@ -282,9 +281,11 @@ async def test_keyboard_interrupt_flushes_and_exits(
 async def test_slugify_from_topic_creates_unique_slug(monkeypatch, tmp_path):
     monkeypatch.setenv("PPTX_AGENT_OUTPUTS", str(tmp_path))
     captured = {}
+
     async def fake_wizard(project, **kw):
         captured["slug"] = project.slug
         return 0
+
     monkeypatch.setattr("examples.pptx_generator.cli.run_wizard", fake_wizard)
     rc = await main(["new", "--topic", "My Awesome Deck"])
     assert rc == 0

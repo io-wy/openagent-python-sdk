@@ -16,6 +16,37 @@ _LEVEL_NAMES = {
 }
 
 
+# Standard LogRecord attribute names. Extracted to module level so _loguru.py
+# can import the exact same frozenset by identity, preventing drift between
+# RedactFilter's skip set and the intercept handler's extras harvester.
+_LOGRECORD_STD_ATTRS: frozenset[str] = frozenset(
+    {
+        "args",
+        "asctime",
+        "created",
+        "exc_info",
+        "exc_text",
+        "filename",
+        "funcName",
+        "levelname",
+        "levelno",
+        "lineno",
+        "message",
+        "module",
+        "msecs",
+        "msg",
+        "name",
+        "pathname",
+        "process",
+        "processName",
+        "relativeCreated",
+        "stack_info",
+        "thread",
+        "threadName",
+    }
+)
+
+
 class PrefixFilter(logging.Filter):
     """Accept or drop records by logger-name prefix. Deny wins over allow."""
 
@@ -70,32 +101,8 @@ class RedactFilter(logging.Filter):
         self._openagents_installed = True
 
     def filter(self, record: logging.LogRecord) -> bool:
-        skip = {
-            "args",
-            "asctime",
-            "created",
-            "exc_info",
-            "exc_text",
-            "filename",
-            "funcName",
-            "levelname",
-            "levelno",
-            "lineno",
-            "message",
-            "module",
-            "msecs",
-            "msg",
-            "name",
-            "pathname",
-            "process",
-            "processName",
-            "relativeCreated",
-            "stack_info",
-            "thread",
-            "threadName",
-        }
         for key in list(record.__dict__.keys()):
-            if key.startswith("_") or key in skip:
+            if key.startswith("_") or key in _LOGRECORD_STD_ATTRS:
                 continue
             # Wrap the value in a dict so redact() can mask based on key name
             wrapped = {key: record.__dict__[key]}

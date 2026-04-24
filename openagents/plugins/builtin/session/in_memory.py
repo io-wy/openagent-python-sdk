@@ -17,6 +17,7 @@ from openagents.interfaces.session import (
     SessionManagerPlugin,
 )
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
+from openagents.plugins.builtin.session._reentry import reentrant_session
 
 
 class InMemorySessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
@@ -56,14 +57,11 @@ class InMemorySessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
 
     @asynccontextmanager
     async def session(self, session_id: str) -> AsyncIterator[dict[str, Any]]:
-        """Acquire and manage a session with async lock."""
+        """Acquire and manage a session with a task-reentrant async lock."""
         lock = self._locks.setdefault(session_id, asyncio.Lock())
-        await lock.acquire()
-        try:
+        async with reentrant_session(lock, session_id):
             state = await self.get_state(session_id)
             yield state
-        finally:
-            lock.release()
 
     async def get_state(self, session_id: str) -> dict[str, Any]:
         """Get current session state."""
@@ -84,3 +82,20 @@ class InMemorySessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
     async def list_sessions(self) -> list[str]:
         """List all active session IDs."""
         return list(self._states.keys())
+
+    async def fork_session(self, source_session_id: str, target_session_id: str) -> None:
+        """Deep-copy source's state into a fresh target session."""
+        import copy
+
+        from openagents.errors.exceptions import SessionError
+
+        target_existing = self._states.get(target_session_id)
+        if target_existing:
+            raise SessionError(
+                f"in_memory_session: fork target '{target_session_id}' already exists",
+                hint="use a fresh target_session_id or delete_session first",
+            )
+        source_lock = self._locks.setdefault(source_session_id, asyncio.Lock())
+        async with reentrant_session(source_lock, source_session_id):
+            source_state = self._states.get(source_session_id, {})
+            self._states[target_session_id] = copy.deepcopy(source_state)

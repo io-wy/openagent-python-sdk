@@ -33,8 +33,8 @@ from openagents.cli._exit import (
 )
 from openagents.cli._rich import _PlainConsole, get_console
 
-
 # --------------------------------------------------------------------- _exit
+
 
 def test_exit_codes_have_stable_values():
     # Contract tested by downstream subcommand tests; lock the numbers.
@@ -42,6 +42,7 @@ def test_exit_codes_have_stable_values():
 
 
 # --------------------------------------------------------------------- _rich
+
 
 def test_plain_console_writes_to_given_stream():
     buf = io.StringIO()
@@ -81,6 +82,7 @@ def test_get_console_returns_rich_when_available():
 
 
 # ------------------------------------------------------------------- _events
+
 
 def test_default_excludes_returns_fresh_copy():
     a = default_excludes()
@@ -162,6 +164,7 @@ def test_iter_turns_preserves_single_bucket_when_no_run_started():
 
 # ---------------------------------------------------------------- _fallback
 
+
 def test_require_or_hint_returns_module_when_present():
     _fallback.reset_hint_state()
     mod = _fallback.require_or_hint("json")
@@ -191,6 +194,7 @@ def test_reset_hint_state_allows_second_emission(capsys):
 
 # ----------------------------------------------------- _rich coverage gap
 
+
 def test_plain_console_coerce_handles_none_and_generic_object():
     # Exercise _coerce's None, renderable-attr, and str-fallback branches.
     from openagents.cli._rich import _coerce
@@ -217,6 +221,7 @@ def test_plain_console_rule_without_title():
 
 
 # --------------------------------------------------- _events coverage gap
+
 
 def test_event_formatter_emits_elapsed_ms_for_matched_tool_and_llm_pairs():
     buf = io.StringIO()
@@ -337,12 +342,7 @@ def test_event_formatter_tavily_panel_handles_more_than_five_results():
         "tool.succeeded",
         {
             "tool_id": "tavily",
-            "result": {
-                "results": [
-                    {"title": f"t{i}", "url": f"https://u{i}", "content": "c"}
-                    for i in range(7)
-                ]
-            },
+            "result": {"results": [{"title": f"t{i}", "url": f"https://u{i}", "content": "c"} for i in range(7)]},
         },
     )
     # Only first 5 are rendered into the table; the other 2 are dropped silently.
@@ -380,9 +380,7 @@ def test_try_render_tavily_panel_returns_none_without_rich(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", _no_rich)
     from openagents.cli._events import _try_render_tavily_panel
 
-    result = _try_render_tavily_panel(
-        "header", {"results": [{"title": "a", "url": "u"}]}
-    )
+    result = _try_render_tavily_panel("header", {"results": [{"title": "a", "url": "u"}]})
     assert result is None
 
 

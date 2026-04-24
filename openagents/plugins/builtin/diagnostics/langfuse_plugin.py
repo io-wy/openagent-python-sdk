@@ -85,6 +85,7 @@ class LangfuseExporter(DiagnosticsPlugin):
         if snapshot is not None:
             metadata["error_snapshot"] = {
                 "error_type": snapshot.error_type,
+                "error_code": snapshot.error_code,
                 "error_message": snapshot.error_message,
                 "tool_call_chain": snapshot.tool_call_chain,
                 "captured_at": snapshot.captured_at,

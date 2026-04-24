@@ -59,6 +59,19 @@ class Runtime:
         self._skills = components.skills
         self._diagnostics = components.diagnostics
 
+        # Wire multi-agent router post-construction when enabled in config.
+        # Needs self.run_detailed to be bound, so this must run after
+        # self._runtime is assigned.
+        from openagents.plugins.loader import load_agent_router_plugin
+
+        _agent_router = load_agent_router_plugin(config.multi_agent)
+        if _agent_router is not None:
+            _agent_router._run_fn = self.run_detailed
+            _agent_router._session_manager = self._session
+            _agent_router._agent_exists = lambda aid, _registry=self._agents_by_id: aid in _registry
+            if hasattr(self._runtime, "_agent_router"):
+                self._runtime._agent_router = _agent_router
+
         self._maybe_auto_configure_logging(config)
 
     @staticmethod
@@ -173,10 +186,9 @@ class Runtime:
                 deps=deps,
             )
         )
-        if result.exception is not None:
-            raise result.exception
         if result.stop_reason == RUN_STOP_FAILED:
-            raise RuntimeError(result.error or "Agent run failed")
+            message = result.error_details.message if result.error_details is not None else "Agent run failed"
+            raise RuntimeError(message)
         return result.final_output
 
     async def run_detailed(self, *, request: RunRequest) -> RunResult:
@@ -256,6 +268,8 @@ class Runtime:
         request.context_hints["__runtime_streaming__"] = True
 
         async def _drive_run():
+            from openagents.interfaces.runtime import ErrorDetails as _ErrorDetails
+
             try:
                 return await self.run_detailed(request=request)
             except Exception as exc:  # noqa: BLE001
@@ -263,7 +277,7 @@ class Runtime:
                     run_id=request.run_id,
                     final_output=None,
                     stop_reason=StopReason.FAILED,
-                    error=str(exc),
+                    error_details=_ErrorDetails.from_exception(exc),
                 )
 
         run_task = asyncio.create_task(_drive_run())

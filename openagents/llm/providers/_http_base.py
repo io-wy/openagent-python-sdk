@@ -144,12 +144,13 @@ def _make_error_for_status(
     status: int,
     body_excerpt: str,
     retryable_status: frozenset[int],
+    retry_after_ms: int | None = None,
 ) -> Exception:
     classifier = _classify_status(status, retryable_status)
     msg = f"HTTP {status}: {body_excerpt}"
     if classifier == "rate_limit":
         hint = "provider rate-limited or overloaded; increase 'llm.retry.max_attempts' or slow down request rate"
-        return LLMRateLimitError(msg, hint=hint).with_context()
+        return LLMRateLimitError(msg, hint=hint, retry_after_ms=retry_after_ms).with_context()
     if classifier == "connection":
         hint = f"upstream server error from {url}; check provider status"
         return LLMConnectionError(msg, hint=hint)
@@ -328,11 +329,14 @@ class HTTPProviderClient(LLMClient):
         if last_exc is not None:
             raise _make_error_for_exception(url=url, exc=last_exc)
         if last_response is not None:
+            last_headers = _response_headers(last_response)
+            ra_s = _parse_retry_after_seconds(last_headers.get("Retry-After") or last_headers.get("retry-after"))
             raise _make_error_for_status(
                 url=url,
                 status=int(getattr(last_response, "status_code", 0)),
                 body_excerpt=_body_excerpt(last_response),
                 retryable_status=retryable,
+                retry_after_ms=int(ra_s * 1000) if ra_s is not None else None,
             )
         # Budget exhausted without ever issuing a request
         raise LLMConnectionError(
@@ -461,8 +465,14 @@ class HTTPProviderClient(LLMClient):
         if last_status is not None:
             # Re-read body of the last entered response for the message, then close
             body_excerpt = ""
+            stream_retry_after_ms: int | None = None
             if last_entered is not None:
                 resp, resp_cm = last_entered
+                last_resp_headers = _response_headers(resp)
+                ra_s = _parse_retry_after_seconds(
+                    last_resp_headers.get("Retry-After") or last_resp_headers.get("retry-after")
+                )
+                stream_retry_after_ms = int(ra_s * 1000) if ra_s is not None else None
                 body_bytes = b""
                 try:
                     body_bytes = await resp.aread()
@@ -481,6 +491,7 @@ class HTTPProviderClient(LLMClient):
                 status=last_status,
                 body_excerpt=body_excerpt,
                 retryable_status=retryable,
+                retry_after_ms=stream_retry_after_ms,
             )
         raise LLMConnectionError(
             f"retry budget exhausted before first attempt to {url}",

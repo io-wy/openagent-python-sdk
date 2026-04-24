@@ -95,7 +95,7 @@ async def test_runtime_enforces_max_tool_calls_budget():
     )
 
     assert result.stop_reason == "max_steps"
-    assert "Tool call limit" in (result.error or "")
+    assert "Tool call limit" in (result.error_details.message if result.error_details else "")
 
 
 @pytest.mark.asyncio
@@ -118,4 +118,4 @@ async def test_runtime_enforces_duration_budget():
     )
 
     assert result.stop_reason == "budget_exhausted"
-    assert "duration limit" in (result.error or "").lower()
+    assert "duration limit" in (result.error_details.message if result.error_details else "").lower()

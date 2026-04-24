@@ -506,3 +506,4 @@ kernel-clean：CLI 只通过 `Runtime.from_config` / `Runtime.run_detailed` /
 - [流式 API](stream-api.md)
 - [可观测性](observability.md)
 - [0.2 → 0.3 迁移指南](migration-0.2-to-0.3.md)
+- [错误参考 / errors.md](errors.md) — 每个 `OpenAgentsError` 子类的 code、retryable、处理建议

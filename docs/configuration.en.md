@@ -255,9 +255,30 @@ The `logging` section is at the **root `AppConfig` level**, not inside `runtime.
 | `max_value_length` | int | `500` | String value truncation length |
 | `show_time` | bool | `true` | Show timestamp column (rich mode only) |
 | `show_path` | bool | `false` | Show source path column (rich mode only) |
+| `loguru_sinks` | list[LoguruSinkConfig] | `[]` | Multi-sink loguru backend (requires `[loguru]` extra); **mutually exclusive** with `pretty=true`. See LoguruSinkConfig table below |
 
 If this section is absent or `auto_configure` is `false`, the SDK does not modify any
 logging configuration.
+
+#### LoguruSinkConfig fields
+
+Each sink is a small struct mapping directly onto the named arguments of `loguru.logger.add(...)`. `null` means use loguru's default.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `target` | str | (required) | `"stderr"` / `"stdout"` / file path |
+| `level` | str | `"INFO"` | This sink's minimum level |
+| `format` | str \| null | `null` | loguru format string |
+| `serialize` | bool | `false` | `true` → emit one JSON line per record |
+| `colorize` | bool \| null | `null` | `null` → loguru auto-detects (terminal colour) |
+| `rotation` | str \| null | `null` | Rotation policy, e.g. `"10 MB"`, `"00:00"`, `"1 week"` |
+| `retention` | str \| null | `null` | Retention duration, e.g. `"7 days"` |
+| `compression` | str \| null | `null` | Compression format, e.g. `"gz"`, `"zip"` |
+| `enqueue` | bool | `false` | Async sink (in-process queue) |
+| `filter_include` | list[str] \| null | `null` | Additional logger-name prefix filter |
+
+Environment variable supplement:
+- `OPENAGENTS_LOG_LOGURU_DISABLE`: when `1`/`true`/`yes`/`on`, force-downgrades non-empty `loguru_sinks` to a plain `StreamHandler`. CI / debug only. The `loguru_sinks` list itself **cannot** be configured via environment variables.
 
 ## 4. AgentDefinition
 
@@ -406,6 +427,7 @@ Supported providers:
 - `mock`
 - `anthropic`
 - `openai_compatible`
+- `litellm` (optional extra, see "LiteLLM Provider" section below)
 
 Validation rules:
 
@@ -414,6 +436,64 @@ Validation rules:
 - `timeout_ms` must be a positive integer
 - `max_tokens`, if provided, must be a positive integer
 - `temperature`, if provided, must be between `0.0` and `2.0`
+
+### LiteLLM Provider (Optional)
+
+`provider: "litellm"` reaches **non-OpenAI protocol** backends through [LiteLLM](https://docs.litellm.ai): AWS Bedrock, Google Vertex AI, native Gemini, Cohere, Azure OpenAI deployments. **If your backend already speaks the OpenAI protocol, prefer `openai_compatible`** — it's lighter.
+
+Install:
+
+```bash
+uv pip install "io-openagent-sdk[litellm]"
+```
+
+Bedrock example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "aws_region_name": "us-east-1",
+    "max_tokens": 4096,
+    "pricing": {"input": 3.0, "output": 15.0}
+  }
+}
+```
+
+Vertex example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "vertex_ai/gemini-1.5-pro",
+    "vertex_project": "my-gcp-project",
+    "vertex_location": "us-central1"
+  }
+}
+```
+
+Native Gemini example:
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "gemini/gemini-1.5-pro",
+    "api_key_env": "GEMINI_API_KEY"
+  }
+}
+```
+
+**Forwarded kwargs whitelist** (other extras are dropped with a warning):
+`aws_region_name`, `aws_access_key_id`, `aws_secret_access_key`, `aws_session_token`, `aws_profile_name`, `vertex_project`, `vertex_location`, `vertex_credentials`, `azure_deployment`, `api_version`, `seed`, `top_p`, `parallel_tool_calls`, `response_format`.
+
+**Unsupported LiteLLM features** (intentionally excluded as product-layer concerns): router, fallback, budget manager, built-in cache, success/failure callbacks.
+
+**Credentials:** if `api_key_env` is set the SDK reads that env and passes `api_key=...`. Otherwise LiteLLM reads its own standard env chain (`AWS_ACCESS_KEY_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, etc.).
+
+**Telemetry:** instantiating `LiteLLMClient` disables LiteLLM telemetry and success/failure callbacks process-wide, and sets `drop_params = True` to silently drop unknown kwargs.
 
 ### `pricing` (optional)
 

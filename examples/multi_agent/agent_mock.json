@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "multi_agent": {
+    "enabled": true,
+    "default_session_isolation": "isolated",
+    "max_delegation_depth": 3,
+    "default_child_budget": { "max_steps": 4, "max_cost_usd": 0.05 }
+  },
+  "events": { "type": "async" },
+  "agents": [
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator",
+      "memory": { "type": "buffer" },
+      "pattern": { "type": "react", "config": { "max_steps": 2 } },
+      "llm": { "provider": "mock" },
+      "tools": [
+        {
+          "id": "delegate_to_specialist",
+          "impl": "examples.multi_agent.plugins.DelegateToSpecialistTool"
+        }
+      ]
+    },
+    {
+      "id": "triage",
+      "name": "Triage",
+      "memory": { "type": "buffer" },
+      "pattern": { "type": "react", "config": { "max_steps": 2 } },
+      "llm": { "provider": "mock" },
+      "tools": [
+        {
+          "id": "transfer_to_billing",
+          "impl": "examples.multi_agent.plugins.TransferToBillingTool"
+        }
+      ]
+    },
+    {
+      "id": "specialist",
+      "name": "Specialist",
+      "memory": { "type": "buffer" },
+      "pattern": { "type": "react", "config": { "max_steps": 1 } },
+      "llm": { "provider": "mock" }
+    },
+    {
+      "id": "billing_agent",
+      "name": "Billing",
+      "memory": { "type": "buffer" },
+      "pattern": { "type": "react", "config": { "max_steps": 1 } },
+      "llm": { "provider": "mock" }
+    }
+  ]
+}

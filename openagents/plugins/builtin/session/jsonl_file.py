@@ -26,6 +26,7 @@ from openagents.interfaces.session import (
     SessionCheckpoint,
     SessionManagerPlugin,
 )
+from openagents.plugins.builtin.session._reentry import reentrant_session
 
 logger = logging.getLogger("openagents.session.jsonl_file")
 
@@ -134,12 +135,9 @@ class JsonlFileSessionManager(SessionManagerPlugin):
     @asynccontextmanager
     async def session(self, session_id: str) -> AsyncIterator[dict[str, Any]]:
         lock = self._locks.setdefault(session_id, asyncio.Lock())
-        await lock.acquire()
-        try:
+        async with reentrant_session(lock, session_id):
             state = self._ensure_loaded(session_id)
             yield state
-        finally:
-            lock.release()
 
     async def get_state(self, session_id: str) -> dict[str, Any]:
         return self._ensure_loaded(session_id)
@@ -165,6 +163,33 @@ class JsonlFileSessionManager(SessionManagerPlugin):
         # Session IDs containing dots round-trip correctly here and in `_path`.
         disk = {p.stem for p in self._root.glob("*.jsonl")}
         return sorted(disk | set(self._states.keys()))
+
+    async def fork_session(self, source_session_id: str, target_session_id: str) -> None:
+        """Copy source's jsonl file to target atomically (temp + os.replace)."""
+        import shutil
+
+        from openagents.errors.exceptions import SessionError
+
+        target_path = self._path(target_session_id)
+        if target_path.exists() or target_session_id in self._states:
+            raise SessionError(
+                f"jsonl_file_session: fork target '{target_session_id}' already exists",
+                hint="use a fresh target_session_id or delete_session first",
+            )
+        source_lock = self._locks.setdefault(source_session_id, asyncio.Lock())
+        async with reentrant_session(source_lock, source_session_id):
+            self._ensure_loaded(source_session_id)
+            source_path = self._path(source_session_id)
+            if source_path.exists():
+                tmp_path = target_path.with_suffix(".jsonl.tmp")
+                shutil.copyfile(source_path, tmp_path)
+                os.replace(tmp_path, target_path)
+            # Seed in-memory mirror with a deep-copied snapshot so subsequent
+            # reads on target don't hit empty state before replay.
+            import copy
+
+            self._states[target_session_id] = copy.deepcopy(self._states.get(source_session_id, {}))
+            self._loaded.add(target_session_id)
 
     async def append_message(self, session_id: str, message: dict[str, Any]) -> None:
         state = self._ensure_loaded(session_id)

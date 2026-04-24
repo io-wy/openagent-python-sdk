@@ -96,3 +96,119 @@ class TestEnvOverridesConfig:
         merged = merge_env_overrides(base)
         assert merged.level == "DEBUG"
         assert merged.pretty is False  # unset env var did not override
+
+
+class TestLoguruSinkConfig:
+    def test_minimal_config(self) -> None:
+        from openagents.observability.config import LoguruSinkConfig
+
+        cfg = LoguruSinkConfig(target="stderr")
+        assert cfg.target == "stderr"
+        assert cfg.level == "INFO"
+        assert cfg.serialize is False
+        assert cfg.enqueue is False
+        assert cfg.format is None
+        assert cfg.rotation is None
+        assert cfg.filter_include is None
+
+    def test_all_fields(self) -> None:
+        from openagents.observability.config import LoguruSinkConfig
+
+        cfg = LoguruSinkConfig(
+            target=".logs/app.log",
+            level="DEBUG",
+            format="{time} {level} {message}",
+            serialize=True,
+            colorize=False,
+            rotation="10 MB",
+            retention="7 days",
+            compression="gz",
+            enqueue=True,
+            filter_include=["openagents.llm", "openagents.runtime"],
+        )
+        assert cfg.target == ".logs/app.log"
+        assert cfg.level == "DEBUG"
+        assert cfg.rotation == "10 MB"
+        assert cfg.filter_include == ["openagents.llm", "openagents.runtime"]
+
+    def test_level_normalized_case(self) -> None:
+        from openagents.observability.config import LoguruSinkConfig
+
+        cfg = LoguruSinkConfig(target="stderr", level="warning")
+        assert cfg.level == "WARNING"
+
+    def test_level_invalid_rejected(self) -> None:
+        from pydantic import ValidationError
+
+        from openagents.observability.config import LoguruSinkConfig
+
+        with pytest.raises(ValidationError):
+            LoguruSinkConfig(target="stderr", level="BOGUS")
+
+    def test_unknown_field_rejected(self) -> None:
+        from pydantic import ValidationError
+
+        from openagents.observability.config import LoguruSinkConfig
+
+        with pytest.raises(ValidationError):
+            LoguruSinkConfig(target="stderr", rotate_when_full=True)  # typo
+
+    def test_target_required(self) -> None:
+        from pydantic import ValidationError
+
+        from openagents.observability.config import LoguruSinkConfig
+
+        with pytest.raises(ValidationError):
+            LoguruSinkConfig()
+
+    def test_non_string_level_rejected(self) -> None:
+        """Cover the explicit isinstance(value, str) guard in _v_level."""
+        from pydantic import ValidationError
+
+        from openagents.observability.config import LoguruSinkConfig
+
+        with pytest.raises(ValidationError, match="level must be a string"):
+            LoguruSinkConfig(target="stderr", level=42)  # type: ignore[arg-type]
+
+
+class TestLoggingConfigLoguruSinks:
+    def test_default_is_empty_list(self) -> None:
+        cfg = LoggingConfig()
+        assert cfg.loguru_sinks == []
+
+    def test_accepts_list_of_dicts(self) -> None:
+        from openagents.observability.config import LoguruSinkConfig
+
+        cfg = LoggingConfig(loguru_sinks=[{"target": "stderr", "level": "WARNING"}])
+        assert len(cfg.loguru_sinks) == 1
+        assert isinstance(cfg.loguru_sinks[0], LoguruSinkConfig)
+        assert cfg.loguru_sinks[0].level == "WARNING"
+
+    def test_pretty_and_loguru_sinks_mutually_exclusive(self) -> None:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            LoggingConfig(pretty=True, loguru_sinks=[{"target": "stderr"}])
+
+    def test_pretty_false_with_sinks_ok(self) -> None:
+        cfg = LoggingConfig(pretty=False, loguru_sinks=[{"target": "stderr"}])
+        assert cfg.pretty is False
+        assert len(cfg.loguru_sinks) == 1
+
+    def test_pretty_true_without_sinks_ok(self) -> None:
+        cfg = LoggingConfig(pretty=True)
+        assert cfg.pretty is True
+        assert cfg.loguru_sinks == []
+
+    def test_env_merge_triggers_revalidation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Spec test 14: OPENAGENTS_LOG_PRETTY=1 via env + loguru_sinks in base
+        must re-fire the model_validator and raise pydantic.ValidationError
+        (not a generic Exception)."""
+        from pydantic import ValidationError
+
+        from openagents.observability.config import merge_env_overrides
+
+        base = LoggingConfig(loguru_sinks=[{"target": "stderr"}])
+        monkeypatch.setenv("OPENAGENTS_LOG_PRETTY", "1")
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            merge_env_overrides(base)

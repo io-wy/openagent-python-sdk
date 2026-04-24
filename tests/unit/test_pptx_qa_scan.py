@@ -10,12 +10,10 @@ import pytest
 from examples.pptx_generator.wizard import _qa_scan
 from examples.pptx_generator.wizard._qa_scan import (
     DEFAULT_PATTERNS,
-    QAMatch,
     _python_scan,
     _slide_index_for_line,
     scan_placeholders,
 )
-
 
 _SAMPLE_MD = """\
 # Deck
@@ -135,7 +133,9 @@ class TestScanPlaceholders:
                 return {"exit_code": 1, "stdout": "", "stderr": ""}
 
         report = await scan_placeholders(
-            _CLEAN_MD, md_path=str(md_file), shell_tool=_ShellStub(),
+            _CLEAN_MD,
+            md_path=str(md_file),
+            shell_tool=_ShellStub(),
         )
         assert report.rg_used is True
         assert report.matches == []
@@ -150,7 +150,9 @@ class TestScanPlaceholders:
                 return {"exit_code": 2, "stdout": "", "stderr": "oops"}
 
         report = await scan_placeholders(
-            _SAMPLE_MD, md_path=str(md_file), shell_tool=_ShellStub(),
+            _SAMPLE_MD,
+            md_path=str(md_file),
+            shell_tool=_ShellStub(),
         )
         assert report.rg_used is False
         assert any(m.pattern == "lorem" for m in report.matches)
@@ -165,7 +167,9 @@ class TestScanPlaceholders:
                 raise AssertionError("shell.invoke should not be called when rg is absent")
 
         report = await scan_placeholders(
-            _SAMPLE_MD, md_path=str(md_file), shell_tool=_Shell(),
+            _SAMPLE_MD,
+            md_path=str(md_file),
+            shell_tool=_Shell(),
         )
         assert report.rg_used is False
         assert any(m.pattern == "lorem" for m in report.matches)

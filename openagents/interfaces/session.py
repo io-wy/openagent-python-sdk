@@ -107,6 +107,18 @@ class SessionManagerPlugin(BasePlugin):
         """
         raise NotImplementedError("SessionManagerPlugin.list_sessions must be implemented")
 
+    async def fork_session(self, source_session_id: str, target_session_id: str) -> None:
+        """Copy all transcript/artifacts/state/checkpoints from source to target.
+
+        ``target_session_id`` MUST NOT already exist. After return, the target
+        has the same observable state as source at call time; subsequent writes
+        to either side MUST NOT propagate to the other.
+
+        Backends MUST implement this operation; default implementation raises
+        ``NotImplementedError`` to surface missing support loudly.
+        """
+        raise NotImplementedError("SessionManagerPlugin.fork_session must be implemented")
+
     async def append_message(self, session_id: str, message: dict[str, Any]) -> None:
         """Append a message to the session transcript."""
         state = await self.get_state(session_id)

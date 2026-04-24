@@ -507,3 +507,4 @@ This prevents seam proliferation and kernel bloat.
 - [Streaming API](stream-api.md)
 - [Observability](observability.md)
 - [0.2 → 0.3 Migration Guide](migration-0.2-to-0.3.md)
+- [Error reference (errors.en.md)](errors.en.md) — dotted codes, retryable classification, and recommended handling per exception class

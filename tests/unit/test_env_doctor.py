@@ -30,8 +30,10 @@ async def test_python_version_outdated():
 async def test_env_var_check_missing(monkeypatch):
     monkeypatch.delenv("FOO_X1", raising=False)
     check = EnvVarCheck(
-        name="FOO_X1", required=True,
-        description="my var", get_url="https://get.example",
+        name="FOO_X1",
+        required=True,
+        description="my var",
+        get_url="https://get.example",
     )
     result = await check.check()
     assert result.status == CheckStatus.MISSING

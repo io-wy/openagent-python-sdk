@@ -29,6 +29,7 @@ For observing runtime events (tool calls, LLM calls, run lifecycle), see the [Ev
 | `max_value_length` | `int` | `500` | Maximum character length for string values in log output; longer values are truncated |
 | `show_time` | `bool` | `true` | Show timestamp column in Rich mode |
 | `show_path` | `bool` | `false` | Show source file path column in Rich mode |
+| `loguru_sinks` | `list[LoguruSinkConfig]` | `[]` | Multi-sink loguru backend (requires `[loguru]` extra); mutually exclusive with `pretty=true`. See [Multi-sink Logging (loguru)](#multi-sink-logging-loguru). |
 
 ---
 
@@ -104,8 +105,12 @@ All environment variables can be mixed with config-file fields. Environment vari
 | `OPENAGENTS_LOG_EXCLUDE` | `exclude_prefixes` | comma-separated list | `openagents.observability` |
 | `OPENAGENTS_LOG_REDACT` | `redact_keys` | comma-separated list | `api_key,secret,token` |
 | `OPENAGENTS_LOG_MAX_VALUE_LENGTH` | `max_value_length` | integer | `200` |
+| `OPENAGENTS_LOG_LOGURU_DISABLE` | (runtime switch only) | boolean | `1` — force-downgrade non-empty `loguru_sinks` to a plain `StreamHandler`; CI / debug escape hatch |
 
 Boolean fields accept `1`, `true`, `yes`, `on` (case-insensitive) as truthy; anything else is falsy.
+
+!!! note "loguru_sinks has no env var"
+    `loguru_sinks` is a structured list and cannot be expressed via an environment variable; multi-sink configuration must come from a `LoggingConfig` object or a YAML/JSON file. `OPENAGENTS_LOG_LOGURU_DISABLE` is a **downgrade switch only**, not a way to add sinks.
 
 ---
 
@@ -149,6 +154,69 @@ export OPENAGENTS_LOG_PRETTY=true
 |-------|-------------|
 | `show_time` | Display a timestamp on each line (default `true`) |
 | `show_path` | Display the source filename and line number on each line (default `false`; widens output significantly) |
+
+---
+
+## Multi-sink Logging (loguru)
+
+`loguru_sinks` provides a third output mode — one of the three alternatives alongside the plain `StreamHandler` and the `rich` `RichHandler`. Its unique value is **multi-sink + rotation/retention/compression + `serialize=True` JSON lines**: in a single process you can colour-print to stderr, append a rotating verbose log to disk, and emit structured JSON to a third sink, all from one `LoggingConfig`.
+
+### Installation
+
+```bash
+uv sync --extra loguru
+# or
+pip install "io-openagent-sdk[loguru]"
+```
+
+### Enabling
+
+```yaml
+logging:
+  level: INFO
+  pretty: false
+  loguru_sinks:
+    - target: stderr
+      level: INFO
+      colorize: true
+    - target: .logs/app.log
+      level: DEBUG
+      rotation: "10 MB"
+      retention: "7 days"
+      compression: gz
+    - target: .logs/events.jsonl
+      level: INFO
+      serialize: true
+      enqueue: true
+```
+
+### LoguruSinkConfig field reference
+
+Each sink is configured by a small struct that maps directly onto the named arguments of `loguru.logger.add(...)`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `target` | `str` | (required) | `"stderr"` / `"stdout"` / file path |
+| `level` | `str` | `"INFO"` | This sink's own minimum level |
+| `format` | `str` \| `null` | `null` | loguru format string; `null` uses loguru's default |
+| `serialize` | `bool` | `false` | `true` → emit one JSON line per record |
+| `colorize` | `bool` \| `null` | `null` | `null` → loguru auto-detects (terminal colour) |
+| `rotation` | `str` \| `null` | `null` | Rotation policy, e.g. `"10 MB"`, `"00:00"`, `"1 week"` |
+| `retention` | `str` \| `null` | `null` | Retention duration, e.g. `"7 days"` |
+| `compression` | `str` \| `null` | `null` | Compression format, e.g. `"gz"`, `"zip"` |
+| `enqueue` | `bool` | `false` | Async sink (in-process queue); useful for multi-threaded code |
+| `filter_include` | `list[str]` \| `null` | `null` | Additional logger-name prefix filter (applied after the `_openagents` tag check) |
+
+### Constraints and boundaries
+
+- **Mutually exclusive with `pretty=true`**: setting both raises `pydantic.ValidationError` at config validation time. To get colour output, use a stderr sink with `colorize: true`.
+- **User-installed loguru sinks are never touched**: each sink we install carries `record["extra"]["_openagents"] is True` as its filter; sinks that the user's application installs via `from loguru import logger; logger.add(...)` will not receive SDK records, and our sinks will not receive the user's records.
+- **`reset_logging()` only removes our sinks**: cleanup is by remembered sink ID; we never invoke the no-arg `loguru.logger.remove()` (which would wipe user-installed sinks too).
+- **`OPENAGENTS_LOG_LOGURU_DISABLE=1` escape hatch**: in CI / debug scenarios you can force-downgrade `loguru_sinks` to a plain `StreamHandler` without changing the config. A WARNING is emitted on the `openagents.observability.logging` logger to signal the downgrade.
+- **Does not cover the EventBus channel**: `loguru_sinks` only intercepts library `logging.getLogger("openagents.*")` records. RuntimeEvent flow (`FileLoggingEventBus` / `OtelBridge` etc.) is a separate channel and is unaffected.
+
+!!! warning "Missing `loguru` raises an error"
+    If `loguru_sinks` is non-empty but `loguru` is not installed, `configure()` raises `LoguruNotInstalledError` immediately with the exact `pip install io-openagent-sdk[loguru]` command. This is intentional — a loud failure beats a silent fallback to plain text. If you need a CI / debug workaround, set `OPENAGENTS_LOG_LOGURU_DISABLE=1`.
 
 ---
 

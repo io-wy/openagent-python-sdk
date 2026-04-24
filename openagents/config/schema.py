@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator, model_validator
 
 from openagents.errors import ConfigValidationError
+from openagents.interfaces.runtime import RunBudget
 from openagents.observability.config import LoggingConfig
 
 
@@ -116,6 +117,17 @@ class DiagnosticsRef(PluginRef):
     )
 
 
+class MultiAgentConfig(BaseModel):
+    """Top-level multi_agent configuration block."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    default_session_isolation: Literal["shared", "isolated", "forked"] = "isolated"
+    max_delegation_depth: int = 5
+    default_child_budget: RunBudget | None = None
+
+
 class RuntimeOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -211,7 +223,7 @@ class LLMOptions(BaseModel):
 
     @model_validator(mode="after")
     def _validate_llm_rules(self) -> "LLMOptions":
-        allowed = {"anthropic", "mock", "openai_compatible"}
+        allowed = {"anthropic", "litellm", "mock", "openai_compatible"}
         if self.provider not in allowed:
             raise ConfigValidationError(f"'llm.provider' must be one of {sorted(allowed)}")
         if self.provider == "openai_compatible" and not self.api_base:
@@ -281,6 +293,7 @@ class AppConfig(BaseModel):
     skills: SkillsRef = Field(default_factory=lambda: SkillsRef(type="local"))
     logging: LoggingConfig | None = None
     diagnostics: DiagnosticsRef | None = None
+    multi_agent: MultiAgentConfig | None = None
 
     @model_validator(mode="before")
     @classmethod

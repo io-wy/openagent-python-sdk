@@ -20,6 +20,7 @@ SKILL_POST_RUN = "skill.post_run"
 DIAG_METRICS = "diagnostics.metrics"
 DIAG_ERROR = "diagnostics.error"
 DIAG_EXPORT = "diagnostics.export"
+AGENT_ROUTER_DELEGATE = "agent_router.delegate"
 
 KNOWN_CAPABILITIES = {
     MEMORY_INJECT,
@@ -38,6 +39,7 @@ KNOWN_CAPABILITIES = {
     DIAG_METRICS,
     DIAG_ERROR,
     DIAG_EXPORT,
+    AGENT_ROUTER_DELEGATE,
 }
 
 

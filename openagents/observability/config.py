@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _VALID_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
 
@@ -15,6 +15,34 @@ def _normalize_level(value: str) -> str:
     if up not in _VALID_LEVELS:
         raise ValueError(f"invalid log level: {value!r}")
     return up
+
+
+class LoguruSinkConfig(BaseModel):
+    """Configuration for a single loguru sink.
+
+    Fields map directly onto ``loguru.logger.add(...)`` kwargs. Leaving an
+    optional field as ``None`` means the loguru default applies.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target: str
+    level: str = "INFO"
+    format: str | None = None
+    serialize: bool = False
+    colorize: bool | None = None
+    rotation: str | None = None
+    retention: str | None = None
+    compression: str | None = None
+    enqueue: bool = False
+    filter_include: list[str] | None = None
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _v_level(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise ValueError("level must be a string")
+        return _normalize_level(value)
 
 
 class LoggingConfig(BaseModel):
@@ -39,6 +67,7 @@ class LoggingConfig(BaseModel):
     max_value_length: int = 500
     show_time: bool = True
     show_path: bool = False
+    loguru_sinks: list[LoguruSinkConfig] = Field(default_factory=list)
 
     @field_validator("level", mode="before")
     @classmethod
@@ -55,6 +84,15 @@ class LoggingConfig(BaseModel):
         if not isinstance(value, dict):
             raise ValueError("per_logger_levels must be a mapping")
         return {str(k): _normalize_level(str(v)) for k, v in value.items()}
+
+    @model_validator(mode="after")
+    def _check_backend_exclusivity(self) -> "LoggingConfig":
+        if self.pretty and self.loguru_sinks:
+            raise ValueError(
+                "pretty=True and loguru_sinks are mutually exclusive; "
+                "use a loguru sink with colorize=True for colored output"
+            )
+        return self
 
 
 _FIELD_ENV_MAP = {

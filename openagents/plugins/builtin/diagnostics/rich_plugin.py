@@ -91,7 +91,7 @@ class RichDiagnosticsPlugin(DiagnosticsPlugin):
         from rich.panel import Panel
 
         lines = [
-            f"[bold red]{snapshot.error_type}[/]: {snapshot.error_message}",
+            f"[bold red]{snapshot.error_type}[/] [dim]({snapshot.error_code})[/]: {snapshot.error_message}",
             "",
             f"run_id: {snapshot.run_id}  |  agent: {snapshot.agent_id}  |  session: {snapshot.session_id}",
             "",

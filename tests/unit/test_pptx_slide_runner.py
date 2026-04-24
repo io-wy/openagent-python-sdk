@@ -93,12 +93,13 @@ class TestValidateSlots:
             generated_at=datetime.now(timezone.utc),
         )
         assert _validate_slots(ir) is None
-        ir2 = ir.model_copy(update={"freeform_js": None})
-        # Note: SlideIR pydantic validator already prevents this construction,
-        # but _validate_slots is defensive. We test by bypassing construction.
+        # Note: SlideIR pydantic validator already prevents constructing a
+        # freeform slide without freeform_js, so this test documents the
+        # defence rather than exercising a reachable bypass. _validate_slots
+        # accepts a SlideIR, not a dict — the non-freeform path is the only
+        # one we can actually hit here.
         ir2_dict = ir.model_dump()
         ir2_dict["freeform_js"] = None
-        # _validate_slots accepts a SlideIR, not a dict; just confirm non-freeform path.
 
     def test_unknown_type_rejected(self) -> None:
         # SlideIR's Literal enforces the set, so this path is effectively dead —
@@ -151,7 +152,10 @@ class TestGenerateSlide:
         rt = _MockRuntime([_invalid_ir(spec), _valid_ir(spec)])
         seen: list[SlideStatus] = []
         await generate_slide(
-            rt, spec, _theme(), session_id="s",
+            rt,
+            spec,
+            _theme(),
+            session_id="s",
             on_status=lambda rec: seen.append(rec.status),
         )
         # Should have observed running -> retry-1 -> ok (and possibly the leading running on retry too).

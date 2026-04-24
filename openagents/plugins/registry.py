@@ -14,6 +14,7 @@ from openagents.decorators import (
     _TOOL_EXECUTOR_REGISTRY,
     _TOOL_REGISTRY,
 )
+from openagents.plugins.builtin.agent_router.default import DefaultAgentRouter
 from openagents.plugins.builtin.context.head_tail import HeadTailContextAssembler
 from openagents.plugins.builtin.context.importance_weighted import ImportanceWeightedContextAssembler
 from openagents.plugins.builtin.context.sliding_window import SlidingWindowContextAssembler
@@ -97,6 +98,7 @@ _DECORATOR_REGISTRY_MAP: dict[str, dict[str, type[Any]]] = {
     "tool_executor": _TOOL_EXECUTOR_REGISTRY,
     "context_assembler": _CONTEXT_ASSEMBLER_REGISTRY,
     "tool": _TOOL_REGISTRY,
+    "agent_router": {},
 }
 
 _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
@@ -146,6 +148,9 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "head_tail": HeadTailContextAssembler,
         "sliding_window": SlidingWindowContextAssembler,
         "importance_weighted": ImportanceWeightedContextAssembler,
+    },
+    "agent_router": {
+        "default": DefaultAgentRouter,
     },
     "tool": {
         "builtin_search": BuiltinSearchTool,

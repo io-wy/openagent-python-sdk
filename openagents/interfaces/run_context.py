@@ -42,6 +42,7 @@ class RunContext(BaseModel, Generic[DepsT]):
     tool_executor: Any | None = None
     usage: "RunUsage | None" = None
     artifacts: list["RunArtifact"] = Field(default_factory=list)
+    agent_router: Any | None = None
 
 
 if not TYPE_CHECKING:

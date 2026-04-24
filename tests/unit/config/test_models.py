@@ -138,3 +138,18 @@ def test_llm_options_reasoning_model_bool_accepted():
 
     assert opts_true.reasoning_model is True
     assert opts_false.reasoning_model is False
+
+
+def test_llm_options_accepts_litellm_provider():
+    opts = LLMOptions(
+        provider="litellm",
+        model="bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    )
+    assert opts.provider == "litellm"
+
+
+def test_llm_options_rejects_litellm_typo():
+    from openagents.errors.exceptions import ConfigValidationError
+
+    with pytest.raises(ConfigValidationError):
+        LLMOptions(provider="litellmm")

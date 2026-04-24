@@ -20,8 +20,11 @@ from examples.pptx_generator.wizard.theme import ThemeWizardStep
 def _theme(primary: str = "111111") -> ThemeSelection:
     return ThemeSelection(
         palette=Palette(
-            primary=primary, secondary="222222", accent="333333",
-            light="444444", bg="555555",
+            primary=primary,
+            secondary="222222",
+            accent="333333",
+            light="444444",
+            bg="555555",
         ),
         fonts=FontPairing(heading="Arial", body="Arial", cjk="Microsoft YaHei"),
         style="sharp",
@@ -30,18 +33,24 @@ def _theme(primary: str = "111111") -> ThemeSelection:
 
 
 def _bundle() -> ThemeCandidateList:
-    return ThemeCandidateList(
-        candidates=[_theme("aa1111"), _theme("bb2222"), _theme("cc3333")]
-    )
+    return ThemeCandidateList(candidates=[_theme("aa1111"), _theme("bb2222"), _theme("cc3333")])
 
 
 def _project() -> DeckProject:
     return DeckProject(
-        slug="x", created_at=datetime.now(timezone.utc), stage="theme",
+        slug="x",
+        created_at=datetime.now(timezone.utc),
+        stage="theme",
         intent=IntentReport(
-            topic="t", audience="a", purpose="pitch", tone="formal",
-            slide_count_hint=5, required_sections=[], visuals_hint=[],
-            research_queries=[], language="zh",
+            topic="t",
+            audience="a",
+            purpose="pitch",
+            tone="formal",
+            slide_count_hint=5,
+            required_sections=[],
+            visuals_hint=[],
+            research_queries=[],
+            language="zh",
         ),
     )
 
@@ -52,15 +61,11 @@ def _patch_select(monkeypatch: pytest.MonkeyPatch, answers: list[str]) -> None:
     async def fake_select(prompt: str, choices: list[str], default: str | None = None) -> str:
         return q.pop(0)
 
-    monkeypatch.setattr(
-        "examples.pptx_generator.wizard.theme.Wizard.select", fake_select
-    )
+    monkeypatch.setattr("examples.pptx_generator.wizard.theme.Wizard.select", fake_select)
 
 
 def _runtime_returning(bundle: ThemeCandidateList) -> SimpleNamespace:
-    return SimpleNamespace(
-        run=AsyncMock(return_value=SimpleNamespace(parsed=bundle, state={}))
-    )
+    return SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(parsed=bundle, state={})))
 
 
 @pytest.mark.asyncio
@@ -137,9 +142,7 @@ async def test_custom_editor(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_edit(base):
         return custom_theme
 
-    monkeypatch.setattr(
-        "examples.pptx_generator.wizard.theme.edit_theme_custom", fake_edit
-    )
+    monkeypatch.setattr("examples.pptx_generator.wizard.theme.edit_theme_custom", fake_edit)
 
     step = ThemeWizardStep(runtime=runtime)
     project = _project()
@@ -168,9 +171,7 @@ async def test_memory_capture_when_confirmed(monkeypatch: pytest.MonkeyPatch) ->
             captures.append((category, rule, reason))
             return "zzz"
 
-    monkeypatch.setattr(
-        "examples.pptx_generator.wizard.theme.MarkdownMemory", FakeMem
-    )
+    monkeypatch.setattr("examples.pptx_generator.wizard.theme.MarkdownMemory", FakeMem)
 
     step = ThemeWizardStep(runtime=runtime)
     await step.render(console=None, project=_project())

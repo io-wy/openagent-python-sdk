@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 
 from openagents.config.loader import load_config_dict
-from openagents.errors.exceptions import PatternError
 from openagents.interfaces.runtime import RunRequest
 from openagents.interfaces.session import SessionArtifact
 from openagents.runtime.runtime import Runtime
@@ -107,7 +106,7 @@ async def test_runtime_memory_error_fail():
     )
     runtime = Runtime(config)
 
-    with pytest.raises(PatternError, match="inject failed"):
+    with pytest.raises(RuntimeError, match="inject failed"):
         await runtime.run(agent_id="assistant", session_id="s1", input_text="hello")
 
 
@@ -147,7 +146,7 @@ async def test_runtime_writeback_error_fail():
     )
     runtime = Runtime(config)
 
-    with pytest.raises(PatternError, match="writeback failed"):
+    with pytest.raises(RuntimeError, match="writeback failed"):
         await runtime.run(agent_id="assistant", session_id="s-wb-fail", input_text="hi")
 
 
@@ -265,7 +264,7 @@ async def test_runtime_uses_builtin_safe_tool_executor_timeout():
     )
 
     assert result.stop_reason == "failed"
-    assert "timed out after 5ms" in (result.error or "")
+    assert "timed out after 5ms" in (result.error_details.message if result.error_details else "")
 
 
 @pytest.mark.asyncio
@@ -322,7 +321,7 @@ async def test_filesystem_aware_executor_sandboxes_tool_calls():
         )
     )
     assert denied_result.stop_reason == "failed"
-    assert "outside read_roots" in (denied_result.error or "")
+    assert "outside read_roots" in (denied_result.error_details.message if denied_result.error_details else "")
 
 
 @pytest.mark.asyncio
@@ -476,7 +475,7 @@ async def test_runtime_respects_executor_evaluate_policy():
     )
 
     assert result.stop_reason == "failed"
-    assert "blocked by DenyingToolExecutor" in (result.error or "")
+    assert "blocked by DenyingToolExecutor" in (result.error_details.message if result.error_details else "")
 
 
 @pytest.mark.asyncio

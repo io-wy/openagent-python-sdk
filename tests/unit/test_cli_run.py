@@ -11,8 +11,6 @@ import io
 import json
 from pathlib import Path
 
-import pytest
-
 from openagents.cli.main import main as cli_main
 
 
@@ -127,9 +125,7 @@ def test_run_input_file_reads_prompt(tmp_path, capsys):
     cfg = _valid_agent(tmp_path)
     prompt_file = tmp_path / "prompt.txt"
     prompt_file.write_text("from-a-file")
-    code = cli_main(
-        ["run", str(cfg), "--input-file", str(prompt_file), "--format", "text", "--no-stream"]
-    )
+    code = cli_main(["run", str(cfg), "--input-file", str(prompt_file), "--format", "text", "--no-stream"])
     assert code == 0
     assert "Echo: from-a-file" in capsys.readouterr().out
 

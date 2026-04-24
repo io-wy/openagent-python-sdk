@@ -18,6 +18,14 @@ dev = [
     "ruff>=0.4.0",
     "respx>=0.21.1",
     "io-openagent-sdk[rich]",
+    "litellm>=1.50.0",
+    "loguru>=0.7.0",
+]
+litellm = [
+    "litellm>=1.50.0",
+]
+loguru = [
+    "loguru>=0.7.0",
 ]
 mcp = [
     "mcp>=1.0.0",
@@ -63,7 +71,7 @@ pptx = [
     "httpx>=0.27.0",
 ]
 all = [
-    "io-openagent-sdk[cli,mcp,mem0,openai,otel,rich,sqlite,dev,tokenizers,yaml,pptx,langfuse,phoenix]",
+    "io-openagent-sdk[cli,mcp,mem0,openai,otel,rich,sqlite,dev,tokenizers,yaml,pptx,langfuse,phoenix,litellm,loguru]",
 ]
 
 [project.scripts]
@@ -96,6 +104,8 @@ omit = [
     "openagents/plugins/builtin/events/otel_bridge.py",
     "openagents/plugins/builtin/diagnostics/langfuse_plugin.py",
     "openagents/plugins/builtin/diagnostics/phoenix_plugin.py",
+    "openagents/llm/providers/litellm_client.py",
+    "openagents/observability/_loguru.py",
 ]
 
 [dependency-groups]

@@ -14,7 +14,6 @@ import pytest
 from pydantic import BaseModel
 
 from openagents.config.loader import load_config_dict
-from openagents.errors.exceptions import OutputValidationError
 from openagents.interfaces.runtime import RunBudget, RunRequest, StopReason
 from openagents.runtime.runtime import Runtime
 
@@ -102,7 +101,8 @@ async def test_retry_exhausts_and_returns_output_validation_error():
     )
     result = await runtime.run_detailed(request=request)
     assert result.stop_reason == StopReason.FAILED
-    assert isinstance(result.exception, OutputValidationError)
+    assert result.error_details is not None
+    assert result.error_details.code == "execution.output_validation"
     assert result.final_output is None
 
 

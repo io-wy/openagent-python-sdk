@@ -15,3 +15,17 @@ class RichNotInstalledError(ImportError):
         super().__init__(
             message or "rich is required for pretty output. Install with: pip install io-openagent-sdk[rich]"
         )
+
+
+class LoguruNotInstalledError(ImportError):
+    """Raised when loguru-backed multi-sink logging is requested but loguru is missing.
+
+    Mirrors RichNotInstalledError: fail loud with the exact pip command when
+    ``LoggingConfig.loguru_sinks`` is non-empty but the optional extra was not
+    installed.
+    """
+
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(
+            message or "loguru is required for loguru_sinks. Install with: pip install io-openagent-sdk[loguru]"
+        )

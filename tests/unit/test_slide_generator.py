@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -61,6 +60,8 @@ async def test_raises_when_freeform_disabled():
 @pytest.mark.asyncio
 async def test_unknown_type_falls_back_to_freeform():
     pattern = SlideGenPattern(config={"max_retries": 1})
-    pattern.context = _make_ctx(spec={"index": 4, "type": "unknown", "title": "X", "key_points": [], "sources_cited": []}, llm_return="")
+    pattern.context = _make_ctx(
+        spec={"index": 4, "type": "unknown", "title": "X", "key_points": [], "sources_cited": []}, llm_return=""
+    )
     result = await pattern.execute()
     assert result.type == "freeform"

@@ -249,8 +249,29 @@ OTel API 会 no-op，bridge 等于零成本。
 | `max_value_length` | int | `500` | 字符串 value 截断长度 |
 | `show_time` | bool | `true` | 是否显示时间列（rich 模式） |
 | `show_path` | bool | `false` | 是否显示代码路径（rich 模式） |
+| `loguru_sinks` | list[LoguruSinkConfig] | `[]` | 多 sink loguru 后端（需要 `[loguru]` extra）；与 `pretty=true` **互斥**。详见下文 LoguruSinkConfig 字段表 |
 
 如果该 section 缺失或 `auto_configure=false`，SDK 不会修改任何 logging 配置。
+
+#### LoguruSinkConfig 字段表
+
+每个 sink 是一组配置，全部映射到 `loguru.logger.add(...)` 的同名参数。`null` 表示走 loguru 默认值。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `target` | str | （必填） | `"stderr"` / `"stdout"` / 文件路径 |
+| `level` | str | `"INFO"` | 该 sink 的级别下限 |
+| `format` | str \| null | `null` | loguru format 字符串 |
+| `serialize` | bool | `false` | `true` → 每条记录输出为一行 JSON |
+| `colorize` | bool \| null | `null` | `null` → loguru 自动检测（终端着色） |
+| `rotation` | str \| null | `null` | 轮转策略，例如 `"10 MB"`、`"00:00"`、`"1 week"` |
+| `retention` | str \| null | `null` | 保留时长，例如 `"7 days"` |
+| `compression` | str \| null | `null` | 压缩格式，例如 `"gz"`、`"zip"` |
+| `enqueue` | bool | `false` | 异步 sink（进程内队列） |
+| `filter_include` | list[str] \| null | `null` | 进一步按 logger 名前缀过滤 |
+
+环境变量补充：
+- `OPENAGENTS_LOG_LOGURU_DISABLE`：设为 `1`/`true`/`yes`/`on` 时，强制把非空 `loguru_sinks` 降级为纯文本 `StreamHandler`，CI / debug 用。`loguru_sinks` 列表本身**不**可通过环境变量配置。
 
 ## 4. AgentDefinition
 
@@ -410,6 +431,7 @@ builtin pattern：
 - `mock`
 - `anthropic`
 - `openai_compatible`
+- `litellm`（可选 extra，详见下方"LiteLLM Provider"小节）
 
 校验规则：
 
@@ -418,6 +440,64 @@ builtin pattern：
 - `timeout_ms` 必须是正整数
 - `max_tokens` 如果提供，必须是正整数
 - `temperature` 如果提供，必须在 `0.0` 到 `2.0` 之间
+
+### LiteLLM Provider（可选）
+
+`provider: "litellm"` 通过 [LiteLLM](https://docs.litellm.ai) 对接**非 OpenAI 协议**的后端：AWS Bedrock、Google Vertex AI、Gemini 原生 API、Cohere、Azure OpenAI deployment 等。**如果后端已经是 OpenAI 兼容协议，优先使用 `openai_compatible`**，更轻量。
+
+安装：
+
+```bash
+uv pip install "io-openagent-sdk[litellm]"
+```
+
+Bedrock 示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "aws_region_name": "us-east-1",
+    "max_tokens": 4096,
+    "pricing": {"input": 3.0, "output": 15.0}
+  }
+}
+```
+
+Vertex 示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "vertex_ai/gemini-1.5-pro",
+    "vertex_project": "my-gcp-project",
+    "vertex_location": "us-central1"
+  }
+}
+```
+
+Gemini 原生示例：
+
+```json
+{
+  "llm": {
+    "provider": "litellm",
+    "model": "gemini/gemini-1.5-pro",
+    "api_key_env": "GEMINI_API_KEY"
+  }
+}
+```
+
+**透传白名单**（其他 extra 字段会被忽略并告警）：
+`aws_region_name` · `aws_access_key_id` · `aws_secret_access_key` · `aws_session_token` · `aws_profile_name` · `vertex_project` · `vertex_location` · `vertex_credentials` · `azure_deployment` · `api_version` · `seed` · `top_p` · `parallel_tool_calls` · `response_format`
+
+**不支持的 LiteLLM 特性**（本 SDK 不接入，属于应用层产品语义）：router、fallback、budget manager、内置缓存、success/failure callbacks。
+
+**凭证**：`api_key_env` 给了就读环境变量塞到 `api_key`；没给则由 LiteLLM 自行从 AWS/GCP 标准环境变量链读取凭证（如 `AWS_ACCESS_KEY_ID`、`GOOGLE_APPLICATION_CREDENTIALS` 等）。
+
+**Telemetry**：实例化 `LiteLLMClient` 会在进程级禁用 LiteLLM 的 telemetry 与 success/failure callbacks，并开启 `drop_params` 以丢弃未知 kwarg。
 
 ### `pricing`（可选）
 

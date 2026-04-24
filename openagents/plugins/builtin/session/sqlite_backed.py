@@ -27,6 +27,7 @@ from openagents.interfaces.session import (
     SessionManagerPlugin,
 )
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
+from openagents.plugins.builtin.session._reentry import reentrant_session
 
 try:
     import aiosqlite
@@ -203,12 +204,9 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
     @asynccontextmanager
     async def session(self, session_id: str) -> AsyncIterator[dict[str, Any]]:
         lock = self._locks.setdefault(session_id, asyncio.Lock())
-        await lock.acquire()
-        try:
+        async with reentrant_session(lock, session_id):
             state = await self._ensure_loaded(session_id)
             yield state
-        finally:
-            lock.release()
 
     async def get_state(self, session_id: str) -> dict[str, Any]:
         return await self._ensure_loaded(session_id)
@@ -251,6 +249,44 @@ class SqliteSessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
             ) from exc
         disk = {row[0] for row in rows}
         return sorted(disk | set(self._states.keys()))
+
+    async def fork_session(self, source_session_id: str, target_session_id: str) -> None:
+        """Copy source's events to target in a single transaction."""
+        import copy
+
+        await self._ensure_db()
+        source_lock = self._locks.setdefault(source_session_id, asyncio.Lock())
+        async with reentrant_session(source_lock, source_session_id):
+            try:
+                async with aiosqlite.connect(self._db_path) as db:
+                    cursor = await db.execute("SELECT 1 FROM events WHERE sid = ? LIMIT 1", (target_session_id,))
+                    exists = await cursor.fetchone() is not None
+                    await cursor.close()
+                    if exists or target_session_id in self._states:
+                        raise SessionError(
+                            f"sqlite_session: fork target '{target_session_id}' already exists",
+                            hint="use a fresh target_session_id or delete_session first",
+                        )
+                    await db.execute("BEGIN")
+                    ts = _now()
+                    await db.execute(
+                        "INSERT OR IGNORE INTO sessions(sid, created_at, updated_at) VALUES (?, ?, ?)",
+                        (target_session_id, ts, ts),
+                    )
+                    await db.execute(
+                        "INSERT INTO events(sid, type, payload, ts) "
+                        "SELECT ?, type, payload, ts FROM events WHERE sid = ? ORDER BY seq",
+                        (target_session_id, source_session_id),
+                    )
+                    await db.commit()
+            except aiosqlite.Error as exc:
+                raise SessionError(
+                    f"sqlite_session: fork failed: {exc}",
+                    hint="check disk space and write permissions on db_path",
+                ) from exc
+            # Mirror in-memory state so target reads see the snapshot immediately.
+            self._states[target_session_id] = copy.deepcopy(self._states.get(source_session_id, {}))
+            self._loaded.add(target_session_id)
 
     async def append_message(self, session_id: str, message: dict[str, Any]) -> None:
         state = await self._ensure_loaded(session_id)

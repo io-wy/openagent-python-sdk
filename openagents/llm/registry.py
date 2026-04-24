@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from openagents.config.schema import LLMOptions
 from openagents.errors.exceptions import ConfigError
 from openagents.llm.base import LLMClient
@@ -9,6 +12,30 @@ from openagents.llm.providers._http_base import _RetryPolicy
 from openagents.llm.providers.anthropic import AnthropicClient
 from openagents.llm.providers.mock import MockLLMClient
 from openagents.llm.providers.openai_compatible import OpenAICompatibleClient
+
+logger = logging.getLogger("openagents.llm")
+
+
+def _extract_litellm_kwargs(llm: LLMOptions) -> dict[str, Any]:
+    """Filter ``LLMOptions`` extras against LiteLLM whitelist; warn on drops.
+
+    Reads ``pydantic``'s ``model_extra`` (only values not matching a declared
+    field), then keeps only names listed in ``_FORWARDABLE_KWARGS``. Any other
+    extra produces a ``WARNING`` and is discarded.
+    """
+    from openagents.llm.providers.litellm_client import _FORWARDABLE_KWARGS
+
+    extras = dict(llm.model_extra or {})
+    allowed: dict[str, Any] = {}
+    for key, value in extras.items():
+        if key in _FORWARDABLE_KWARGS:
+            allowed[key] = value
+        else:
+            logger.warning(
+                "Unknown litellm kwarg '%s' in LLMOptions; ignored. Add to whitelist in litellm_client.py if needed.",
+                key,
+            )
+    return allowed
 
 
 def _retry_policy_from(llm: LLMOptions) -> _RetryPolicy | None:
@@ -68,6 +95,22 @@ def create_llm_client(llm: LLMOptions | None) -> LLMClient | None:
             top_p=float(top_p) if isinstance(top_p, (int, float)) else None,
             parallel_tool_calls=(bool(parallel_tool_calls) if isinstance(parallel_tool_calls, bool) else None),
             api_style=llm.openai_api_style,
+        )
+
+    if provider == "litellm":
+        from openagents.llm.providers.litellm_client import LiteLLMClient
+
+        return LiteLLMClient(
+            model=llm.model or "",
+            api_base=llm.api_base,
+            api_key_env=llm.api_key_env,
+            timeout_ms=llm.timeout_ms,
+            default_temperature=llm.temperature,
+            max_tokens=llm.max_tokens or 1024,
+            pricing=llm.pricing,
+            retry_options=llm.retry,
+            extra_headers=extra_headers,
+            extra_kwargs=_extract_litellm_kwargs(llm),
         )
 
     raise ConfigError(f"Unsupported llm.provider: '{provider}'")
