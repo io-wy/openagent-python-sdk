@@ -116,6 +116,16 @@ class DiagnosticsRef(PluginRef):
     )
 
 
+class MultiAgentConfig(BaseModel):
+    """Top-level multi_agent configuration block."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    default_session_isolation: Literal["shared", "isolated", "forked"] = "isolated"
+    max_delegation_depth: int = 5
+
+
 class RuntimeOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -281,6 +291,7 @@ class AppConfig(BaseModel):
     skills: SkillsRef = Field(default_factory=lambda: SkillsRef(type="local"))
     logging: LoggingConfig | None = None
     diagnostics: DiagnosticsRef | None = None
+    multi_agent: MultiAgentConfig | None = None
 
     @model_validator(mode="before")
     @classmethod
