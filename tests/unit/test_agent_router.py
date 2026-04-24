@@ -206,3 +206,31 @@ async def test_delegate_records_child_depth():
     await router.delegate("b", "go", ctx, session_isolation="isolated")
     assert "child-xyz" in router._run_depths
     assert router._run_depths["child-xyz"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 5: Registry + loader
+# ---------------------------------------------------------------------------
+
+
+def test_default_agent_router_in_registry():
+    from openagents.plugins.registry import get_builtin_plugin_class
+
+    cls = get_builtin_plugin_class("agent_router", "default")
+    assert cls is DefaultAgentRouter
+
+
+def test_load_agent_router_plugin_returns_none_when_disabled():
+    from openagents.plugins.loader import load_agent_router_plugin
+
+    assert load_agent_router_plugin(None) is None
+
+
+def test_load_agent_router_plugin_returns_router_when_enabled():
+    from openagents.config.schema import MultiAgentConfig
+    from openagents.plugins.loader import load_agent_router_plugin
+
+    cfg = MultiAgentConfig(enabled=True, max_delegation_depth=3)
+    router = load_agent_router_plugin(cfg)
+    assert isinstance(router, DefaultAgentRouter)
+    assert router._max_depth == 3

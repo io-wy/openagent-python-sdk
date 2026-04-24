@@ -294,6 +294,18 @@ def load_diagnostics_plugin(ref: DiagnosticsRef | None) -> Any:
     return _load_plugin_impl("diagnostics", ref)
 
 
+def load_agent_router_plugin(config: Any) -> Any:
+    """Create a DefaultAgentRouter from a MultiAgentConfig.
+
+    Returns None when the config is absent or disabled.
+    """
+    if config is None or not getattr(config, "enabled", False):
+        return None
+    from openagents.plugins.builtin.agent_router.default import DefaultAgentRouter
+
+    return DefaultAgentRouter(config=config.model_dump())
+
+
 def load_runtime_components(
     runtime_ref: RuntimeRef,
     session_ref: SessionRef,
