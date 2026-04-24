@@ -18,12 +18,26 @@ if TYPE_CHECKING:
 
 
 class DefaultAgentRouter(AgentRouterPlugin):
-    """Default agent_router seam implementation.
+    """Default agent_router seam implementation for multi-agent delegation and handoff.
 
-    ``_run_fn`` must be set to ``Runtime.run_detailed`` by ``Runtime.__init__``
-    after ``load_runtime_components()`` returns. Depth tracking uses
-    ``_run_depths`` keyed by ``run_id`` so nested delegation chains can enforce
-    ``max_delegation_depth``.
+    What: Provides ``delegate()`` (await a sub-agent's result) and
+    ``transfer()`` (hand control to another agent, ending the parent run)
+    with configurable session isolation (``shared`` / ``isolated`` /
+    ``forked``) and recursion depth limiting.
+
+    Usage: Enabled by setting ``multi_agent.enabled: true`` in AppConfig;
+    ``Runtime.__init__`` wires ``_run_fn = self.run_detailed`` so the
+    router can recursively invoke ``Runtime.run_detailed`` from within a
+    running pattern. Patterns and tools receive the router via
+    ``ctx.agent_router`` on the ``RunContext``. Nested delegations are
+    bounded by ``max_delegation_depth`` (default 5); exceeding the limit
+    raises ``DelegationDepthExceededError``. ``transfer()`` raises
+    ``HandoffSignal`` (a ``BaseException``) which ``DefaultRuntime.run``
+    catches to return the child's ``final_output`` as the parent's result.
+
+    Depends on: ``Runtime.run_detailed`` (injected as ``_run_fn`` post-
+    construction); ``RunRequest`` / ``RunResult`` / ``RunContext`` from
+    ``openagents.interfaces``.
     """
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:

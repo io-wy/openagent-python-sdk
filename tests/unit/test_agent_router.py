@@ -308,3 +308,44 @@ async def test_handoff_signal_caught_by_default_runtime():
     assert result.final_output == "child output"
     assert result.stop_reason == StopReason.COMPLETED.value
     assert result.metadata["handoff_from"] == "child"
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Runtime facade wiring
+# ---------------------------------------------------------------------------
+
+
+def test_runtime_injects_agent_router_when_enabled():
+    from openagents.runtime.runtime import Runtime
+
+    runtime = Runtime.from_dict(
+        {
+            "agents": [{"id": "a", "name": "A", "memory": {"type": "buffer"}, "pattern": {"type": "react"}}],
+            "multi_agent": {"enabled": True},
+        }
+    )
+    assert isinstance(runtime._runtime._agent_router, DefaultAgentRouter)
+    assert runtime._runtime._agent_router._run_fn is not None
+
+
+def test_runtime_no_agent_router_when_absent():
+    from openagents.runtime.runtime import Runtime
+
+    runtime = Runtime.from_dict(
+        {
+            "agents": [{"id": "a", "name": "A", "memory": {"type": "buffer"}, "pattern": {"type": "react"}}],
+        }
+    )
+    assert runtime._runtime._agent_router is None
+
+
+def test_runtime_no_agent_router_when_disabled():
+    from openagents.runtime.runtime import Runtime
+
+    runtime = Runtime.from_dict(
+        {
+            "agents": [{"id": "a", "name": "A", "memory": {"type": "buffer"}, "pattern": {"type": "react"}}],
+            "multi_agent": {"enabled": False},
+        }
+    )
+    assert runtime._runtime._agent_router is None

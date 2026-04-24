@@ -59,6 +59,17 @@ class Runtime:
         self._skills = components.skills
         self._diagnostics = components.diagnostics
 
+        # Wire multi-agent router post-construction when enabled in config.
+        # Needs self.run_detailed to be bound, so this must run after
+        # self._runtime is assigned.
+        from openagents.plugins.loader import load_agent_router_plugin
+
+        _agent_router = load_agent_router_plugin(config.multi_agent)
+        if _agent_router is not None:
+            _agent_router._run_fn = self.run_detailed
+            if hasattr(self._runtime, "_agent_router"):
+                self._runtime._agent_router = _agent_router
+
         self._maybe_auto_configure_logging(config)
 
     @staticmethod
