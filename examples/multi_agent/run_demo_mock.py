@@ -55,7 +55,6 @@ async def demo_delegate(runtime: Runtime) -> None:
     print(f"  child run_id:     {result.run_id}")
     print(f"  stop_reason:      {result.stop_reason}")
     print(f"  final_output:     {result.final_output!r}")
-    print(f"  depth recorded:   {router._run_depths.get(result.run_id)}")
 
 
 async def demo_transfer(runtime: Runtime) -> None:
@@ -103,8 +102,72 @@ async def demo_via_tool_call(runtime: Runtime) -> None:
         # MaxStepsExceeded is expected because the mock always emits tool_call.
         print(f"  (expected bounded failure) {exc}")
 
+    # Depth is now carried on child RunRequest.metadata rather than any
+    # router-side dict, so there's nothing to print here — the absence of
+    # per-run state is the point.
+
+
+async def demo_shared_session(runtime: Runtime) -> None:
+    """Shared isolation — child reuses parent session_id; no deadlock."""
+    _banner("Scenario 4: Shared isolation (child reuses parent session)")
+
     router = runtime._runtime._agent_router
-    print(f"  recorded child depths: {dict(router._run_depths)}")
+    ctx = _build_ctx(runtime, run_id="demo-shared-run", session_id="demo-shared-sess")
+
+    captured: dict = {}
+    original = router._run_fn
+
+    async def capture(*, request):
+        captured["session_id"] = request.session_id
+        return await original(request=request)
+
+    router._run_fn = capture
+    try:
+        await router.delegate(
+            "specialist",
+            "question routed via shared session",
+            ctx,
+            session_isolation="shared",
+        )
+    finally:
+        router._run_fn = original
+
+    print("  parent session_id:  demo-shared-sess")
+    print(f"  child session_id:   {captured['session_id']}  (same as parent)")
+
+
+async def demo_forked_session(runtime: Runtime) -> None:
+    """Forked isolation — parent history is snapshot-copied; writes diverge."""
+    _banner("Scenario 5: Forked isolation (history snapshot copy)")
+
+    router = runtime._runtime._agent_router
+    await runtime.session_manager.append_message(
+        "demo-forked-sess", {"role": "user", "content": "earlier parent message"}
+    )
+    ctx = _build_ctx(runtime, run_id="demo-forked-run", session_id="demo-forked-sess")
+
+    captured: dict = {}
+    original = router._run_fn
+
+    async def capture(*, request):
+        captured["session_id"] = request.session_id
+        captured["messages"] = await runtime.session_manager.load_messages(request.session_id)
+        return await original(request=request)
+
+    router._run_fn = capture
+    try:
+        await router.delegate(
+            "specialist",
+            "continue from parent context",
+            ctx,
+            session_isolation="forked",
+        )
+    finally:
+        router._run_fn = original
+
+    print("  parent session_id:  demo-forked-sess")
+    print(f"  child session_id:   {captured['session_id']}")
+    print(f"  child sees msgs:    {[m['content'] for m in captured['messages']]}")
 
 
 async def main() -> None:
@@ -117,6 +180,8 @@ async def main() -> None:
     await demo_delegate(runtime)
     await demo_transfer(runtime)
     await demo_via_tool_call(runtime)
+    await demo_shared_session(runtime)
+    await demo_forked_session(runtime)
 
     await runtime.close()
 

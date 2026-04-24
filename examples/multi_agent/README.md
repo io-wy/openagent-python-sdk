@@ -71,8 +71,9 @@ await router.transfer("billing_agent", task, ctx)  # 抛出 HandoffSignal
 }
 ```
 
-- `max_delegation_depth` 控制嵌套层数，超过抛 `DelegationDepthExceededError`
+- `max_delegation_depth` 控制嵌套层数，超过抛 `DelegationDepthExceededError`；深度通过 `RunRequest.metadata["__openagents_delegation_depth__"]` 传递，不使用进程级状态
+- `default_child_budget` 为子 run 兜底：调用 `delegate(budget=None)` 时自动使用该预算
 - `session_isolation`：
-  - `shared` — 子 run 复用父 `session_id`
+  - `shared` — 子 run 复用父 `session_id`（通过 asyncio-task 可重入锁避免死锁）
   - `isolated` — 全新 session（默认）
-  - `forked` — 基于父 session_id 派生 (`{parent}:fork:{run_id}`)
+  - `forked` — `SessionManagerPlugin.fork_session(parent, child)` 复制父 session 的消息/artifacts 快照到新 `{parent}:fork:{run_id}`；之后父/子独立写

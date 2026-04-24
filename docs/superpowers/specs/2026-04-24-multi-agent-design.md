@@ -186,7 +186,7 @@ When `multi_agent` block is absent, `ctx.agent_router` is `None`. Calling it rai
 | Child run fails (`FAILED` / `BUDGET_EXHAUSTED`) | `delegate()` returns the failed `RunResult`; pattern decides; `transfer()` wraps in `HandoffSignal` and propagates |
 | `multi_agent` not configured, router called | `ConfigurationError("agent_router not configured")` |
 
-Depth is tracked by walking the `parent_run_id` chain — no new fields needed.
+Depth is tracked via `RunRequest.metadata["__openagents_delegation_depth__"]` (reserved key). Each call to `delegate()` sets the child's metadata to `parent_depth + 1`; `_check_depth` reads the current ctx's metadata. No `RunRequest` schema fields were added and the router holds no process-level depth state. See `openspec/changes/fix-multi-agent-p0-gaps/` for the implementation of this and the other P0 gap fixes landed 2026-04-24.
 
 ---
 

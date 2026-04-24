@@ -3,7 +3,8 @@
   "multi_agent": {
     "enabled": true,
     "default_session_isolation": "isolated",
-    "max_delegation_depth": 3
+    "max_delegation_depth": 3,
+    "default_child_budget": { "max_steps": 4, "max_cost_usd": 0.05 }
   },
   "events": { "type": "async" },
   "agents": [
