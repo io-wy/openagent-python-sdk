@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from openagents.interfaces.agent_router import (
+    DELEGATION_DEPTH_KEY,  # noqa: F401 — re-exported for tests below
     AgentNotFoundError,
     DelegationDepthExceededError,
     HandoffSignal,
@@ -70,6 +71,21 @@ def test_multi_agent_config_defaults():
     assert m.enabled is False
     assert m.default_session_isolation == "isolated"
     assert m.max_delegation_depth == 5
+    assert m.default_child_budget is None
+
+
+def test_multi_agent_config_parses_default_child_budget():
+    from openagents.interfaces.runtime import RunBudget
+
+    m = MultiAgentConfig.model_validate(
+        {
+            "enabled": True,
+            "default_child_budget": {"max_steps": 5, "max_cost_usd": 0.1},
+        }
+    )
+    assert isinstance(m.default_child_budget, RunBudget)
+    assert m.default_child_budget.max_steps == 5
+    assert m.default_child_budget.max_cost_usd == 0.1
 
 
 # ---------------------------------------------------------------------------
@@ -121,12 +137,16 @@ import pytest  # noqa: E402
 from openagents.plugins.builtin.agent_router.default import DefaultAgentRouter  # noqa: E402
 
 
-def _make_ctx(run_id="run-1", session_id="sess-1", parent_run_id=None):
+def _make_ctx(run_id="run-1", session_id="sess-1", parent_run_id=None, delegation_depth=0):
+
     ctx = MagicMock()
     ctx.run_id = run_id
     ctx.session_id = session_id
     ctx.deps = None
-    ctx.run_request = MagicMock(parent_run_id=parent_run_id)
+    metadata: dict = {}
+    if delegation_depth:
+        metadata[DELEGATION_DEPTH_KEY] = delegation_depth
+    ctx.run_request = MagicMock(parent_run_id=parent_run_id, metadata=metadata)
     return ctx
 
 
@@ -189,8 +209,7 @@ async def test_transfer_raises_handoff_signal():
 async def test_depth_exceeded_raises():
     router = DefaultAgentRouter(config={"max_delegation_depth": 1})
     router._run_fn = AsyncMock()
-    ctx = _make_ctx(run_id="deep-run")
-    router._run_depths["deep-run"] = 2
+    ctx = _make_ctx(run_id="deep-run", delegation_depth=2)
 
     with pytest.raises(DelegationDepthExceededError):
         await router.delegate("agent_b", "hello", ctx)
@@ -198,14 +217,152 @@ async def test_depth_exceeded_raises():
 
 @pytest.mark.asyncio
 async def test_delegate_records_child_depth():
+
     router = DefaultAgentRouter(config={"max_delegation_depth": 5})
     child_result = _make_result(run_id="child-xyz")
     router._run_fn = AsyncMock(return_value=child_result)
     ctx = _make_ctx(run_id="parent-run")
 
     await router.delegate("b", "go", ctx, session_isolation="isolated")
-    assert "child-xyz" in router._run_depths
-    assert router._run_depths["child-xyz"] == 1
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.metadata[DELEGATION_DEPTH_KEY] == 1
+
+
+@pytest.mark.asyncio
+async def test_delegate_increments_depth_from_parent_metadata():
+
+    router = DefaultAgentRouter(config={"max_delegation_depth": 5})
+    router._run_fn = AsyncMock(return_value=_make_result(run_id="gc"))
+    ctx = _make_ctx(run_id="mid-run", delegation_depth=2)
+
+    await router.delegate("c", "go", ctx, session_isolation="isolated")
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.metadata[DELEGATION_DEPTH_KEY] == 3
+
+
+def test_router_keeps_no_per_run_state():
+    """After many sequential delegations the router must not accumulate per-run keys."""
+    router = DefaultAgentRouter(config={})
+    for attr in vars(router).values():
+        if isinstance(attr, dict):
+            # run_depths would have grown; the only dicts on the router now
+            # are typed config references, never keyed by run_id.
+            assert all(not key.startswith("child-") and not key.startswith("run-") for key in attr)
+
+
+# ---------------------------------------------------------------------------
+# AgentNotFoundError pre-check (G1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delegate_raises_agent_not_found_when_registry_rejects():
+    router = DefaultAgentRouter(config={})
+    router._run_fn = AsyncMock()
+    router._agent_exists = lambda aid: aid == "known"
+    ctx = _make_ctx()
+
+    with pytest.raises(AgentNotFoundError) as exc_info:
+        await router.delegate("nope", "hi", ctx)
+    assert exc_info.value.agent_id == "nope"
+    router._run_fn.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_transfer_raises_agent_not_found_not_handoff():
+    router = DefaultAgentRouter(config={})
+    router._run_fn = AsyncMock()
+    router._agent_exists = lambda aid: False
+    ctx = _make_ctx()
+
+    with pytest.raises(AgentNotFoundError):
+        await router.transfer("nope", "hi", ctx)
+
+
+# ---------------------------------------------------------------------------
+# default_child_budget fallback (G4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_explicit_budget_wins_over_default_child_budget():
+    from openagents.interfaces.runtime import RunBudget
+
+    router = DefaultAgentRouter(config={"default_child_budget": {"max_steps": 5, "max_cost_usd": 0.5}})
+    router._run_fn = AsyncMock(return_value=_make_result())
+    ctx = _make_ctx()
+
+    await router.delegate("b", "x", ctx, budget=RunBudget(max_steps=2))
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.budget.max_steps == 2
+
+
+@pytest.mark.asyncio
+async def test_default_child_budget_fallback_when_explicit_is_none():
+    router = DefaultAgentRouter(config={"default_child_budget": {"max_steps": 5, "max_cost_usd": 0.1}})
+    router._run_fn = AsyncMock(return_value=_make_result())
+    ctx = _make_ctx()
+
+    await router.delegate("b", "x", ctx)
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.budget is not None
+    assert req.budget.max_steps == 5
+    assert req.budget.max_cost_usd == 0.1
+
+
+@pytest.mark.asyncio
+async def test_no_budget_when_neither_explicit_nor_default():
+    router = DefaultAgentRouter(config={})
+    router._run_fn = AsyncMock(return_value=_make_result())
+    ctx = _make_ctx()
+
+    await router.delegate("b", "x", ctx)
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.budget is None
+
+
+# ---------------------------------------------------------------------------
+# Misconfiguration error paths
+# ---------------------------------------------------------------------------
+
+
+def test_coerce_budget_rejects_invalid_type():
+    with pytest.raises(TypeError):
+        DefaultAgentRouter(config={"default_child_budget": "not a budget"})
+
+
+def test_coerce_budget_accepts_run_budget_instance():
+    from openagents.interfaces.runtime import RunBudget
+
+    rb = RunBudget(max_steps=7)
+    router = DefaultAgentRouter(config={"default_child_budget": rb})
+    assert router._default_child_budget is rb
+
+
+@pytest.mark.asyncio
+async def test_delegate_errors_when_run_fn_missing():
+    router = DefaultAgentRouter(config={})
+    # _run_fn left as None simulates bad Runtime wiring.
+    ctx = _make_ctx()
+    with pytest.raises(RuntimeError, match="_run_fn not set"):
+        await router.delegate("b", "x", ctx)
+
+
+@pytest.mark.asyncio
+async def test_forked_errors_when_session_manager_missing():
+    router = DefaultAgentRouter(config={})
+    router._run_fn = AsyncMock()
+    ctx = _make_ctx()
+    with pytest.raises(RuntimeError, match="_session_manager not set"):
+        await router.delegate("b", "x", ctx, session_isolation="forked")
+
+
+def test_current_depth_handles_non_int_metadata_gracefully():
+    router = DefaultAgentRouter(config={})
+    ctx = _make_ctx()
+
+    ctx.run_request.metadata = {DELEGATION_DEPTH_KEY: ["not", "an", "int"]}
+    assert router._current_depth(ctx) == 0
 
 
 # ---------------------------------------------------------------------------

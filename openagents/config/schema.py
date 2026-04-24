@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, field_validator, model_validator
 
 from openagents.errors import ConfigValidationError
+from openagents.interfaces.runtime import RunBudget
 from openagents.observability.config import LoggingConfig
 
 
@@ -124,6 +125,7 @@ class MultiAgentConfig(BaseModel):
     enabled: bool = False
     default_session_isolation: Literal["shared", "isolated", "forked"] = "isolated"
     max_delegation_depth: int = 5
+    default_child_budget: RunBudget | None = None
 
 
 class RuntimeOptions(BaseModel):

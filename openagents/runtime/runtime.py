@@ -67,6 +67,8 @@ class Runtime:
         _agent_router = load_agent_router_plugin(config.multi_agent)
         if _agent_router is not None:
             _agent_router._run_fn = self.run_detailed
+            _agent_router._session_manager = self._session
+            _agent_router._agent_exists = lambda aid, _registry=self._agents_by_id: aid in _registry
             if hasattr(self._runtime, "_agent_router"):
                 self._runtime._agent_router = _agent_router
 

@@ -9,6 +9,12 @@ if TYPE_CHECKING:
     from openagents.interfaces.runtime import RunBudget, RunResult
 
 
+# Reserved key used by DefaultAgentRouter to propagate delegation depth through
+# RunRequest.metadata instead of a process-level dict. Consumers SHOULD NOT
+# overwrite this key; it is managed entirely by the router.
+DELEGATION_DEPTH_KEY = "__openagents_delegation_depth__"
+
+
 class HandoffSignal(BaseException):
     """Raised by AgentRouterPlugin.transfer() to terminate the parent run with the child's result."""
 

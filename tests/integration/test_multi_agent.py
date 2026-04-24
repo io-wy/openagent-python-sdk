@@ -33,12 +33,17 @@ def _make_child_result(output: str, run_id: str = "child-1") -> RunResult:
     return RunResult(run_id=run_id, final_output=output, stop_reason=StopReason.COMPLETED)
 
 
-def _make_ctx(run_id="run-1", session_id="sess-1"):
+def _make_ctx(run_id="run-1", session_id="sess-1", delegation_depth=0):
+    from openagents.interfaces.agent_router import DELEGATION_DEPTH_KEY
+
     ctx = MagicMock()
     ctx.run_id = run_id
     ctx.session_id = session_id
     ctx.deps = None
-    ctx.run_request = MagicMock(parent_run_id=None)
+    metadata: dict = {}
+    if delegation_depth:
+        metadata[DELEGATION_DEPTH_KEY] = delegation_depth
+    ctx.run_request = MagicMock(parent_run_id=None, metadata=metadata)
     return ctx
 
 
@@ -106,8 +111,8 @@ async def test_delegation_depth_limit_enforced():
     runtime = Runtime.from_dict(cfg)
     router = runtime._runtime._agent_router
     router._run_fn = AsyncMock()
-    ctx = _make_ctx(run_id="deep-run")
-    router._run_depths["deep-run"] = 2  # simulate already-deep chain
+    # Simulate already-deep chain via request metadata (the new depth channel).
+    ctx = _make_ctx(run_id="deep-run", delegation_depth=2)
 
     with pytest.raises(DelegationDepthExceededError) as exc_info:
         await router.delegate("specialist", "hi", ctx)
@@ -116,7 +121,9 @@ async def test_delegation_depth_limit_enforced():
 
 
 @pytest.mark.asyncio
-async def test_child_depth_recorded_for_grandchild_checks():
+async def test_child_depth_propagated_via_request_metadata():
+    from openagents.interfaces.agent_router import DELEGATION_DEPTH_KEY
+
     runtime = Runtime.from_dict(_CONFIG)
     router = runtime._runtime._agent_router
     child_result = _make_child_result("done", run_id="child-run-abc")
@@ -124,4 +131,41 @@ async def test_child_depth_recorded_for_grandchild_checks():
     ctx = _make_ctx(run_id="root-run")
 
     await router.delegate("specialist", "go", ctx)
-    assert router._run_depths.get("child-run-abc") == 1
+    req = router._run_fn.call_args.kwargs["request"]
+    assert req.metadata[DELEGATION_DEPTH_KEY] == 1
+
+
+@pytest.mark.asyncio
+async def test_delegate_unknown_agent_raises_agent_not_found():
+    from openagents.interfaces.agent_router import AgentNotFoundError
+
+    runtime = Runtime.from_dict(_CONFIG)
+    ctx = _make_ctx()
+    router = runtime._runtime._agent_router
+
+    with pytest.raises(AgentNotFoundError) as exc_info:
+        await router.delegate("does_not_exist", "hi", ctx)
+    assert exc_info.value.agent_id == "does_not_exist"
+
+
+@pytest.mark.asyncio
+async def test_forked_isolation_copies_parent_history():
+    """With real in-memory session manager, forked child sees parent messages."""
+    runtime = Runtime.from_dict(_CONFIG)
+    router = runtime._runtime._agent_router
+    # Seed parent session with a message
+    await runtime.session_manager.append_message("parent-sess", {"role": "user", "content": "hi"})
+
+    captured = {}
+
+    async def fake_run(*, request):
+        captured["session_id"] = request.session_id
+        captured["messages"] = await runtime.session_manager.load_messages(request.session_id)
+        return _make_child_result("ok", run_id="fork-child")
+
+    router._run_fn = fake_run
+    ctx = _make_ctx(session_id="parent-sess", run_id="parent-run")
+
+    await router.delegate("specialist", "go", ctx, session_isolation="forked")
+    assert captured["session_id"] != "parent-sess"
+    assert [m["content"] for m in captured["messages"]] == ["hi"]
