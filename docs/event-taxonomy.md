@@ -15,15 +15,25 @@ Regenerate this file via::
 |---|---|---|---|
 | `context.assemble.completed` | `transcript_size` | `artifact_count`, `duration_ms` | context_assembler.assemble() returned. |
 | `context.assemble.started` | — | — | context_assembler.assemble() is about to run. |
+| `context.compact.completed` | — | `transcript_size`, `duration_ms` | context_assembler.compact() returned. |
+| `context.compact.started` | — | — | context_assembler.compact() is about to run. |
+| `context.compact_failed` | `agent_id`, `session_id`, `error` | `error_details` | context_assembler.compact() raised; run continues depending on on_error config. |
+| `context.compact_succeeded` | `agent_id`, `session_id` | — | context_assembler.compact() succeeded. |
 | `llm.called` | `model` | — | Pattern is about to call an LLM. |
 | `llm.failed` | `model` | `_metrics`, `error`, `error_details` | LLM call failed. Optional '_metrics' carries LLMCallMetrics timing data. |
 | `llm.succeeded` | `model` | `_metrics` | LLM returned successfully. Optional '_metrics' carries LLMCallMetrics timing data. |
+| `memory.compact.completed` | — | — | memory.compact() returned. |
+| `memory.compact.started` | — | — | memory.compact() is about to run. |
+| `memory.compact_failed` | `agent_id`, `session_id`, `error` | `error_details` | memory.compact() raised; run continues depending on on_error config. |
+| `memory.compact_succeeded` | `agent_id`, `session_id` | — | memory.compact() succeeded. |
 | `memory.inject.completed` | — | `view_size` | memory.inject() returned. |
 | `memory.inject.started` | — | — | memory.inject() is about to run. |
 | `memory.inject_failed` | `agent_id`, `session_id`, `error` | `error_details` | memory.inject() raised; run continues or fails depending on on_error config. |
+| `memory.injected` | `agent_id`, `session_id` | — | memory.inject() succeeded. |
 | `memory.writeback.completed` | — | — | memory.writeback() returned. |
 | `memory.writeback.started` | — | — | memory.writeback() is about to run. |
 | `memory.writeback_failed` | `agent_id`, `session_id`, `error` | `error_details` | memory.writeback() raised; run continues or fails depending on on_error config. |
+| `memory.writeback_succeeded` | `agent_id`, `session_id` | — | memory.writeback() succeeded. |
 | `pattern.phase` | `phase` | — | Pattern transitioned phases (e.g. planning, executing). |
 | `pattern.plan_created` | `plan` | — | PlanExecutePattern produced its plan. |
 | `pattern.step_finished` | `step`, `action` | — | Pattern completed an execution step. |

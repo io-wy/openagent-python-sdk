@@ -41,11 +41,23 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         ("error_details",),
         "memory.inject() raised; run continues or fails depending on on_error config.",
     ),
+    "memory.injected": EventSchema(
+        "memory.injected",
+        ("agent_id", "session_id"),
+        (),
+        "memory.inject() succeeded.",
+    ),
     "memory.writeback_failed": EventSchema(
         "memory.writeback_failed",
         ("agent_id", "session_id", "error"),
         ("error_details",),
         "memory.writeback() raised; run continues or fails depending on on_error config.",
+    ),
+    "memory.writeback_succeeded": EventSchema(
+        "memory.writeback_succeeded",
+        ("agent_id", "session_id"),
+        (),
+        "memory.writeback() succeeded.",
     ),
     "tool.called": EventSchema(
         "tool.called",
@@ -167,6 +179,54 @@ EVENT_SCHEMAS: dict[str, EventSchema] = {
         (),
         (),
         "memory.writeback() returned.",
+    ),
+    "memory.compact.started": EventSchema(
+        "memory.compact.started",
+        (),
+        (),
+        "memory.compact() is about to run.",
+    ),
+    "memory.compact.completed": EventSchema(
+        "memory.compact.completed",
+        (),
+        (),
+        "memory.compact() returned.",
+    ),
+    "memory.compact_failed": EventSchema(
+        "memory.compact_failed",
+        ("agent_id", "session_id", "error"),
+        ("error_details",),
+        "memory.compact() raised; run continues depending on on_error config.",
+    ),
+    "memory.compact_succeeded": EventSchema(
+        "memory.compact_succeeded",
+        ("agent_id", "session_id"),
+        (),
+        "memory.compact() succeeded.",
+    ),
+    "context.compact.started": EventSchema(
+        "context.compact.started",
+        (),
+        (),
+        "context_assembler.compact() is about to run.",
+    ),
+    "context.compact.completed": EventSchema(
+        "context.compact.completed",
+        (),
+        ("transcript_size", "duration_ms"),
+        "context_assembler.compact() returned.",
+    ),
+    "context.compact_failed": EventSchema(
+        "context.compact_failed",
+        ("agent_id", "session_id", "error"),
+        ("error_details",),
+        "context_assembler.compact() raised; run continues depending on on_error config.",
+    ),
+    "context.compact_succeeded": EventSchema(
+        "context.compact_succeeded",
+        ("agent_id", "session_id"),
+        (),
+        "context_assembler.compact() succeeded.",
     ),
     "tool.batch.started": EventSchema(
         "tool.batch.started",
