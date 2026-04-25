@@ -133,7 +133,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from openagents.interfaces.capabilities import PATTERN_EXECUTE
 from openagents.interfaces.pattern import PatternPlugin
 
 
@@ -144,7 +143,8 @@ class {class_name}(PatternPlugin):
         max_steps: int = 3
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {{}}, capabilities={{PATTERN_EXECUTE}})
+        # PatternPlugin 基类自动注入 pattern.execute + pattern.react
+        super().__init__(config=config or {{}})
 
     async def execute(self) -> Any:
         ctx = self.context

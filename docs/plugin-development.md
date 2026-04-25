@@ -54,18 +54,26 @@ loader 会检查两件事：
 - 必需 capability 是否存在
 - 声明过的 capability 是否真的有对应方法
 
+> **踩坑提醒**：如果继承 `PatternPlugin` 或 `ToolPlugin` 基类，**核心 capabilities 已自动注入**，不需要手动声明。但如果用 duck-typed（不继承基类）或 Protocol 方式，**必须显式设置 `self.capabilities`**，否则 loader 会抛 `CapabilityError`。
+>
+> ```
+> CapabilityError: pattern plugin is missing required capabilities: ['pattern.execute']
+> CapabilityError: tool plugin 'add_source' is missing required capabilities: ['tool.invoke']
+> ```
+
 ### 主要 plugin 类型
 
-| 类型 | 必需 capability | 必需方法 |
-| --- | --- | --- |
-| `pattern` | `pattern.execute` | `execute()` |
-| `tool` | `tool.invoke` | `invoke()`, `schema()` |
-| `runtime` | `runtime.run` | `run()` |
-| `session` | `session.manage` | `session()` |
-| `events` | `event.emit` | `emit()`, `subscribe()` |
-| `tool_executor` | — | `execute()`, `execute_stream()` |
-| `context_assembler` | — | `assemble()`, `finalize()` |
-| `skills` | — | plugin-defined（`local` builtin 实现发现/预热/注入） |
+| 类型 | 必需 capability | 必需方法 | 基类自动注入 |
+| --- | --- | --- | --- |
+| `pattern` | `pattern.execute` | `execute()` | ✅ `PatternPlugin` 自动注入 `pattern.execute` + `pattern.react` |
+| `tool` | `tool.invoke` | `invoke()`, `schema()` | ✅ `ToolPlugin` 自动注入 `tool.invoke` |
+| `memory` | `memory.inject` | `inject()` | ✅ `MemoryPlugin` 自动注入 `memory.inject` + `memory.writeback` |
+| `runtime` | `runtime.run` | `run()` | ❌ |
+| `session` | `session.manage` | `session()` | ❌ |
+| `events` | `event.emit` | `emit()`, `subscribe()` | ❌ |
+| `tool_executor` | — | `execute()`, `execute_stream()` | — |
+| `context_assembler` | — | `assemble()`, `finalize()` | — |
+| `skills` | — | plugin-defined（`local` builtin 实现发现/预热/注入） | — |
 
 ### memory
 
@@ -114,20 +122,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
-from openagents.interfaces.run_context import RunContext
 from openagents.interfaces.tool import ToolPlugin
 
 
 class EchoTool(ToolPlugin):
+    """Echo text with a prefix."""
+
     name = "echo_tool"
     description = "Echo text with a prefix."
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        # ToolPlugin 基类自动注入 tool.invoke capability，无需手动声明
+        super().__init__(config=config or {})
         self._prefix = self.config.get("prefix", "echo")
 
-    async def invoke(self, params: dict[str, Any], context: RunContext[Any] | None) -> Any:
+    async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         text = str(params.get("text", "")).strip()
         return {"output": f"{self._prefix}: {text}"}
 
@@ -170,7 +179,8 @@ class EchoTool(TypedConfigPluginMixin, ToolPlugin):
         max_length: int = 500
 
     def __init__(self, config=None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        # ToolPlugin 基类自动注入 tool.invoke，无需 capabilities={TOOL_INVOKE}
+        super().__init__(config=config or {})
         self._init_typed_config()
         # self.cfg 是经过验证的 Config 实例
         self._prefix = self.cfg.prefix
@@ -275,29 +285,42 @@ from __future__ import annotations
 
 from typing import Any
 
+from openagents.interfaces.pattern import PatternPlugin
+
+
+class CustomPattern(PatternPlugin):
+    """PatternPlugin 基类自动注入 pattern.execute + pattern.react capability。"""
+
+    async def react(self) -> dict[str, Any]:
+        assert self.context is not None
+        return {"type": "final", "content": self.context.input_text}
+
+    async def execute(self) -> Any:
+        action = await self.react()
+        self.context.state["_runtime_last_output"] = action["content"]
+        return action["content"]
+```
+
+如果你用 duck-typed（不继承基类），**必须**手动设置 capabilities，否则 loader 会抛 `CapabilityError`：
+
+```python
+from __future__ import annotations
+
+from typing import Any
+
 from openagents.interfaces.capabilities import PATTERN_EXECUTE, PATTERN_REACT
-from openagents.interfaces.run_context import RunContext
 
 
 class CustomPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
+        # 不继承基类时，capabilities 必须显式声明！
         self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
-        self.context: RunContext[Any] | None = None
+        self.context = None
 
-    async def setup(
-        self,
-        agent_id: str,
-        session_id: str,
-        input_text: str,
-        state: dict[str, Any],
-        tools: dict[str, Any],
-        llm_client: Any,
-        llm_options: Any,
-        event_bus: Any,
-        **kwargs: Any,
-    ) -> None:
-        self.context = RunContext[Any](
+    async def setup(self, agent_id, session_id, input_text, state, tools, llm_client, llm_options, event_bus, **kwargs):
+        from openagents.interfaces.run_context import RunContext
+        self.context = RunContext(
             agent_id=agent_id,
             session_id=session_id,
             input_text=input_text,
@@ -309,7 +332,6 @@ class CustomPattern:
         )
 
     async def react(self) -> dict[str, Any]:
-        assert self.context is not None
         return {"type": "final", "content": self.context.input_text}
 
     async def execute(self) -> Any:
