@@ -71,6 +71,8 @@ class Memory(Protocol):
 
     async def writeback(self, context: Any) -> None: ...
 
+    async def compact(self, context: Any) -> None: ...
+
 
 class MemoryPlugin:
     """Base memory plugin (optional base class).
@@ -117,6 +119,15 @@ class MemoryPlugin:
             List of relevant memory entries
         """
         return []
+
+    async def compact(self, context: Any) -> None:
+        """Compact memory storage when it grows too large.
+
+        Called after writeback when the runtime decides memory
+        compaction is needed. Implementations should summarize,
+        merge, or prune entries to reduce size.
+        """
+        pass
 
     async def close(self) -> None:
         """Cleanup resources."""

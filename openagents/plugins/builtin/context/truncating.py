@@ -40,6 +40,15 @@ class TruncatingContextAssembler(ContextAssemblerPlugin):
         self._max_artifacts = cfg.max_artifacts
         self._include_summary_message = cfg.include_summary_message
 
+    async def compact(
+        self,
+        *,
+        request: Any,
+        session_state: dict[str, Any],
+        session_manager: Any,
+    ) -> None:
+        """No-op: TruncatingContextAssembler trims during assemble()."""
+
     async def assemble(
         self,
         *,

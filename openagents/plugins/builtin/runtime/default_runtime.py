@@ -26,13 +26,19 @@ from openagents.errors.exceptions import (
 )
 from openagents.interfaces.agent_router import HandoffSignal
 from openagents.interfaces.capabilities import (
+    CONTEXT_COMPACT,
+    MEMORY_COMPACT,
     MEMORY_INJECT,
     MEMORY_WRITEBACK,
     supports,
 )
 from openagents.interfaces.context import ContextAssemblerPlugin, ContextAssemblyResult
 from openagents.interfaces.events import (
+    CONTEXT_COMPACT_FAILED,
+    CONTEXT_COMPACT_SUCCEEDED,
     CONTEXT_CREATED,
+    MEMORY_COMPACT_FAILED,
+    MEMORY_COMPACT_SUCCEEDED,
     MEMORY_INJECT_FAILED,
     MEMORY_INJECTED,
     MEMORY_WRITEBACK_FAILED,
@@ -710,6 +716,12 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
                         duration_ms=0,
                     )
                 else:
+                    await self._run_context_compact(
+                        agent=agent,
+                        context_assembler=context_assembler,
+                        request=request,
+                        session_state=session_state,
+                    )
                     await self._event_bus.emit("context.assemble.started")
                     assemble_started_at = time.perf_counter()
                     assembly = await context_assembler.assemble(
@@ -955,6 +967,8 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
 
                 self._enforce_duration_budget(request=request, started_at=started_at)
                 await self._run_memory_writeback(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
+                self._enforce_duration_budget(request=request, started_at=started_at)
+                await self._run_memory_compact(agent=agent, memory=plugins.memory, pattern=plugins.pattern)
                 self._enforce_duration_budget(request=request, started_at=started_at)
                 session_state["_runtime_last_output"] = result
                 await self._append_transcript(
@@ -1712,6 +1726,96 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
             )
             if agent.memory.on_error == "fail":
                 raise
+
+    async def _run_memory_compact(
+        self,
+        *,
+        agent: "AgentDefinition",
+        memory: Any,
+        pattern: PatternPlugin,
+    ) -> None:
+        if not supports(memory, MEMORY_COMPACT):
+            return
+        context = pattern.context
+        await self._event_bus.emit("memory.compact.started")
+        try:
+            await memory.compact(context)
+            await self._event_bus.emit(
+                MEMORY_COMPACT_SUCCEEDED,
+                agent_id=context.agent_id,
+                session_id=context.session_id,
+            )
+            await self._event_bus.emit("memory.compact.completed")
+        except Exception as exc:
+            await self._event_bus.emit(
+                MEMORY_COMPACT_FAILED,
+                agent_id=context.agent_id,
+                session_id=context.session_id,
+                error=str(exc),
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
+            )
+            logger.warning(
+                "Memory %s failed during compact (on_error=%s): %s",
+                type(memory).__name__,
+                agent.memory.on_error,
+                exc,
+                exc_info=True,
+                extra={
+                    "agent_id": context.agent_id,
+                    "session_id": context.session_id,
+                    "run_id": getattr(getattr(context, "run_request", None), "run_id", None),
+                },
+            )
+            if agent.memory.on_error == "fail":
+                raise
+
+    async def _run_context_compact(
+        self,
+        *,
+        agent: "AgentDefinition",
+        context_assembler: ContextAssemblerPlugin,
+        request: RunRequest,
+        session_state: dict[str, Any],
+    ) -> None:
+        if not supports(context_assembler, CONTEXT_COMPACT):
+            return
+        await self._event_bus.emit("context.compact.started")
+        compact_started_at = time.perf_counter()
+        try:
+            await context_assembler.compact(
+                request=request,
+                session_state=session_state,
+                session_manager=self._session_manager,
+            )
+            compact_duration_ms = int((time.perf_counter() - compact_started_at) * 1000)
+            await self._event_bus.emit(
+                CONTEXT_COMPACT_SUCCEEDED,
+                agent_id=request.agent_id,
+                session_id=request.session_id,
+            )
+            await self._event_bus.emit(
+                "context.compact.completed",
+                duration_ms=compact_duration_ms,
+            )
+        except Exception as exc:
+            await self._event_bus.emit(
+                CONTEXT_COMPACT_FAILED,
+                agent_id=request.agent_id,
+                session_id=request.session_id,
+                error=str(exc),
+                error_details=ErrorDetails.from_exception(exc).model_dump(),
+            )
+            logger.warning(
+                "ContextAssembler %s failed during compact: %s",
+                type(context_assembler).__name__,
+                exc,
+                exc_info=True,
+                extra={
+                    "agent_id": request.agent_id,
+                    "session_id": request.session_id,
+                    "run_id": request.run_id,
+                },
+            )
 
     async def close(self) -> None:
         clients = list(self._llm_clients.values())

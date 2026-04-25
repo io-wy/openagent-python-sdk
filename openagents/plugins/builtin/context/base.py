@@ -62,6 +62,15 @@ class TokenBudgetContextAssembler(ContextAssemblerPlugin):
                 return "fallback_len//4"
         return "fallback_len//4"
 
+    async def compact(
+        self,
+        *,
+        request: Any,
+        session_state: dict[str, Any],
+        session_manager: Any,
+    ) -> None:
+        """No-op: TokenBudgetContextAssembler trims during assemble()."""
+
     async def assemble(
         self,
         *,

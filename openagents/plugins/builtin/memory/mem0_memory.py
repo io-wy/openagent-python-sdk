@@ -90,6 +90,9 @@ class Mem0Memory(MemoryPlugin):
             context.memory_view["mem0_history"] = []
             context.memory_view["history"] = []
 
+    async def compact(self, context: Any) -> None:
+        """No-op: Mem0 handles compaction internally."""
+
     async def writeback(self, context: Any) -> None:
         """Store current interaction in Mem0."""
         try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_RETRIEVE, MEMORY_WRITEBACK, supports
+from openagents.interfaces.capabilities import MEMORY_COMPACT, MEMORY_INJECT, MEMORY_RETRIEVE, MEMORY_WRITEBACK, supports
 from openagents.interfaces.memory import MemoryPlugin
 
 
@@ -76,6 +76,12 @@ class ChainMemory(MemoryPlugin):
                 if mem_results:
                     results.extend(mem_results)
         return results
+
+    async def compact(self, context: Any) -> None:
+        """Call compact on each memory in reverse order."""
+        for memory in reversed(self._memories):
+            if supports(memory, MEMORY_COMPACT):
+                await memory.compact(context)
 
     async def close(self) -> None:
         """Close all memories in reverse order."""

@@ -30,6 +30,21 @@ class ContextAssemblerPlugin(BasePlugin):
         """Build transcript/artifact context for a run."""
         return ContextAssemblyResult()
 
+    async def compact(
+        self,
+        *,
+        request: Any,
+        session_state: dict[str, Any],
+        session_manager: Any,
+    ) -> None:
+        """Compact session transcript/artifacts when they grow too large.
+
+        Called by the runtime before assemble() when the session
+        exceeds configured thresholds. Implementations may summarize,
+        prune, or archive older entries through the session_manager.
+        """
+        pass
+
     async def finalize(
         self,
         *,

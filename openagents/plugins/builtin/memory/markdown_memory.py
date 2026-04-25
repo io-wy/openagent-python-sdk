@@ -112,6 +112,9 @@ class MarkdownMemory(TypedConfigPluginMixin, MemoryPlugin):
         for section in self.cfg.sections:
             context.memory_view[section] = self._parse(section, max_chars=self.cfg.max_chars_per_section)
 
+    async def compact(self, context: Any) -> None:
+        """No-op: MarkdownMemory manages size via _parse max_chars budget."""
+
     async def writeback(self, context: Any) -> None:
         pending = context.state.get("_pending_memory_writes") or []
         if not pending:

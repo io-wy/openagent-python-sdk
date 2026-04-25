@@ -78,6 +78,9 @@ class BufferMemory(TypedConfigPluginMixin, MemoryPlugin):
         buffer = self._get_buffer(context)
         context.memory_view[self._view_key()] = self._slice_for_view(buffer)
 
+    async def compact(self, context: Any) -> None:
+        """No-op: BufferMemory already trims in _trim_in_place during writeback."""
+
     async def writeback(self, context: Any) -> None:
         buffer = self._get_buffer(context)
 
