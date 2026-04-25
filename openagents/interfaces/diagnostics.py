@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from openagents.interfaces.run_context import RunContext
     from openagents.interfaces.runtime import RunResult, RunUsage
 
 
-@dataclass
-class LLMCallMetrics:
+class LLMCallMetrics(BaseModel):
     """Timing and token data for a single LLM call."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     model: str
     latency_ms: float
@@ -24,9 +26,10 @@ class LLMCallMetrics:
     error: str | None = None
 
 
-@dataclass
-class ErrorSnapshot:
+class ErrorSnapshot(BaseModel):
     """Full error context captured at failure time."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: str
     agent_id: str

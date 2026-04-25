@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .plugin import BasePlugin
 
 
-@dataclass
-class ContextAssemblyResult:
+class ContextAssemblyResult(BaseModel):
     """Prepared context for a single run."""
 
-    transcript: list[dict[str, Any]] = field(default_factory=list)
-    session_artifacts: list[Any] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    transcript: list[dict[str, Any]] = Field(default_factory=list)
+    session_artifacts: list[Any] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ContextAssemblerPlugin(BasePlugin):

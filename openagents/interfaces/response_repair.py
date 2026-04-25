@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
 
-@dataclass
-class ResponseRepairDecision:
+
+class ResponseRepairDecision(BaseModel):
     """Structured decision for repairing a bad or empty model response."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     status: str = "abstain"
     output: str = ""
     reason: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

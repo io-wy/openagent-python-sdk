@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
 
-@dataclass
-class FollowupResolution:
+
+class FollowupResolution(BaseModel):
     """Structured result for resolving a follow-up question locally."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     status: str = "abstain"
     output: Any = None
     reason: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

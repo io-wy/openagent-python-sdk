@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .plugin import BasePlugin
 
 EventHandler = Callable[["RuntimeEvent"], Awaitable[None] | None]
 
 
-@dataclass
-class RuntimeEvent:
+class RuntimeEvent(BaseModel):
     """Runtime event data."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str
-    payload: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    payload: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class EventBusPlugin(BasePlugin):
