@@ -6,7 +6,7 @@
 uv add "io-openagent-sdk[pptx]"
 ```
 
-还需要系统级依赖：Python ≥3.10、Node.js ≥18、npm、`markitdown`（Python 包）。首次运行时，CLI 会检测并引导你安装缺项。
+还需要系统级依赖：Python ≥3.11、Node.js ≥18、npm、`markitdown`（Python 包）。首次运行时，CLI 会检测并引导你安装缺项。
 
 ## 命令
 

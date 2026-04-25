@@ -99,7 +99,7 @@ uv add "io-openagent-sdk[openai,mcp]"
 uv add "io-openagent-sdk[all]"
 ```
 
-**Requires Python ≥ 3.10.**
+**Requires Python ≥ 3.11.**
 
 ---
 

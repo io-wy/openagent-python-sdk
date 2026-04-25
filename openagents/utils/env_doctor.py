@@ -45,7 +45,7 @@ class EnvironmentCheck(Protocol):
 
 @dataclass
 class PythonVersionCheck:
-    min_version: str = "3.10"
+    min_version: str = "3.11"
     name: str = "python"
     required: bool = True
 

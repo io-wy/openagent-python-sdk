@@ -4,7 +4,7 @@ Thank you for your interest in contributing. This document covers how to get set
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - [`uv`](https://github.com/astral-sh/uv) for environment and dependency management
 
 ## Development Setup

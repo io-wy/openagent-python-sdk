@@ -156,7 +156,7 @@ async def run_wizard(
 
     doctor = EnvironmentDoctor(
         checks=[
-            PythonVersionCheck(min_version="3.10"),
+            PythonVersionCheck(min_version="3.11"),
             NodeVersionCheck(min_version="18"),
             NpmCheck(),
             CliBinaryCheck(

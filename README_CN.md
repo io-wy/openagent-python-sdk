@@ -103,7 +103,7 @@ uv add "io-openagent-sdk[openai,mcp]"
 uv add "io-openagent-sdk[all]"
 ```
 
-**Python ≥ 3.10。**
+**Python ≥ 3.11。**
 
 ---
 

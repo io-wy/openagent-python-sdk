@@ -6,7 +6,7 @@
 uv add "io-openagent-sdk[pptx]"
 ```
 
-System dependencies: Python ≥3.10, Node.js ≥18, npm, `markitdown` (Python package). The CLI's environment doctor detects missing pieces on first run and walks you through installing them.
+System dependencies: Python ≥3.11, Node.js ≥18, npm, `markitdown` (Python package). The CLI's environment doctor detects missing pieces on first run and walks you through installing them.
 
 ## Commands
 
