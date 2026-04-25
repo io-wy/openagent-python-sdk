@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from openagents.errors.exceptions import ToolCancelledError, ToolError, ToolTimeoutError
-from openagents.interfaces.tool import ToolExecutionRequest, ToolExecutionResult, ToolExecutorPlugin
+from openagents.interfaces.tool import PolicyDecision, ToolExecutionRequest, ToolExecutionResult, ToolExecutorPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 
@@ -35,14 +35,68 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
     class Config(BaseModel):
         default_timeout_ms: int = 30_000
         allow_stream_passthrough: bool = True
+        command_allowlist: list[str] | None = None
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {}, capabilities=set())
         self._init_typed_config()
         self._default_timeout_ms = self.cfg.default_timeout_ms
         self._allow_stream_passthrough = self.cfg.allow_stream_passthrough
+        self._command_allowlist = self.cfg.command_allowlist
+
+    async def evaluate_policy(self, request: ToolExecutionRequest) -> PolicyDecision:
+        """Enforce executor-level command_allowlist for shell_exec tools.
+
+        When ``command_allowlist`` is configured, only ``shell_exec``
+        invocations whose argv[0] is in the list are allowed.  Other
+        tools pass through unaffected.  This lets security policy live
+        in the executor config rather than per-tool.
+        """
+        if self._command_allowlist is None:
+            return PolicyDecision(allowed=True)
+
+        if request.tool_id != "shell_exec":
+            return PolicyDecision(allowed=True)
+
+        command = (request.params or {}).get("command", "")
+        if isinstance(command, list):
+            argv = [str(c) for c in command]
+        else:
+            import shlex
+
+            argv = shlex.split(str(command))
+
+        if not argv:
+            return PolicyDecision(allowed=False, reason="shell_exec command is empty")
+
+        first = argv[0]
+        import os
+
+        if os.sep in first or (os.altsep and os.altsep in first):
+            return PolicyDecision(
+                allowed=False,
+                reason=f"command {first!r} must be a bare name (no path) when command_allowlist is active",
+            )
+
+        if first not in self._command_allowlist:
+            return PolicyDecision(
+                allowed=False,
+                reason=f"command {first!r} not in allowlist {self._command_allowlist!r}",
+            )
+
+        return PolicyDecision(allowed=True)
 
     async def execute(self, request: ToolExecutionRequest) -> ToolExecutionResult:
+        decision = await self.evaluate_policy(request)
+        if not decision.allowed:
+            msg = f"policy denied: {decision.reason}"
+            return ToolExecutionResult(
+                tool_id=request.tool_id,
+                success=False,
+                error=msg,
+                exception=ToolError(msg, tool_name=request.tool_id),
+            )
+
         validator = getattr(request.tool, "validate_params", None)
         if callable(validator):
             is_valid, error = validator(request.params or {})
@@ -155,6 +209,11 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
             )
 
     async def execute_stream(self, request: ToolExecutionRequest):
+        decision = await self.evaluate_policy(request)
+        if not decision.allowed:
+            msg = f"policy denied: {decision.reason}"
+            raise ToolError(msg, tool_name=request.tool_id)
+
         if not self._allow_stream_passthrough:
             result = await self.execute(request)
             yield {"type": "result", "data": result.data, "error": result.error}
