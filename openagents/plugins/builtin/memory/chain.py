@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from openagents.interfaces.capabilities import MEMORY_COMPACT, MEMORY_INJECT, MEMORY_RETRIEVE, MEMORY_WRITEBACK, supports
+from openagents.interfaces.capabilities import (
+    MEMORY_COMPACT,
+    MEMORY_INJECT,
+    MEMORY_RETRIEVE,
+    MEMORY_WRITEBACK,
+    supports,
+)
 from openagents.interfaces.memory import MemoryPlugin
 
 
