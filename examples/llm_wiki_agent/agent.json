@@ -80,12 +80,13 @@
       },
       "tools": [
         { "id": "ingest_url", "impl": "examples.llm_wiki_agent.app.plugins.IngestUrlTool", "config": { "storage_dir": "examples/llm_wiki_agent/knowledge", "chunk_size": 2000 } },
+        { "id": "deep_read_url", "impl": "examples.llm_wiki_agent.app.plugins.DeepReadUrlTool", "config": { "timeout_seconds": 60 } },
         { "id": "search_kb", "impl": "examples.llm_wiki_agent.app.plugins.SearchKbTool", "config": { "storage_dir": "examples/llm_wiki_agent/knowledge" } },
         { "id": "list_sources", "impl": "examples.llm_wiki_agent.app.plugins.ListSourcesTool", "config": { "storage_dir": "examples/llm_wiki_agent/knowledge" } }
       ],
       "runtime": {
         "max_steps": 10,
-        "step_timeout_ms": 60000,
+        "step_timeout_ms": 120000,
         "session_queue_size": 1000,
         "event_queue_size": 2000
       }

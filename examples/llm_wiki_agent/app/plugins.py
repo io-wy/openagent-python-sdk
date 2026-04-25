@@ -9,8 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from openagents.interfaces.capabilities import PATTERN_EXECUTE, PATTERN_REACT, TOOL_INVOKE
 from openagents.interfaces.context import ContextAssemblerPlugin, ContextAssemblyResult
 from openagents.interfaces.memory import MemoryPlugin
@@ -27,45 +25,84 @@ from examples.llm_wiki_agent.app.store import WikiKnowledgeStore, content_hash
 # ------------------------------------------------------------------
 
 
-class FetchUrlTool(ToolPlugin):
-    """Fetch a URL and return cleaned text content."""
+class DeepReadUrlTool(ToolPlugin):
+    """Fetch a URL via opencli web read and return the full markdown content.
 
-    name = "fetch_url"
-    description = "Fetch a web page and return its text content."
+    This is designed for deep reading scenarios where the agent needs the
+    complete article text to produce an exhaustive analysis.
+    """
+
+    name = "deep_read_url"
+    description = (
+        "Fetch a web page using opencli and return the FULL markdown content. "
+        "Use this when the user wants a detailed analysis of an article."
+    )
     durable_idempotent = True
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
-        self._timeout = self.config.get("timeout_seconds", 30)
-        self._max_length = self.config.get("max_length", 50_000)
+        self._timeout = self.config.get("timeout_seconds", 60)
+        self._max_length = self.config.get("max_length", 200_000)
 
     async def invoke(self, params: dict[str, Any], context: Any) -> dict[str, Any]:
         url = params.get("url", "")
         if not url:
             return {"success": False, "error": "url is required"}
 
+        import shutil
+        import tempfile
+
+        opencli_path = shutil.which("opencli")
+        if not opencli_path:
+            return {"success": False, "error": "opencli not found in PATH. Install with: npm install -g @jackwener/opencli"}
+
+        out_dir = Path(tempfile.mkdtemp(prefix="deepread_"))
         try:
-            async with httpx.AsyncClient(timeout=self._timeout, follow_redirects=True) as client:
-                resp = await client.get(url, headers={"User-Agent": "llm-wiki-agent/1.0"})
-                resp.raise_for_status()
-                text = _html_to_text(resp.text)
-                return {
-                    "success": True,
-                    "url": url,
-                    "title": _extract_title(resp.text),
-                    "content": text[: self._max_length],
-                    "truncated": len(text) > self._max_length,
-                }
-        except httpx.HTTPStatusError as exc:
-            return {"success": False, "error": f"HTTP {exc.response.status_code}"}
+            proc = await asyncio.create_subprocess_exec(
+                opencli_path, "web", "read",
+                "--url", url,
+                "--output", str(out_dir),
+                "--format", "md",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_b, stderr_b = await asyncio.wait_for(
+                proc.communicate(), timeout=self._timeout
+            )
+            stdout = stdout_b.decode("utf-8", errors="replace")
+            stderr = stderr_b.decode("utf-8", errors="replace")
+
+            if proc.returncode != 0:
+                return {"success": False, "error": f"opencli failed (rc={proc.returncode}): {stderr[:500]}"}
+
+            md_files = list(out_dir.rglob("*.md"))
+            if not md_files:
+                return {"success": False, "error": "opencli produced no markdown file"}
+
+            content = md_files[0].read_text(encoding="utf-8")[: self._max_length]
+            title = _extract_title_from_markdown(content) or url
+
+            return {
+                "success": True,
+                "url": url,
+                "title": title,
+                "content": content,
+                "word_count": len(content.split()),
+            }
+        except asyncio.TimeoutError:
+            return {"success": False, "error": f"opencli timed out after {self._timeout}s"}
+        except FileNotFoundError:
+            return {"success": False, "error": "opencli not found. Install with: npm install -g @jackwener/opencli"}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
+        finally:
+            shutil.rmtree(out_dir, ignore_errors=True)
 
     def schema(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "URL to fetch"},
+                "url": {"type": "string", "description": "URL to fetch and analyze"},
             },
             "required": ["url"],
         }
@@ -450,11 +487,24 @@ class WikiPattern(ReActPattern):
 
     def _llm_system_prompt(self) -> str:
         return self.compose_system_prompt(
-            "You are a Wiki Agent. Your job is to build and query a knowledge base from web pages.\n\n"
+            "You are a Wiki Agent. Your job is to build and query a knowledge base from web pages, "
+            "and to perform deep, thorough analysis of articles when requested.\n\n"
             "## Workflow\n"
             "1. **Ingest**: call ingest_url with the URL → it fetches, chunks, and stores automatically\n"
             "2. **Query**: call search_kb with the question → synthesize answer from returned chunks\n"
-            "3. **List**: call list_sources when asked what you know\n\n"
+            "3. **List**: call list_sources when asked what you know\n"
+            "4. **Deep Read / Analyze**: call deep_read_url with the URL → you receive the FULL markdown content → "
+            "output a COMPLETE, EXHAUSTIVE, and DETAILED Markdown analysis.\n\n"
+            "## Analysis Rules (CRITICAL)\n"
+            "When the user asks you to analyze, read deeply, or review an article:\n"
+            "- Call deep_read_url EXACTLY ONCE to get the full content\n"
+            "- After receiving the tool result, IMMEDIATELY output final with your analysis\n"
+            "- Do NOT call deep_read_url again — you already have the content\n"
+            "- Your final output must be THOROUGH, COMPLETE, and EXHAUSTIVE\n"
+            "- Do NOT summarize, abbreviate, or be brief\n"
+            "- Cover every major point, argument, and detail from the article\n"
+            "- Use proper Markdown formatting (headings, bullet points, quotes)\n"
+            "- The user wants the FULL picture, not a summary\n\n"
             "## Response format (STRICT JSON, no markdown, no extra text)\n"
             'For tool calls: {"type":"tool_call","tool":"<tool_id>","params":{"key":"value"}}\n'
             'For final answer: {"type":"final","content":"your answer here"}\n'
@@ -598,32 +648,6 @@ class WikiPattern(ReActPattern):
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-
-
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
-_HTML_ENT_RE = re.compile(r"&\w+;|&#\d+;")
-
-
-def _html_to_text(html: str) -> str:
-    """Very basic HTML-to-text conversion."""
-    # Remove script and style blocks first
-    text = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.IGNORECASE)
-    text = re.sub(r"<style[\s\S]*?</style>", "", text, flags=re.IGNORECASE)
-    # Replace common block tags with newlines
-    text = text.replace("</p>", "\n\n").replace("</div>", "\n").replace("<br>", "\n").replace("<br/>", "\n")
-    # Remove remaining tags
-    text = _HTML_TAG_RE.sub("", text)
-    # Decode common entities
-    text = text.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    text = _HTML_ENT_RE.sub("", text)
-    # Collapse whitespace
-    lines = [line.strip() for line in text.splitlines()]
-    return "\n".join(line for line in lines if line)
-
-
-def _extract_title(html: str) -> str:
-    m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
-    return (m.group(1).strip() if m else "")[:200]
 
 
 def _extract_title_from_markdown(md: str) -> str:

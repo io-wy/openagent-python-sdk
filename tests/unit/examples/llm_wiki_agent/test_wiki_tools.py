@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from examples.llm_wiki_agent.app.plugins import AddSourceTool, IngestUrlTool, ListSourcesTool, SearchKbTool
+from examples.llm_wiki_agent.app.plugins import AddSourceTool, DeepReadUrlTool, IngestUrlTool, ListSourcesTool, SearchKbTool
 
 
 @pytest.fixture
@@ -101,6 +101,25 @@ class TestIngestUrlTool:
         )
         # Note: this makes a real HTTP request; in CI it may fail.
         # We just verify the tool handles the response path.
+        assert "success" in result
+
+
+class TestDeepReadUrlTool:
+    @pytest.mark.asyncio
+    async def test_deep_read_missing_url(self, tmp_store_dir: str) -> None:
+        tool = DeepReadUrlTool({})
+        result = await tool.invoke({}, None)
+        assert result["success"] is False
+        assert "url is required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_deep_read_success(self, tmp_store_dir: str) -> None:
+        tool = DeepReadUrlTool({"timeout_seconds": 30})
+        result = await tool.invoke(
+            {"url": "https://example.com/test"},
+            None,
+        )
+        # Makes a real HTTP request via opencli; just verify the response path.
         assert "success" in result
 
 

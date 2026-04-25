@@ -79,6 +79,18 @@ async def main() -> None:
     )
     _safe_print(f"\n  Sources: {list_out}")
 
+    # Scenario 4: Deep read / analyze a URL
+    _banner("Scenario 4: Deep read and analyze an article")
+    try:
+        analyze_out = await runtime.run(
+            agent_id="llm-wiki-agent",
+            session_id="demo-wiki-2",
+            input_text="Please analyze this article in full detail: https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)",
+        )
+        _safe_print(f"\n  Analysis:\n{analyze_out}")
+    except Exception as exc:
+        _safe_print(f"\n  [ERROR] Analysis failed: {exc}")
+
     await runtime.close()
 
 

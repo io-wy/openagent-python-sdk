@@ -4,11 +4,11 @@ An example agent that ingests web pages via **opencli** and answers questions fr
 
 ## What it demonstrates
 
-- **Custom tools** (`ingest_url`, `search_kb`, `list_sources`) backed by a JSONL + inverted-index store
+- **Custom tools** (`ingest_url`, `deep_read_url`, `search_kb`, `list_sources`) backed by opencli + JSONL store
 - **Custom pattern** (`WikiPattern`) extending `ReActPattern` for multi-step reasoning with tool results fed back to the LLM
 - **Custom memory** (`WikiMemory`) injecting KB stats into the context
 - **Custom context assembler** (`WikiContextAssembler`) providing KB hints to the LLM
-- **OpenCLI integration** — `IngestUrlTool` calls `opencli web read` internally via subprocess to fetch and convert web pages to Markdown
+- **OpenCLI integration** — `IngestUrlTool` and `DeepReadUrlTool` call `opencli web read` internally via subprocess to fetch and convert web pages to Markdown
 
 ## Directory structure
 
@@ -44,10 +44,11 @@ examples/llm_wiki_agent/
 uv run python examples/llm_wiki_agent/run_demo.py
 ```
 
-Three scenarios are demonstrated:
+Four scenarios are demonstrated:
 1. **Ingest** — fetch a Wikipedia page via `opencli web read`, chunk + summarize, store in KB
 2. **Query** — search KB for relevant chunks and synthesize an answer
 3. **List** — enumerate all ingested sources
+4. **Deep Read / Analyze** — fetch a URL and generate a thorough, exhaustive Markdown analysis (not a summary)
 
 ## Architecture
 
@@ -62,6 +63,14 @@ User Input
     |                           +-- opencli web read --url <url> --format md
     |                           +-- chunk + summarize via LLM
     |                           +-- store to JSONL (WikiKnowledgeStore)
+    |
+    +-- "analyze <url>" --> [deep_read_url tool]
+    |                           |
+    |                           +-- opencli web read --url <url> --format md
+    |                           +-- return full markdown content
+    |                           |
+    |                           v
+    |                    [LLM: exhaustive Markdown analysis]
     |
     +-- "query <question>" --> [search_kb tool] --> ranked chunks
     |                           |

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from examples.llm_wiki_agent.app.plugins import (
-    FetchUrlTool,
+    DeepReadUrlTool,
     WikiContextAssembler,
     WikiMemory,
     WikiPattern,
@@ -23,7 +23,7 @@ class TestWikiPattern:
         pattern = WikiPattern()
         prompt = pattern._llm_system_prompt()
         assert "Wiki Agent" in prompt
-        assert "fetch_url" in prompt or "tool_call" in prompt
+        assert "deep_read_url" in prompt or "tool_call" in prompt
 
     def test_parse_llm_action_json(self) -> None:
         pattern = WikiPattern()
@@ -128,15 +128,15 @@ class TestWikiContextAssembler:
             assert result.metadata["wiki_kb_ready"] is True
 
 
-class TestFetchUrlTool:
+class TestDeepReadUrlTool:
     @pytest.mark.asyncio
     async def test_invoke_missing_url(self) -> None:
-        tool = FetchUrlTool()
+        tool = DeepReadUrlTool()
         result = await tool.invoke({}, None)
         assert result["success"] is False
         assert "url is required" in result["error"]
 
     def test_schema(self) -> None:
-        tool = FetchUrlTool()
+        tool = DeepReadUrlTool()
         schema = tool.schema()
         assert "url" in schema["properties"]
