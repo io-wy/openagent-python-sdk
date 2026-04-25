@@ -114,6 +114,7 @@ dev = [
     "opentelemetry-sdk>=1.41.0",
     "pre-commit>=4.5.1",
     "pytest-timeout>=2.4.0",
+    "respx>=0.23.1",
     "tomli>=2.2.1; python_version < '3.11'",
 ]
 

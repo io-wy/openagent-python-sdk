@@ -1269,6 +1269,7 @@ dev = [
     { name = "opentelemetry-sdk" },
     { name = "pre-commit" },
     { name = "pytest-timeout" },
+    { name = "respx" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
@@ -1316,6 +1317,7 @@ dev = [
     { name = "opentelemetry-sdk", specifier = ">=1.41.0" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "respx", specifier = ">=0.23.1" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.2.1" },
 ]
 
