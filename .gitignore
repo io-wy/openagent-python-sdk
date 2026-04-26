@@ -27,6 +27,7 @@ htmlcov/
 
 # Environment & secrets
 *.env
+OpenCLI/
 
 # Tooling
 .ace-tool/

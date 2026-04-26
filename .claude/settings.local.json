@@ -20,7 +20,13 @@
       "Bash(do uv:*)",
       "Bash(echo \"$f OK\")",
       "Bash(done)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(rtk cat:*)",
+      "Bash(git tag:*)",
+      "Bash(opencli web *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(curl -s \"https://api.github.com/repos/openai/openai-agents-python\")"
     ]
   }
 }
