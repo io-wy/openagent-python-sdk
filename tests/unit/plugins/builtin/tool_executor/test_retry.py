@@ -31,7 +31,7 @@ class _FakeTool:
 
 class _ScriptedExecutor(ToolExecutorPlugin):
     def __init__(self, results: list[ToolExecutionResult]):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._results = list(results)
         self.calls = 0
 

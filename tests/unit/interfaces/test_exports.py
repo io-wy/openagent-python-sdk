@@ -14,7 +14,6 @@ import openagents.config as config_module
 import openagents.plugins as plugins_module
 from openagents.config.schema import LLMOptions
 from openagents.errors.exceptions import ConfigError
-from openagents.interfaces.capabilities import PATTERN_EXECUTE, TOOL_INVOKE, normalize_capabilities, supports
 from openagents.interfaces.context import ContextAssemblerPlugin
 from openagents.interfaces.events import EventBusPlugin, RuntimeEvent
 from openagents.interfaces.memory import MemoryPlugin
@@ -34,7 +33,7 @@ from openagents.llm.registry import create_llm_client
 
 class _SessionStore(SessionManagerPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._states: dict[str, dict] = {}
 
     async def session(self, session_id: str):
@@ -55,7 +54,7 @@ class _SessionStore(SessionManagerPlugin):
 
 class _RecordingEventBus(EventBusPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self.events: list[RuntimeEvent] = []
 
     def subscribe(self, event_name, handler) -> None:
@@ -114,7 +113,7 @@ class _ToolSuccess:
 
 
 @pytest.mark.asyncio
-async def test_exports_registry_and_capability_helpers_cover_public_surface():
+async def test_exports_registry_and_public_surface():
     assert "Runtime" in openagents.__all__
     assert "RunContext" in openagents.__all__
     assert "load_config" in config_module.__all__
@@ -122,12 +121,8 @@ async def test_exports_registry_and_capability_helpers_cover_public_surface():
     assert "LocalSkillsManager" in openagents.__all__
     assert "SkillsPlugin" in openagents.__all__
 
-    plugin = BasePlugin.from_capabilities(config={"x": 1}, capabilities=[TOOL_INVOKE, " ", None, TOOL_INVOKE])
+    plugin = BasePlugin(config={"x": 1})
     assert plugin.config == {"x": 1}
-    assert plugin.capability_set() == {TOOL_INVOKE}
-    assert plugin.supports(TOOL_INVOKE) is True
-    assert normalize_capabilities([PATTERN_EXECUTE, " ", 123, TOOL_INVOKE]) == {PATTERN_EXECUTE, TOOL_INVOKE}
-    assert supports(plugin, TOOL_INVOKE) is True
     assert StopReason.COMPLETED.value == "completed"
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["version"] == "0.4.0"
@@ -136,9 +131,9 @@ async def test_exports_registry_and_capability_helpers_cover_public_surface():
 @pytest.mark.asyncio
 async def test_memory_skills_context_and_event_base_classes_cover_defaults():
     memory = MemoryPlugin()
-    skills = SkillsPlugin(config={"search_paths": ["skills"]}, capabilities=set())
+    skills = SkillsPlugin(config={"search_paths": ["skills"]})
     assembler = ContextAssemblerPlugin(config={})
-    event_bus = EventBusPlugin(config={}, capabilities=set())
+    event_bus = EventBusPlugin(config={})
 
     assert await memory.retrieve("query", object()) == []
     assert await memory.inject(object()) is None
@@ -223,8 +218,8 @@ async def test_tool_runtime_and_session_base_classes_cover_default_branches():
         async def invoke(self, params, context):
             return {"params": params, "context": context}
 
-    tool = _ToolHarness(config={}, capabilities={TOOL_INVOKE})
-    runtime = RuntimePlugin(config={}, capabilities=set())
+    tool = _ToolHarness(config={})
+    runtime = RuntimePlugin(config={})
     store = _SessionStore()
     ctx = RunContext[object](
         agent_id="assistant",

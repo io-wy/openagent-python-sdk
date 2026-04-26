@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_RETRIEVE, MEMORY_WRITEBACK
 from openagents.interfaces.tool import ToolExecutionRequest, ToolExecutionSpec
 from openagents.plugins.builtin.execution_policy.filesystem import (
     FilesystemExecutionPolicy,
@@ -16,21 +15,31 @@ from openagents.plugins.builtin.memory.chain import ChainMemory
 
 
 class _Memory:
-    def __init__(self, name: str, capabilities: set[str]) -> None:
+    def __init__(self, name: str, flags: set[str]) -> None:
         self.name = name
-        self.capabilities = capabilities
+        self._flags = flags
         self.calls: list[str] = []
+        # Only expose methods that the flags say this memory supports.
+        if "inject" in flags:
 
-    async def inject(self, context):
-        self.calls.append(f"inject:{self.name}")
-        context.memory_view.setdefault("seen", []).append(self.name)
+            async def _inject(context):
+                self.calls.append(f"inject:{self.name}")
+                context.memory_view.setdefault("seen", []).append(self.name)
 
-    async def writeback(self, context):
-        self.calls.append(f"writeback:{self.name}")
+            self.inject = _inject  # type: ignore[attr-defined]
+        if "writeback" in flags:
 
-    async def retrieve(self, query, context):
-        self.calls.append(f"retrieve:{self.name}:{query}")
-        return [{"memory": self.name, "query": query}]
+            async def _writeback(context):
+                self.calls.append(f"writeback:{self.name}")
+
+            self.writeback = _writeback  # type: ignore[attr-defined]
+        if "retrieve" in flags:
+
+            async def _retrieve(query, context):
+                self.calls.append(f"retrieve:{self.name}:{query}")
+                return [{"memory": self.name, "query": query}]
+
+            self.retrieve = _retrieve  # type: ignore[attr-defined]
 
     async def close(self):
         self.calls.append(f"close:{self.name}")
@@ -107,8 +116,8 @@ async def test_filesystem_execution_policy_helpers_and_decisions(tmp_path):
 
 @pytest.mark.asyncio
 async def test_chain_memory_loads_memories_and_runs_in_expected_order(monkeypatch):
-    first = _Memory("first", {MEMORY_INJECT, MEMORY_RETRIEVE})
-    second = _Memory("second", {MEMORY_WRITEBACK})
+    first = _Memory("first", {"inject", "retrieve"})
+    second = _Memory("second", {"writeback"})
     loaded = [first, second]
 
     def _fake_load_plugin(kind, ref):

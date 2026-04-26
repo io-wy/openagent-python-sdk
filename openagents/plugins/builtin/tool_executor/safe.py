@@ -38,7 +38,7 @@ class SafeToolExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
         command_allowlist: list[str] | None = None
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self._init_typed_config()
         self._default_timeout_ms = self.cfg.default_timeout_ms
         self._allow_stream_passthrough = self.cfg.allow_stream_passthrough

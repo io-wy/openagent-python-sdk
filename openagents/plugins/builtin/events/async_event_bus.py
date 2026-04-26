@@ -9,9 +9,6 @@ from pydantic import BaseModel
 
 from openagents.interfaces.event_taxonomy import EVENT_SCHEMAS
 from openagents.interfaces.events import (
-    EVENT_EMIT,
-    EVENT_HISTORY,
-    EVENT_SUBSCRIBE,
     EventBusPlugin,
     RuntimeEvent,
 )
@@ -46,7 +43,6 @@ class AsyncEventBus(TypedConfigPluginMixin, EventBusPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={EVENT_SUBSCRIBE, EVENT_EMIT, EVENT_HISTORY},
         )
         self._init_typed_config()
         self._subscribers: dict[str, list[Callable[[RuntimeEvent], Awaitable[None] | None]]] = {}

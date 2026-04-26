@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 
@@ -18,7 +17,7 @@ class URLParseTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         url = params.get("url", "")
@@ -53,7 +52,7 @@ class URLBuildTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         scheme = params.get("scheme", "https")
@@ -84,7 +83,7 @@ class QueryParamTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         url = params.get("url", "")
@@ -124,7 +123,7 @@ class HostLookupTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         url = params.get("url", "")

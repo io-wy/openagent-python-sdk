@@ -12,9 +12,6 @@ from typing import Any, Awaitable, Callable
 from pydantic import BaseModel, Field
 
 from openagents.interfaces.events import (
-    EVENT_EMIT,
-    EVENT_HISTORY,
-    EVENT_SUBSCRIBE,
     EventBusPlugin,
     RuntimeEvent,
 )
@@ -61,7 +58,6 @@ class FileLoggingEventBus(EventBusPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={EVENT_SUBSCRIBE, EVENT_EMIT, EVENT_HISTORY},
         )
         cfg = self.Config.model_validate(self.config)
         self._log_path = Path(cfg.log_path)

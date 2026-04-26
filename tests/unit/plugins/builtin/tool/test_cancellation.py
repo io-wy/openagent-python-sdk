@@ -15,7 +15,7 @@ from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
 
 class _SleepyTool(ToolPlugin):
     def __init__(self, sleep_s: float = 0.5):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._sleep_s = sleep_s
 
     async def invoke(self, params, context):
@@ -27,7 +27,7 @@ class _BlockingTool(ToolPlugin):
     """Ignores cancel; sleeps for full duration via asyncio.shield."""
 
     def __init__(self, sleep_s: float = 0.2):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._sleep_s = sleep_s
 
     async def invoke(self, params, context):
@@ -122,7 +122,7 @@ def test_cancel_event_is_injected_into_bound_tool_request():
 
     class _NoopTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return None
@@ -156,7 +156,7 @@ def test_tool_raises_mid_execution_is_wrapped_as_tool_error():
 
     class _RaisingTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             await asyncio.sleep(0.01)

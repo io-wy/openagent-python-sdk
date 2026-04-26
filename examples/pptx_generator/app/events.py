@@ -22,9 +22,6 @@ from pydantic import BaseModel, Field
 
 from openagents.cli._events import EventFormatter, default_excludes, matches_any
 from openagents.interfaces.events import (
-    EVENT_EMIT,
-    EVENT_HISTORY,
-    EVENT_SUBSCRIBE,
     EventBusPlugin,
     RuntimeEvent,
 )
@@ -54,7 +51,6 @@ class PrettyEventBus(EventBusPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={EVENT_SUBSCRIBE, EVENT_EMIT, EVENT_HISTORY},
         )
         cfg = self.Config.model_validate(self.config)
         self._include = list(cfg.include_events) if cfg.include_events is not None else None

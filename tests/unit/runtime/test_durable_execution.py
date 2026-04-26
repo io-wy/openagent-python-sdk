@@ -43,9 +43,7 @@ class ScriptedPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        from openagents.interfaces.capabilities import PATTERN_EXECUTE
-
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self._script: list[list[tuple[str, Any]]] = list(self.config.get("script", []))
         self._attempt = 0
         self.execute_calls = 0

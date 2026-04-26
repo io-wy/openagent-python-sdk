@@ -50,7 +50,7 @@ class FilesystemAwareExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
         write_roots: list[str] = Field(default_factory=list)
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self._init_typed_config()
         self._policy = FilesystemExecutionPolicy(config=config)
 

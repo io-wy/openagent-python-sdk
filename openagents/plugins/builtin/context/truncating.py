@@ -34,7 +34,7 @@ class TruncatingContextAssembler(ContextAssemblerPlugin):
         include_summary_message: bool = True
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         cfg = self.Config.model_validate(self.config)
         self._max_messages = cfg.max_messages
         self._max_artifacts = cfg.max_artifacts

@@ -20,7 +20,7 @@ class _AlwaysFailExecutor(ToolExecutorPlugin):
     """Inner executor that always returns a retryable failure."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
 
     async def execute(self, request: ToolExecutionRequest) -> ToolExecutionResult:
         return ToolExecutionResult(

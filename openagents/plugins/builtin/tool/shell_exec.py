@@ -9,7 +9,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -44,7 +43,7 @@ class ShellExecTool(TypedConfigPluginMixin, ToolPlugin):
         capture_bytes: int = 1_048_576
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._init_typed_config()
 
     @staticmethod

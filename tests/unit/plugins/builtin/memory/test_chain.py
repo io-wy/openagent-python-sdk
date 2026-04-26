@@ -7,7 +7,6 @@ from typing import Any
 import pytest
 
 from openagents.decorators import memory
-from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_WRITEBACK
 from openagents.interfaces.memory import MemoryPlugin
 from openagents.plugins.builtin.memory.chain import ChainMemory
 
@@ -19,7 +18,6 @@ class OrderSpyMemoryA(MemoryPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={MEMORY_INJECT, MEMORY_WRITEBACK},
         )
 
     async def inject(self, context: Any) -> None:
@@ -34,7 +32,6 @@ class OrderSpyMemoryB(MemoryPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={MEMORY_INJECT, MEMORY_WRITEBACK},
         )
 
     async def inject(self, context: Any) -> None:
@@ -49,7 +46,6 @@ class OrderSpyMemoryC(MemoryPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={MEMORY_INJECT, MEMORY_WRITEBACK},
         )
 
     async def inject(self, context: Any) -> None:

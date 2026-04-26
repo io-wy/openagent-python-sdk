@@ -192,10 +192,3 @@ class SessionManagerPlugin(BasePlugin):
         """Cleanup session manager resources."""
         pass
 
-
-# Capability constants
-SESSION_MANAGE = "session.manage"
-SESSION_STATE = "session.state"
-SESSION_TRANSCRIPT = "session.transcript"
-SESSION_ARTIFACTS = "session.artifacts"
-SESSION_CHECKPOINTS = "session.checkpoints"

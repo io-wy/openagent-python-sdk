@@ -17,11 +17,6 @@ from openagents.interfaces.session import (
     _ARTIFACTS_KEY,
     _CHECKPOINTS_KEY,
     _TRANSCRIPT_KEY,
-    SESSION_ARTIFACTS,
-    SESSION_CHECKPOINTS,
-    SESSION_MANAGE,
-    SESSION_STATE,
-    SESSION_TRANSCRIPT,
     SessionArtifact,
     SessionCheckpoint,
     SessionManagerPlugin,
@@ -65,13 +60,6 @@ class JsonlFileSessionManager(SessionManagerPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={
-                SESSION_MANAGE,
-                SESSION_STATE,
-                SESSION_TRANSCRIPT,
-                SESSION_ARTIFACTS,
-                SESSION_CHECKPOINTS,
-            },
         )
         cfg = self.Config.model_validate(self.config)
         self._root = Path(cfg.root_dir)

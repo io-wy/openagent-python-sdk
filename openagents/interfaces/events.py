@@ -85,11 +85,6 @@ class EventBusPlugin(BasePlugin):
         pass
 
 
-# Capability constants
-EVENT_SUBSCRIBE = "event.subscribe"
-EVENT_EMIT = "event.emit"
-EVENT_HISTORY = "event.history"
-
 # Runtime lifecycle event names
 RUN_REQUESTED = "run.requested"
 RUN_VALIDATED = "run.validated"

@@ -6,7 +6,6 @@ import json
 import re
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolExecutionSpec, ToolPlugin
 
 
@@ -20,7 +19,7 @@ class GrepFilesTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(reads_files=True)
@@ -69,7 +68,7 @@ class RipgrepTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(reads_files=True)
@@ -137,7 +136,7 @@ class JsonParseTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         text = params.get("text", "")
@@ -161,7 +160,7 @@ class TextTransformTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         text = params.get("text", "")

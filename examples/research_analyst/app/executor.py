@@ -46,7 +46,7 @@ class SandboxedResearchExecutor(ToolExecutorPlugin):
         retry_on: list[str] = Field(default_factory=lambda: ["RetryableToolError", "ToolTimeoutError"])
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         cfg = self.Config.model_validate(self.config)
         self._policy = CompositePolicy(
             children=[

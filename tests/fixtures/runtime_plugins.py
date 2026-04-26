@@ -3,19 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from openagents.interfaces.capabilities import (
-    MEMORY_INJECT,
-    MEMORY_WRITEBACK,
-    PATTERN_EXECUTE,
-    PATTERN_REACT,
-    SKILL_CONTEXT_AUGMENT,
-    SKILL_METADATA,
-    SKILL_POST_RUN,
-    SKILL_PRE_RUN,
-    SKILL_SYSTEM_PROMPT,
-    SKILL_TOOL_FILTER,
-    SKILL_TOOLS,
-)
 from openagents.interfaces.context import ContextAssemblyResult
 from openagents.interfaces.runtime import RunArtifact
 from openagents.interfaces.session import SessionArtifact
@@ -25,7 +12,6 @@ from openagents.interfaces.tool import PolicyDecision, ToolExecutionResult
 class InjectWritebackMemory:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT, MEMORY_WRITEBACK}
 
     async def inject(self, context: Any) -> None:
         context.state["memory_injected"] = True
@@ -37,7 +23,6 @@ class InjectWritebackMemory:
 class FailingInjectMemory:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT}
 
     async def inject(self, context: Any) -> None:
         raise RuntimeError("inject failed")
@@ -46,7 +31,6 @@ class FailingInjectMemory:
 class FailingWritebackMemory:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT, MEMORY_WRITEBACK}
 
     async def inject(self, context: Any) -> None:
         context.state["memory_injected"] = True
@@ -58,7 +42,7 @@ class FailingWritebackMemory:
 class FinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -97,7 +81,7 @@ class FinalPattern:
 class DepsEchoPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -136,7 +120,7 @@ class DepsEchoPattern:
 class SlowFinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -203,7 +187,7 @@ def _validate_action(action: Any, action_type: str | None = None) -> dict[str, A
 class NonDictActionPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -242,7 +226,7 @@ class NonDictActionPattern:
 class UnknownTypePattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -281,7 +265,7 @@ class UnknownTypePattern:
 class MissingToolCallFieldPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -320,7 +304,7 @@ class MissingToolCallFieldPattern:
 class InvalidToolCallParamsPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -359,7 +343,7 @@ class InvalidToolCallParamsPattern:
 class ContinueForeverPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self._max_steps = config.get("max_steps", 4) if config else 4
         self.context = None
 
@@ -403,7 +387,7 @@ class ContinueForeverPattern:
 class SlowContinuePattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self._max_steps = config.get("max_steps", 4) if config else 4
         self._step_timeout_ms = config.get("step_timeout_ms", 1000) if config else 1000
         self.context = None
@@ -454,7 +438,7 @@ class SlowContinuePattern:
 class FailOnceThenFinalPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -495,7 +479,7 @@ class FailOnceThenFinalPattern:
 class PromptAwarePattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -537,7 +521,7 @@ class PromptAwarePattern:
 class ArtifactPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -582,7 +566,7 @@ class ArtifactPattern:
 class ToolCallingPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -624,7 +608,7 @@ class ToolCallingPattern:
 class TwoToolCallsPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -668,7 +652,7 @@ class TwoToolCallsPattern:
 class ContextAwarePattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -713,7 +697,7 @@ class ContextAwarePattern:
 class ConfigurableToolPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
+
         self.context = None
 
     async def setup(
@@ -756,7 +740,6 @@ class ConfigurableToolPattern:
 class RuntimePromptSkill:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {SKILL_SYSTEM_PROMPT, SKILL_METADATA}
 
     def get_system_prompt(self, context: Any | None = None) -> str:
         focus = self.config.get("focus", "training")
@@ -769,15 +752,6 @@ class RuntimePromptSkill:
 class RuntimeLifecycleSkill:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {
-            SKILL_SYSTEM_PROMPT,
-            SKILL_METADATA,
-            SKILL_TOOLS,
-            SKILL_CONTEXT_AUGMENT,
-            SKILL_TOOL_FILTER,
-            SKILL_PRE_RUN,
-            SKILL_POST_RUN,
-        }
 
     def get_system_prompt(self, context: Any | None = None) -> str:
         return "You are the lifecycle specialist."
@@ -966,9 +940,7 @@ class QueuedRawOutputPattern(_PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        from openagents.interfaces.capabilities import PATTERN_EXECUTE
-
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self._responses = list(self.config.get("responses", []))
         self.execute_calls = 0
 

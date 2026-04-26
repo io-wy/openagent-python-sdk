@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from openagents.interfaces.capabilities import PATTERN_EXECUTE, PATTERN_REACT, TOOL_INVOKE
 from openagents.interfaces.context import ContextAssemblerPlugin, ContextAssemblyResult
 from openagents.interfaces.memory import MemoryPlugin
 from openagents.interfaces.pattern import PatternPlugin
@@ -40,7 +39,7 @@ class DeepReadUrlTool(ToolPlugin):
     durable_idempotent = True
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._timeout = self.config.get("timeout_seconds", 60)
         self._max_length = self.config.get("max_length", 200_000)
 
@@ -118,7 +117,7 @@ class AddSourceTool(ToolPlugin):
     )
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         storage_dir = self.config.get("storage_dir", "examples/llm_wiki_agent/knowledge")
         self._store = WikiKnowledgeStore(Path(storage_dir))
 
@@ -191,7 +190,7 @@ class SearchKbTool(ToolPlugin):
     description = "Search the knowledge base for relevant chunks matching a query."
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         storage_dir = self.config.get("storage_dir", "examples/llm_wiki_agent/knowledge")
         self._store = WikiKnowledgeStore(Path(storage_dir))
 
@@ -240,7 +239,7 @@ class IngestUrlTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._timeout = self.config.get("timeout_seconds", 60)
         self._max_length = self.config.get("max_length", 200_000)
         self._chunk_size = self.config.get("chunk_size", 2000)
@@ -363,7 +362,7 @@ class ListSourcesTool(ToolPlugin):
     description = "List all sources currently stored in the knowledge base."
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         storage_dir = self.config.get("storage_dir", "examples/llm_wiki_agent/knowledge")
         self._store = WikiKnowledgeStore(Path(storage_dir))
 

@@ -59,7 +59,7 @@ def test_tool_execution_request_cancel_event_defaults_none():
 
 class _DummyTool(ToolPlugin):
     def __init__(self, spec: ToolExecutionSpec | None = None):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._spec = spec or ToolExecutionSpec()
         self.invoked: list[dict] = []
 
@@ -127,7 +127,7 @@ def test_before_and_after_invoke_default_no_op():
 def test_tool_executor_plugin_default_execute_batch_is_sequential():
     class _Recording(ToolExecutorPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
             self.calls: list[str] = []
 
         async def execute(self, request):

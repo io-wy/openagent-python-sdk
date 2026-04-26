@@ -6,7 +6,6 @@ import pytest
 
 from openagents.config.loader import load_config_dict
 from openagents.errors.exceptions import ToolTimeoutError
-from openagents.interfaces.capabilities import PATTERN_EXECUTE, PATTERN_REACT, TOOL_INVOKE
 from openagents.interfaces.runtime import RunBudget, RunRequest, StopReason
 from openagents.runtime.runtime import Runtime
 
@@ -20,7 +19,6 @@ class _TimeoutRaisingTool:
 
     def __init__(self, config=None):
         self.config = config or {}
-        self.capabilities = {TOOL_INVOKE}
 
     async def invoke(self, params, context):
         raise ToolTimeoutError("slow", tool_name="search")
@@ -40,7 +38,6 @@ class _ToolTimeoutPattern:
 
     def __init__(self, config=None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
         self.context = None
 
     async def setup(self, agent_id, session_id, input_text, state, tools, llm_client, llm_options, event_bus, **_):

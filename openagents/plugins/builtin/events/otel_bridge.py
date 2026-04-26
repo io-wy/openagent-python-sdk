@@ -11,9 +11,6 @@ from pydantic import BaseModel, Field
 
 from openagents.errors.exceptions import PluginLoadError
 from openagents.interfaces.events import (
-    EVENT_EMIT,
-    EVENT_HISTORY,
-    EVENT_SUBSCRIBE,
     EventBusPlugin,
     RuntimeEvent,
 )
@@ -73,7 +70,6 @@ class OtelEventBusBridge(TypedConfigPluginMixin, EventBusPlugin):
             )
         super().__init__(
             config=config or {},
-            capabilities={EVENT_SUBSCRIBE, EVENT_EMIT, EVENT_HISTORY},
         )
         self._init_typed_config()
         self._tracer = otel_trace.get_tracer(self.cfg.tracer_name)

@@ -9,11 +9,6 @@ from typing import Any, AsyncIterator
 from pydantic import BaseModel
 
 from openagents.interfaces.session import (
-    SESSION_ARTIFACTS,
-    SESSION_CHECKPOINTS,
-    SESSION_MANAGE,
-    SESSION_STATE,
-    SESSION_TRANSCRIPT,
     SessionManagerPlugin,
 )
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
@@ -43,13 +38,6 @@ class InMemorySessionManager(TypedConfigPluginMixin, SessionManagerPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={
-                SESSION_MANAGE,
-                SESSION_STATE,
-                SESSION_TRANSCRIPT,
-                SESSION_ARTIFACTS,
-                SESSION_CHECKPOINTS,
-            },
         )
         self._init_typed_config()
         self._locks: dict[str, asyncio.Lock] = {}

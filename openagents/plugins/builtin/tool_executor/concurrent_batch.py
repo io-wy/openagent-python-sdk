@@ -43,7 +43,7 @@ class ConcurrentBatchExecutor(TypedConfigPluginMixin, ToolExecutorPlugin):
         max_concurrency: int = 10
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self._init_typed_config()
         self._max_concurrency = max(1, int(self.cfg.max_concurrency))
         self._inner = self._load_inner(self.cfg.inner)

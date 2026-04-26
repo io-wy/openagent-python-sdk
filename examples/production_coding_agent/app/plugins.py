@@ -5,12 +5,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from openagents.interfaces.capabilities import (
-    MEMORY_INJECT,
-    MEMORY_WRITEBACK,
-    PATTERN_EXECUTE,
-    PATTERN_REACT,
-)
 from openagents.interfaces.context import ContextAssemblyResult
 from openagents.interfaces.followup import FollowupResolution
 from openagents.interfaces.memory import MemoryPlugin
@@ -67,7 +61,7 @@ class CodingMemory(MemoryPlugin):
     """Persistent project memory for the coding agent."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={MEMORY_INJECT, MEMORY_WRITEBACK})
+        super().__init__(config=config or {})
         self._storage_dir = Path(self.config.get("storage_dir", ".agent_memory"))
         self._max_items = int(self.config.get("max_items", 50))
         self._storage_dir.mkdir(parents=True, exist_ok=True)
@@ -192,7 +186,7 @@ class ProductionCodingPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE, PATTERN_REACT})
+        super().__init__(config=config or {})
         self.context: RunContext[Any] | None = None
 
     async def resolve_followup(self, *, context: RunContext[Any]) -> FollowupResolution | None:

@@ -59,7 +59,7 @@ class RetryToolExecutor(ToolExecutorPlugin):
         jitter: Literal["none", "full", "equal"] = "equal"
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         cfg = self.Config.model_validate(self.config)
         self._max_attempts = max(1, cfg.max_attempts)
         self._initial_delay_ms = max(0, cfg.initial_delay_ms)

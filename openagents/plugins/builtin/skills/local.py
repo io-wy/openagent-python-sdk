@@ -79,7 +79,7 @@ class LocalSkillsManager(TypedConfigPluginMixin, SkillsPlugin):
         enabled: list[str] = Field(default_factory=list)
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self._init_typed_config()
         self._search_paths = [
             Path(path).resolve(strict=False) for path in self.cfg.search_paths if isinstance(path, str) and path.strip()

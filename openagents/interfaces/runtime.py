@@ -260,10 +260,4 @@ class RuntimePlugin(BasePlugin):
         pass
 
 
-# Capability constants for runtime plugins
-RUNTIME_RUN = "runtime.run"
-RUNTIME_MANAGE = "runtime.manage"  # start/stop/pause runtime
-RUNTIME_LIFECYCLE = "runtime.lifecycle"  # initialize/validate/health_check
-
-
 RunStreamChunk.model_rebuild()

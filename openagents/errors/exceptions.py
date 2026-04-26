@@ -129,13 +129,6 @@ class PluginLoadError(PluginError):
     retryable: ClassVar[bool] = False
 
 
-class PluginCapabilityError(PluginError):
-    """Raised when plugin capabilities do not meet requirements."""
-
-    code: ClassVar[str] = "plugin.capability"
-    retryable: ClassVar[bool] = False
-
-
 class PluginConfigError(PluginError):
     """Raised when plugin config is invalid."""
 
@@ -472,6 +465,3 @@ class AgentNotFoundError(UserError):
     code: ClassVar[str] = "user.agent_not_found"
     retryable: ClassVar[bool] = False
 
-
-# Backward-compatible alias kept during the migration.
-CapabilityError = PluginCapabilityError

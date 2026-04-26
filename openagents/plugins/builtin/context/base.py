@@ -25,7 +25,7 @@ class TokenBudgetContextAssembler(ContextAssemblerPlugin):
         reserve_for_response: int = 2000
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         cfg = self.Config.model_validate(self.config)
         self._max_input_tokens = cfg.max_input_tokens
         self._max_artifacts = cfg.max_artifacts

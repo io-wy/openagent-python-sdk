@@ -20,7 +20,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from openagents.interfaces.capabilities import PATTERN_EXECUTE
 from openagents.interfaces.pattern import PatternPlugin
 
 from ..state import (
@@ -81,7 +80,7 @@ class IntentAnalystPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.max_steps = int((config or {}).get("max_steps", 3))
 
     async def execute(self) -> IntentReport:
@@ -150,7 +149,7 @@ class ResearchPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.max_steps = int((config or {}).get("max_steps", 6))
 
     async def execute(self) -> ResearchFindings:
@@ -237,7 +236,7 @@ class OutlinePattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.max_steps = int((config or {}).get("max_steps", 3))
 
     async def execute(self) -> SlideOutline:
@@ -295,7 +294,7 @@ class ThemePattern(PatternPlugin):
     """Stage 5: propose 3-5 theme candidates drawn from the built-in catalog."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.max_steps = int((config or {}).get("max_steps", 2))
 
     async def execute(self) -> ThemeCandidateList:
@@ -390,7 +389,7 @@ class SlideGenPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.max_retries = int((config or {}).get("max_retries", 2))
         self.allow_freeform = bool((config or {}).get("allow_freeform_fallback", True))
 

@@ -25,13 +25,6 @@ from openagents.errors.exceptions import (
     PermanentToolError,
 )
 from openagents.interfaces.agent_router import HandoffSignal
-from openagents.interfaces.capabilities import (
-    CONTEXT_COMPACT,
-    MEMORY_COMPACT,
-    MEMORY_INJECT,
-    MEMORY_WRITEBACK,
-    supports,
-)
 from openagents.interfaces.context import ContextAssemblerPlugin, ContextAssemblyResult
 from openagents.interfaces.events import (
     CONTEXT_COMPACT_FAILED,
@@ -55,7 +48,6 @@ from openagents.interfaces.runtime import (
     RUN_STOP_COMPLETED,
     RUN_STOP_FAILED,
     RUN_STOP_TIMEOUT,
-    RUNTIME_RUN,
     ErrorDetails,
     RunRequest,
     RunResult,
@@ -510,7 +502,6 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
     ):
         super().__init__(
             config=config or {},
-            capabilities={RUNTIME_RUN},
         )
         self._init_typed_config()
         self._event_bus: EventBusPlugin | None = None
@@ -1645,8 +1636,6 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         memory: Any,
         pattern: PatternPlugin,
     ) -> None:
-        if not supports(memory, MEMORY_INJECT):
-            return
         context = pattern.context
         await self._event_bus.emit("memory.inject.started")
         try:
@@ -1692,8 +1681,6 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         memory: Any,
         pattern: PatternPlugin,
     ) -> None:
-        if not supports(memory, MEMORY_WRITEBACK):
-            return
         context = pattern.context
         await self._event_bus.emit("memory.writeback.started")
         try:
@@ -1734,8 +1721,6 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         memory: Any,
         pattern: PatternPlugin,
     ) -> None:
-        if not supports(memory, MEMORY_COMPACT):
-            return
         context = pattern.context
         await self._event_bus.emit("memory.compact.started")
         try:
@@ -1777,8 +1762,6 @@ class DefaultRuntime(TypedConfigPluginMixin, RuntimePlugin):
         request: RunRequest,
         session_state: dict[str, Any],
     ) -> None:
-        if not supports(context_assembler, CONTEXT_COMPACT):
-            return
         await self._event_bus.emit("context.compact.started")
         compact_started_at = time.perf_counter()
         try:

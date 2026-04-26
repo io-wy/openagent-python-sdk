@@ -11,11 +11,10 @@ from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 
 class _PluginBase:
-    """Simulates a plugin ABC accepting (config=..., capabilities=...)."""
+    """Simulates a plugin ABC accepting (config=...)."""
 
-    def __init__(self, *, config: dict | None = None, capabilities: set | None = None):
+    def __init__(self, *, config: dict | None = None):
         self.config = config or {}
-        self.capabilities = capabilities or set()
 
 
 class _SamplePlugin(TypedConfigPluginMixin, _PluginBase):
@@ -25,7 +24,7 @@ class _SamplePlugin(TypedConfigPluginMixin, _PluginBase):
         items: list[str] = Field(default_factory=list)
 
     def __init__(self, config: dict | None = None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self._init_typed_config()
 
 
@@ -93,7 +92,7 @@ def test_validation_error_propagates():
             count: int
 
         def __init__(self, config: dict | None = None):
-            super().__init__(config=config or {}, capabilities=set())
+            super().__init__(config=config or {})
             self._init_typed_config()
 
     # Missing required field raises pydantic ValidationError

@@ -6,7 +6,6 @@ import ast
 import operator
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 
@@ -35,7 +34,7 @@ class CalcTool(ToolPlugin):
     }
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def _eval_expr(self, node):
         if isinstance(node, ast.Constant):
@@ -96,7 +95,7 @@ class PercentageTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         value = params.get("value", 0)
@@ -135,7 +134,7 @@ class MinMaxTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         numbers = params.get("numbers", [])

@@ -16,7 +16,6 @@ import pytest
 
 from openagents.config.loader import load_config_dict
 from openagents.errors.exceptions import LLMRateLimitError
-from openagents.interfaces.capabilities import PATTERN_EXECUTE
 from openagents.interfaces.pattern import PatternPlugin
 from openagents.interfaces.runtime import RunBudget, RunRequest, StopReason
 from openagents.runtime.runtime import Runtime
@@ -31,7 +30,7 @@ class _DurableScriptedPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.calls = 0
 
     async def execute(self) -> Any:
@@ -50,7 +49,7 @@ class _AlwaysFailingPattern(PatternPlugin):
     """Every execute() raises LLMRateLimitError after emitting one step."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self.calls = 0
 
     async def execute(self) -> Any:

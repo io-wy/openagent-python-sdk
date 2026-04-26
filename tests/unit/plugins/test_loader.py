@@ -1,7 +1,7 @@
 import pytest
 
 from openagents.config.loader import load_config_dict
-from openagents.errors.exceptions import CapabilityError, ConfigError, PluginLoadError
+from openagents.errors.exceptions import ConfigError, PluginLoadError
 from openagents.plugins.loader import load_agent_plugins
 
 
@@ -59,15 +59,6 @@ def test_load_agent_plugins_impl_types():
     assert type(plugins.tool_executor).__name__ == "CustomToolExecutor"
     assert type(plugins.context_assembler).__name__ == "CustomContextAssembler"
     assert type(plugins.tools["custom_tool"]).__name__ == "CustomTool"
-
-
-def test_load_agent_plugins_rejects_pattern_without_react_capability():
-    payload = _base_payload()
-    payload["agents"][0]["pattern"] = {"impl": "tests.fixtures.custom_plugins.BadPatternNoCapability"}
-    config = load_config_dict(payload)
-
-    with pytest.raises(CapabilityError, match="missing required capabilities"):
-        load_agent_plugins(config.agents[0])
 
 
 def test_load_agent_plugins_rejects_unknown_builtin_type():

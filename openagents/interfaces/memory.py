@@ -2,70 +2,57 @@
 
 Two ways to implement memory:
 
-1. Protocol (recommended - no inheritance needed):
-    class MyMemory:
-        config = {}
-        capabilities = {"memory.inject", "memory.writeback", "memory.retrieve"}
+1. **Protocol (recommended -- no inheritance needed)**::
 
-        async def inject(self, context):
-            '''Inject memory into context'''
-            context.memory_view["history"] = [...]
+       class MyMemory:
+           config = {}
 
-        async def writeback(self, context):
-            '''Save current interaction'''
-            ...
+           async def inject(self, context):
+               context.memory_view["history"] = [...]
 
-        async def retrieve(self, query, context):
-            '''Search memory for relevant info'''
-            return [...]
+           async def writeback(self, context):
+               ...
 
-2. BasePlugin (optional):
-    from openagents.interfaces.memory import MemoryPlugin
+           async def retrieve(self, query, context):
+               return [...]
 
-    class MyMemory(MemoryPlugin):
-        def __init__(self, config=None):
-            super().__init__(config=config, capabilities={"memory.inject", "memory.writeback", "memory.retrieve"})
+2. **BasePlugin (optional)**::
 
-        async def inject(self, context): ...
-        async def writeback(self, context): ...
-        async def retrieve(self, query, context): ...
+       from openagents.interfaces.memory import MemoryPlugin
 
-3. Decorator (easiest):
-    from openagents import memory
+       class MyMemory(MemoryPlugin):
+           async def inject(self, context): ...
+           async def writeback(self, context): ...
+           async def retrieve(self, query, context): ...
 
-    @memory
-    class MyMemory:
-        async def inject(self, context):
-            context.memory_view["history"] = [...]
+3. **Decorator (easiest)**::
 
-        async def writeback(self, context):
-            ...
+       from openagents import memory
 
-        async def retrieve(self, query, context):
-            '''Search memory for relevant info'''
-            return [...]
+       @memory
+       class MyMemory:
+           async def inject(self, context): ...
+           async def writeback(self, context): ...
+           async def retrieve(self, query, context): ...
 """
 
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from .capabilities import MEMORY_INJECT, MEMORY_WRITEBACK
+from .plugin import BasePlugin
 
 
 @runtime_checkable
 class Memory(Protocol):
     """Protocol for memory plugins.
 
-    Required: config, capabilities
-    Optional: inject, writeback, retrieve, close
+    Required: config
+    Optional: inject, writeback, retrieve, compact, close
     """
 
     @property
     def config(self) -> dict[str, Any]: ...
-
-    @property
-    def capabilities(self) -> set[str]: ...
 
     async def inject(self, context: Any) -> None: ...
 
@@ -74,7 +61,7 @@ class Memory(Protocol):
     async def compact(self, context: Any) -> None: ...
 
 
-class MemoryPlugin:
+class MemoryPlugin(BasePlugin):
     """Base memory plugin (optional base class).
 
     You don't have to inherit from this!
@@ -84,51 +71,20 @@ class MemoryPlugin:
     def __init__(
         self,
         config: dict[str, Any] | None = None,
-        capabilities: set[str] | None = None,
     ):
         self.config: dict[str, Any] = config or {}
-        self.capabilities: set[str] = capabilities or {MEMORY_INJECT, MEMORY_WRITEBACK}
 
     async def inject(self, context: Any) -> None:
-        """Inject memory into execution context.
-
-        Called before pattern execution to provide context.
-        Should set context.memory_view with relevant data.
-        """
         pass
 
     async def writeback(self, context: Any) -> None:
-        """Write memory updates from execution context.
-
-        Called after pattern execution to save interaction.
-        Can access context.input_text, context.tool_results, etc.
-        """
         pass
 
     async def retrieve(self, query: str, context: Any) -> list[dict[str, Any]]:
-        """Search memory for relevant information.
-
-        Called during execution to get relevant context.
-        Should return list of relevant memory entries.
-
-        Args:
-            query: Search query (can be keywords, embedding, etc.)
-            context: Execution context
-
-        Returns:
-            List of relevant memory entries
-        """
         return []
 
     async def compact(self, context: Any) -> None:
-        """Compact memory storage when it grows too large.
-
-        Called after writeback when the runtime decides memory
-        compaction is needed. Implementations should summarize,
-        merge, or prune entries to reduce size.
-        """
         pass
 
     async def close(self) -> None:
-        """Cleanup resources."""
         pass

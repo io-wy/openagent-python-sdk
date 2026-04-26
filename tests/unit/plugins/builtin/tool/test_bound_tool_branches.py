@@ -38,7 +38,7 @@ class _NonIdempotentTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     async def invoke(self, params, context):
         return "ok"
@@ -105,7 +105,7 @@ def test_durable_idempotency_warning_swallows_bus_exceptions():
 def test_durable_idempotency_warning_skipped_when_tool_is_idempotent():
     class _IdemTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return "ok"
@@ -128,7 +128,7 @@ def test_durable_idempotency_warning_skipped_when_tool_is_idempotent():
 
 class _ApprovalTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(approval_mode="always")
@@ -202,7 +202,7 @@ def test_approvals_dict_returns_none_when_hints_not_dict():
 def test_requires_approval_returns_false_when_check_raises():
     class _BrokenCheckTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         def requires_approval(self, params, context):
             raise ValueError("broken")
@@ -227,7 +227,7 @@ def test_requires_approval_returns_false_when_check_raises():
 
 class _AfterExplodesTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     async def invoke(self, params, context):
         return "ok"
@@ -248,7 +248,7 @@ def test_after_invoke_exception_swallowed_on_invoke():
 
 class _BgAfterExplodesTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     async def invoke(self, params, context):
         raise NotImplementedError
@@ -277,7 +277,7 @@ def test_after_invoke_exception_swallowed_on_background():
 
 class _BgSimpleTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     async def invoke(self, params, context):
         raise NotImplementedError
@@ -324,7 +324,7 @@ def test_background_event_swallows_bus_exceptions():
 def test_fallback_reraises_original_error_when_tool_lacks_fallback():
     class _NoFallbackTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return "ok"
@@ -346,7 +346,7 @@ def test_fallback_reraises_original_error_when_tool_lacks_fallback():
 def test_describe_returns_default_shape_when_tool_omits_method():
     class _PlainTool(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return None
@@ -373,7 +373,7 @@ def test_bound_tool_getattr_delegates_to_wrapped_tool():
         CUSTOM_FLAG = "hello"
 
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return None
@@ -393,7 +393,7 @@ class _BatchableTool(ToolPlugin):
     """Tool whose single-invoke success/fail depends on params["ok"]."""
 
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     async def invoke(self, params, context):
         if not params.get("ok", True):

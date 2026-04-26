@@ -14,7 +14,7 @@ from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
 
 class _NeedsApprovalTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(approval_mode="always")

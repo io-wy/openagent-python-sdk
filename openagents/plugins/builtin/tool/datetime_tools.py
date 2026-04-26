@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 
@@ -18,7 +17,7 @@ class CurrentTimeTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         tz = params.get("timezone", "UTC")
@@ -55,7 +54,7 @@ class DateParseTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         date_str = params.get("date", "")
@@ -99,7 +98,7 @@ class DateDiffTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         date1 = params.get("date1", "")

@@ -20,11 +20,9 @@ def test_tool_registered(type_name: str, config_overrides: dict) -> None:
     ref = ToolRef(id=type_name, type=type_name, config=config_overrides)
     plugin = load_tool_plugin(ref)
     assert plugin is not None
-    assert hasattr(plugin, "capabilities")
 
 
 def test_markdown_memory_registered(tmp_path) -> None:
     ref = MemoryRef(type="markdown_memory", config={"memory_dir": str(tmp_path)})
     plugin = load_memory_plugin(ref)
     assert plugin is not None
-    assert hasattr(plugin, "capabilities")

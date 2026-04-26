@@ -17,7 +17,6 @@ EXPECTED = {
     "ConfigValidationError": ("config.validation", False),
     "PluginError": ("plugin.error", False),
     "PluginLoadError": ("plugin.load", False),
-    "PluginCapabilityError": ("plugin.capability", False),
     "PluginConfigError": ("plugin.config", False),
     "ExecutionError": ("execution.error", False),
     "MaxStepsExceeded": ("execution.max_steps", False),

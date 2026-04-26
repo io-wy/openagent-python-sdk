@@ -382,7 +382,7 @@ async def test_pattern_resolve_followup_default_abstains():
         async def react(self) -> dict[str, Any]:
             return {"type": "final", "content": ""}
 
-    p = _Pat(config={}, capabilities=set())
+    p = _Pat(config={})
     res = await p.resolve_followup(context=object())
     assert res is None
 
@@ -404,7 +404,7 @@ async def test_pattern_repair_empty_response_default_abstains():
         async def react(self) -> dict[str, Any]:
             return {"type": "final", "content": ""}
 
-    p = _Pat(config={}, capabilities=set())
+    p = _Pat(config={})
     res = await p.repair_empty_response(
         context=object(),
         messages=[],

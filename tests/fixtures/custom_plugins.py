@@ -3,16 +3,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from openagents.interfaces.capabilities import (
-    MEMORY_INJECT,
-    PATTERN_EXECUTE,
-    PATTERN_REACT,
-    SKILL_CONTEXT_AUGMENT,
-    SKILL_METADATA,
-    SKILL_SYSTEM_PROMPT,
-    SKILL_TOOLS,
-    TOOL_INVOKE,
-)
 from openagents.interfaces.context import ContextAssemblyResult
 from openagents.interfaces.followup import FollowupResolution
 from openagents.interfaces.response_repair import ResponseRepairDecision
@@ -22,16 +12,17 @@ from openagents.interfaces.run_context import RunContext
 class CustomMemory:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT}
 
     async def inject(self, context: Any) -> None:
+        return None
+
+    async def writeback(self, context: Any) -> None:
         return None
 
 
 class CustomPattern:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
         self.context = None
 
     async def setup(
@@ -68,7 +59,6 @@ class CustomPattern:
 class CustomTool:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {TOOL_INVOKE}
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         return {"ok": True, "params": params}
@@ -77,7 +67,6 @@ class CustomTool:
 class SlowTool:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {TOOL_INVOKE}
         self._delay = float(self.config.get("delay", 0.05))
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
@@ -88,7 +77,6 @@ class SlowTool:
 class LegacyPositionalMemory:
     def __init__(self, config: dict[str, Any] | None = None, /):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT}
 
     async def inject(self, context: Any) -> None:
         return None
@@ -101,8 +89,6 @@ class ExplodingKeywordMemory:
 
 
 class NoInvokeTool:
-    capabilities = {TOOL_INVOKE}
-
     def __init__(self, *, config: dict[str, Any] | None = None):
         _ = config
         raise RuntimeError("constructor should not run")
@@ -111,7 +97,6 @@ class NoInvokeTool:
 class BadPatternNoCapability:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = set()
 
     async def setup(
         self,
@@ -137,7 +122,6 @@ class BadPatternNoCapability:
 class CustomSkill:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {SKILL_SYSTEM_PROMPT, SKILL_TOOLS, SKILL_METADATA}
 
     def get_system_prompt(self, context: Any | None = None) -> str:
         focus = self.config.get("focus", "general")
@@ -156,7 +140,6 @@ class CustomSkill:
 class BadSkillNoCapability:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = set()
 
 
 class CustomToolExecutor:
@@ -260,4 +243,3 @@ class CustomResponseRepairPolicy:
 class BadSkillMissingContextAugmentMethod:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {SKILL_CONTEXT_AUGMENT}

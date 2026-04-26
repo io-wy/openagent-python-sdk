@@ -6,7 +6,6 @@ import asyncio
 import os
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 
@@ -21,7 +20,7 @@ class ExecuteCommandTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._timeout = config.get("timeout", 30) if config else 30
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
@@ -61,7 +60,7 @@ class GetEnvTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         key = params.get("key", "")
@@ -85,7 +84,7 @@ class SetEnvTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         key = params.get("key", "")

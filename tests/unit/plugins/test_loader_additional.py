@@ -5,7 +5,7 @@ import warnings
 import pytest
 
 from openagents.config.loader import load_config_dict
-from openagents.errors.exceptions import CapabilityError, PluginLoadError
+from openagents.errors.exceptions import PluginLoadError
 from openagents.plugins.loader import (
     load_agent_plugins,
     load_memory_plugin,
@@ -189,15 +189,6 @@ def test_load_memory_plugin_surfaces_constructor_typeerror():
         load_memory_plugin(ref)
 
 
-def test_load_tool_plugin_validates_capability_before_instantiation():
-    from openagents.config.schema import ToolRef
-
-    ref = ToolRef(id="bad_tool", impl="tests.fixtures.custom_plugins.NoInvokeTool")
-
-    with pytest.raises(CapabilityError, match="invoke"):
-        load_tool_plugin(ref)
-
-
 def test_plugin_registry():
     """Test plugin registry access."""
     from openagents.plugins.registry import get_builtin_plugin_class, list_builtin_plugins
@@ -234,24 +225,13 @@ def test_load_memory_plugin_missing_method():
 
     # Create a mock memory without inject method
     class BadMemory:
-        capabilities = {"memory.inject", "memory.writeback"}
+        config = {}
         # Missing inject method
 
     # Can't easily test this without modifying registry
     # Just verify the plugin loads with valid impl
     ref = MemoryRef(type="buffer")
     plugin = load_memory_plugin(ref)
-    assert plugin is not None
-
-
-def test_load_pattern_plugin_missing_capability():
-    """Test loading pattern with missing capability."""
-    from openagents.config.schema import PatternRef
-
-    # A pattern without PATTERN_EXECUTE capability
-    ref = PatternRef(impl="openagents.plugins.builtin.pattern.react.ReActPattern")
-    # Should work since react has the capability
-    plugin = load_pattern_plugin(ref)
     assert plugin is not None
 
 

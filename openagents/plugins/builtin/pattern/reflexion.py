@@ -8,7 +8,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from openagents.interfaces.capabilities import PATTERN_EXECUTE, PATTERN_REACT
 from openagents.interfaces.pattern import PatternPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -40,7 +39,7 @@ class ReflexionPattern(TypedConfigPluginMixin, PatternPlugin):
         max_retries: int = 2
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE, PATTERN_REACT})
+        super().__init__(config=config or {})
         self._init_typed_config()
         self._max_retries = self.cfg.max_retries
 

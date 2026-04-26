@@ -16,7 +16,7 @@ from openagents.plugins.builtin.tool_executor.concurrent_batch import Concurrent
 
 class _SleepTool(ToolPlugin):
     def __init__(self, concurrency_safe: bool, sleep_s: float):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._safe = concurrency_safe
         self._sleep_s = sleep_s
 
@@ -174,7 +174,7 @@ def test_concurrent_batch_defends_against_raising_inner_executor():
 
     class _RaisingInner(ToolExecutorPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
             self.calls = 0
 
         async def execute(self, request):

@@ -52,9 +52,7 @@ class _RetryableAttrPattern(PatternPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        from openagents.interfaces.capabilities import PATTERN_EXECUTE
-
-        super().__init__(config=config or {}, capabilities={PATTERN_EXECUTE})
+        super().__init__(config=config or {})
         self._attempt = 0
 
     async def execute(self) -> Any:

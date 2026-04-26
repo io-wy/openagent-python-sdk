@@ -12,7 +12,7 @@ from openagents.interfaces.tool import ToolPlugin
 
 class _FailingTool(ToolPlugin):
     def __init__(self, config=None):
-        super().__init__(config=config or {}, capabilities=set())
+        super().__init__(config=config or {})
         self.calls = 0
 
     async def invoke(self, params, context):
@@ -38,7 +38,7 @@ async def test_call_tool_retry_emits_event_and_transcript_correction_until_escal
     """First N calls raise ModelRetryError → emit tool.retry_requested and add
     a transcript correction. After limit+1 total calls, escalate to
     PermanentToolError."""
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     failing = _FailingTool()
     request = RunRequest(
         agent_id="a",
@@ -85,7 +85,7 @@ async def test_call_tool_resets_retry_counter_on_success():
 
     class _SometimesFailing(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
             self.calls = 0
 
         async def invoke(self, params, context):
@@ -94,7 +94,7 @@ async def test_call_tool_resets_retry_counter_on_success():
                 raise ModelRetryError("first-call fail")
             return {"ok": True}
 
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     tool = _SometimesFailing()
     request = RunRequest(
         agent_id="a",

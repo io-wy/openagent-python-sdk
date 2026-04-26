@@ -43,7 +43,7 @@ async def test_cost_budget_post_call_exceeded_raises():
     # Post-call: after one call of cost 0.02, budget=0.01 is exceeded.
     usage = LLMUsage(input_tokens=100, output_tokens=50, metadata={"cost_usd": 0.02})
     response = LLMResponse(output_text="x", usage=usage)
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     request = RunRequest(
         agent_id="a",
         session_id="s",
@@ -73,7 +73,7 @@ async def test_cost_budget_skipped_when_cost_unavailable_emits_event_once():
     # Provider has no prices; cost_usd stays None; no budget enforcement, but event is emitted once.
     usage = LLMUsage(input_tokens=100, output_tokens=50, metadata={"cost_usd": None})
     responses = [LLMResponse(output_text=c, usage=usage) for c in "abc"]
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     request = RunRequest(
         agent_id="a",
         session_id="s",
@@ -105,7 +105,7 @@ async def test_no_cost_budget_leaves_calls_alone():
     # No max_cost_usd → no enforcement, no skipped event.
     usage = LLMUsage(input_tokens=100, output_tokens=50, metadata={"cost_usd": 0.02})
     response = LLMResponse(output_text="x", usage=usage)
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     request = RunRequest(agent_id="a", session_id="s", input_text="hi")  # no budget
     bus = _FakeEventBus()
     await pattern.setup(

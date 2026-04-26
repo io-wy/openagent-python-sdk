@@ -5,12 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from openagents import context_assembler, memory, pattern, tool, tool_executor
-from openagents.interfaces.capabilities import (
-    MEMORY_INJECT,
-    PATTERN_EXECUTE,
-    PATTERN_REACT,
-    TOOL_INVOKE,
-)
 from openagents.interfaces.context import ContextAssemblyResult
 
 
@@ -20,7 +14,6 @@ class DecoratorMemory:
 
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {MEMORY_INJECT}
 
     async def inject(self, context: Any) -> None:
         context.memory_view["from_decorator"] = True
@@ -32,7 +25,6 @@ class DecoratorPattern:
 
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {PATTERN_EXECUTE, PATTERN_REACT}
         self.context = None
 
     async def setup(
@@ -73,7 +65,6 @@ class DecoratorTool:
 
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
-        self.capabilities = {TOOL_INVOKE}
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         return {"from_decorator": True, "params": params}

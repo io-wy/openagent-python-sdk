@@ -12,7 +12,6 @@ from openagents.errors.exceptions import BudgetExhausted, ModelRetryError
 from openagents.interfaces.diagnostics import LLMCallMetrics
 from openagents.interfaces.runtime import ErrorDetails
 
-from .capabilities import PATTERN_EXECUTE, PATTERN_REACT
 from .plugin import BasePlugin
 from .run_context import RunContext
 from .tool import ToolExecutionResult
@@ -52,9 +51,6 @@ class PatternPlugin(BasePlugin):
 
     Provides action methods (emit, call_tool, call_llm, compress_context)
     that can be customized by implementations to change runtime behavior.
-
-    Core capabilities ``pattern.execute`` and ``pattern.react`` are
-    injected automatically; subclasses do not need to declare them.
     """
 
     context: RunContext[Any] | None = None
@@ -62,12 +58,8 @@ class PatternPlugin(BasePlugin):
     def __init__(
         self,
         config: dict[str, Any] | None = None,
-        capabilities: set[str] | None = None,
     ):
-        caps = set(capabilities) if capabilities else set()
-        caps.add(PATTERN_EXECUTE)
-        caps.add(PATTERN_REACT)
-        super().__init__(config=config or {}, capabilities=caps)
+        super().__init__(config=config or {})
 
     async def setup(
         self,

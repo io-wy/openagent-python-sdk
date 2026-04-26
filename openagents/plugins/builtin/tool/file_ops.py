@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolExecutionSpec, ToolPlugin
 
 
@@ -22,7 +21,7 @@ class ReadFileTool(ToolPlugin):
     description = "Read the content of a file from the filesystem"
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -73,7 +72,7 @@ class WriteFileTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(writes_files=True)
@@ -107,7 +106,7 @@ class ListFilesTool(ToolPlugin):
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(reads_files=True)
@@ -143,7 +142,7 @@ class DeleteFileTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     def execution_spec(self) -> ToolExecutionSpec:
         return ToolExecutionSpec(writes_files=True)

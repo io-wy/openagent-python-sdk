@@ -13,7 +13,7 @@ from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
 
 class _RecordingTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self.trace: list[str] = []
         self.last_after_args: tuple | None = None
 

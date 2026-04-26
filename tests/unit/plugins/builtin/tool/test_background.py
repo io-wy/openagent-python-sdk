@@ -14,7 +14,7 @@ from openagents.plugins.builtin.tool_executor.safe import SafeToolExecutor
 
 class _BgTool(ToolPlugin):
     def __init__(self):
-        super().__init__(config={}, capabilities=set())
+        super().__init__(config={})
         self._next = 0
         self._jobs: dict[str, JobStatus] = {}
 
@@ -76,7 +76,7 @@ def test_cancel_job_returns_true_and_updates_status():
 def test_invoke_background_unsupported_tool_raises():
     class _NoBg(ToolPlugin):
         def __init__(self):
-            super().__init__(config={}, capabilities=set())
+            super().__init__(config={})
 
         async def invoke(self, params, context):
             return "ok"

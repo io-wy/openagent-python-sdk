@@ -47,7 +47,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from openagents.errors.exceptions import ConfigError, PermanentToolError
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -513,7 +512,7 @@ class McpTool(TypedConfigPluginMixin, ToolPlugin):
         prelaunch: Literal["eager", "off"] = "off"
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._init_typed_config()
 
         server_config = self.cfg.server

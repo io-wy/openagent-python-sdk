@@ -9,9 +9,6 @@ from typing import Any, Awaitable, Callable, Literal
 from pydantic import BaseModel, Field
 
 from openagents.interfaces.events import (
-    EVENT_EMIT,
-    EVENT_HISTORY,
-    EVENT_SUBSCRIBE,
     EventBusPlugin,
     RuntimeEvent,
 )
@@ -67,7 +64,6 @@ class RichConsoleEventBus(EventBusPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={EVENT_SUBSCRIBE, EVENT_EMIT, EVENT_HISTORY},
         )
         cfg = self.Config.model_validate(self.config)
         self._include = list(cfg.include_events) if cfg.include_events is not None else None

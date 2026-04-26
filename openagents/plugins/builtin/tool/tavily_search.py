@@ -8,7 +8,6 @@ from typing import Any, Literal
 import httpx
 from pydantic import BaseModel
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -35,7 +34,7 @@ class TavilySearchTool(TypedConfigPluginMixin, ToolPlugin):
         timeout_ms: int = 15_000
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
         self._init_typed_config()
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:

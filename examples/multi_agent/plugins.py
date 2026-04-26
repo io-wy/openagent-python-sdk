@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 
@@ -53,7 +52,7 @@ class DelegateToSpecialistTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         router = _ensure_router(context)
@@ -103,7 +102,7 @@ class TransferToBillingTool(ToolPlugin):
     durable_idempotent = False
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict[str, Any], context: Any) -> Any:
         router = _ensure_router(context)

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from openagents.errors.exceptions import PermanentToolError
-from openagents.interfaces.capabilities import TOOL_INVOKE
 from openagents.interfaces.tool import ToolPlugin
 
 # Module-level state that tests inspect. Fixture classes live in this
@@ -27,7 +26,7 @@ class FailingPreflightTool(ToolPlugin):
     name = "failing_preflight_tool"
 
     def __init__(self, config: dict | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def preflight(self, context: Any) -> None:
         raise PermanentToolError(
@@ -46,7 +45,7 @@ class RecordingPreflightTool(ToolPlugin):
     name = "recording_preflight_tool"
 
     def __init__(self, config: dict | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def preflight(self, context: Any) -> None:
         PREFLIGHT_CALLS.append(self.name)
@@ -61,7 +60,7 @@ class NoOverrideTool(ToolPlugin):
     name = "no_override_tool"
 
     def __init__(self, config: dict | None = None):
-        super().__init__(config=config or {}, capabilities={TOOL_INVOKE})
+        super().__init__(config=config or {})
 
     async def invoke(self, params: dict, context: Any) -> Any:
         return "ok"

@@ -89,18 +89,12 @@ def test_multi_agent_config_parses_default_child_budget():
 
 
 # ---------------------------------------------------------------------------
-# Task 3: Capability constant + RunContext field
+# Task 3: RunContext field
 # ---------------------------------------------------------------------------
 
 from unittest.mock import MagicMock  # noqa: E402
 
-from openagents.interfaces.capabilities import AGENT_ROUTER_DELEGATE, KNOWN_CAPABILITIES  # noqa: E402
 from openagents.interfaces.run_context import RunContext  # noqa: E402
-
-
-def test_agent_router_delegate_capability_registered():
-    assert AGENT_ROUTER_DELEGATE == "agent_router.delegate"
-    assert AGENT_ROUTER_DELEGATE in KNOWN_CAPABILITIES
 
 
 def test_run_context_accepts_agent_router_none():
@@ -425,7 +419,7 @@ async def test_handoff_signal_caught_by_default_runtime():
     mock_plugins = MagicMock()
     mock_plugins.pattern = mock_pattern
     mock_plugins.memory = MagicMock()
-    mock_plugins.memory.capabilities = set()
+    mock_plugins.memory.config = {}
     mock_plugins.tool_executor = None
     mock_plugins.context_assembler = None
     mock_plugins.tools = {}

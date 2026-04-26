@@ -42,7 +42,7 @@ async def test_llm_succeeded_payload_contains_metrics():
     resp = LLMResponse(output_text="ok", usage=usage)
     bus = _FakeEventBus()
 
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     await pattern.setup(
         agent_id="a",
         session_id="s",
@@ -77,7 +77,7 @@ async def test_llm_failed_payload_contains_metrics_on_generate_error():
     bus = _FakeEventBus()
     boom = RuntimeError("upstream 500")
 
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     await pattern.setup(
         agent_id="a",
         session_id="s",

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from openagents.interfaces.capabilities import DIAG_ERROR, DIAG_EXPORT, DIAG_METRICS
 from openagents.interfaces.diagnostics import (
     DiagnosticsPlugin,
     ErrorSnapshot,
@@ -98,12 +97,6 @@ def test_base_plugin_capture_error_snapshot_without_ctx():
     assert snap.state_snapshot == {}
     assert snap.usage_at_failure == {}
     assert snap.captured_at.endswith("+00:00") or snap.captured_at.endswith("Z")
-
-
-def test_capability_constants():
-    assert DIAG_METRICS == "diagnostics.metrics"
-    assert DIAG_ERROR == "diagnostics.error"
-    assert DIAG_EXPORT == "diagnostics.export"
 
 
 def test_capture_error_snapshot_traceback_uses_exc_not_current_handler():

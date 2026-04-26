@@ -49,16 +49,3 @@ def test_deprecated_alias_and_public_api_produce_equivalent_classes():
         warnings.simplefilter("ignore", DeprecationWarning)
         deprecated = _load_plugin("memory", MemoryRef(type="buffer"))
     assert type(public) is type(deprecated)
-
-
-def test_load_plugin_passes_required_methods_through():
-    # Required-methods check fires for class-based plugins; verify a
-    # missing-method case raises CapabilityError equivalently.
-    from openagents.errors.exceptions import CapabilityError
-
-    with pytest.raises(CapabilityError, match="must implement"):
-        load_plugin(
-            "memory",
-            MemoryRef(type="buffer"),
-            required_methods=("totally_made_up_method",),
-        )

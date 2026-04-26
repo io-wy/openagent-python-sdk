@@ -41,7 +41,7 @@ async def test_pattern_accumulates_cost_and_cached_tokens():
     resp1 = LLMResponse(output_text="a", usage=usage1)
     resp2 = LLMResponse(output_text="b", usage=usage2)
 
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     await pattern.setup(
         agent_id="a",
         session_id="s",
@@ -67,7 +67,7 @@ async def test_cost_goes_none_sticky_when_any_call_has_none():
     usage2 = LLMUsage(input_tokens=100, output_tokens=50, metadata={"cost_usd": None})
     usage3 = LLMUsage(input_tokens=100, output_tokens=50, metadata={"cost_usd": 0.01})
     resps = [LLMResponse(output_text=x, usage=u) for x, u in [("a", usage1), ("b", usage2), ("c", usage3)]]
-    pattern = _TestPattern(config={}, capabilities=set())
+    pattern = _TestPattern(config={})
     await pattern.setup(
         agent_id="a",
         session_id="s",

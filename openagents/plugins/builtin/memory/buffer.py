@@ -6,7 +6,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from openagents.interfaces.capabilities import MEMORY_INJECT, MEMORY_WRITEBACK
 from openagents.interfaces.memory import MemoryPlugin
 from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
@@ -40,7 +39,6 @@ class BufferMemory(TypedConfigPluginMixin, MemoryPlugin):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(
             config=config or {},
-            capabilities={MEMORY_INJECT, MEMORY_WRITEBACK},
         )
         self._init_typed_config()
 

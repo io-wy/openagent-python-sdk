@@ -1,4 +1,4 @@
-"""Plugin loader and capability checks."""
+"""Plugin loader and method validation."""
 
 from __future__ import annotations
 
@@ -21,19 +21,8 @@ from openagents.config.schema import (
     ToolExecutorRef,
     ToolRef,
 )
-from openagents.errors.exceptions import CapabilityError, PluginLoadError
+from openagents.errors.exceptions import PluginLoadError
 from openagents.errors.suggestions import near_match
-from openagents.interfaces.capabilities import (
-    MEMORY_INJECT,
-    MEMORY_WRITEBACK,
-    PATTERN_EXECUTE,
-    PATTERN_REACT,
-    TOOL_INVOKE,
-    normalize_capabilities,
-)
-from openagents.interfaces.events import EVENT_EMIT, EVENT_SUBSCRIBE
-from openagents.interfaces.runtime import RUNTIME_RUN
-from openagents.interfaces.session import SESSION_MANAGE
 from openagents.interfaces.skills import SkillsPlugin
 from openagents.plugins.registry import get_builtin_plugin_class, list_builtin_plugins
 
@@ -93,20 +82,15 @@ def _validate_class_methods(factory: Any, *, required_methods: tuple[str, ...], 
         return
     for method_name in required_methods:
         if not callable(getattr(factory, method_name, None)):
-            raise CapabilityError(f"{where} '{factory.__name__}' must implement '{method_name}'")
+            raise PluginLoadError(f"{where} '{factory.__name__}' must implement '{method_name}'")
 
 
 def _load_plugin_impl(kind: str, ref: PluginRef, *, required_methods: tuple[str, ...] = ()) -> Any:
-    # impl takes priority if provided
     if ref.impl:
         symbol = _import_symbol(ref.impl)
         _validate_class_methods(symbol, required_methods=required_methods, where=f"{kind} plugin")
         return _instantiate(symbol, ref.config)
-    # Fall back to type (builtin or decorator-registered)
     if ref.type:
-        # 0.3.0 deprecated-rename guard: the old "summarizing" context_assembler
-        # never actually summarized, just truncated. Direct users explicitly to
-        # the new name rather than a generic "unknown plugin" error.
         if kind == "context_assembler" and ref.type == "summarizing":
             raise PluginLoadError(
                 "context_assembler type 'summarizing' was renamed to 'truncating' in 0.3.0 "
@@ -162,48 +146,16 @@ def _load_plugin(kind: str, ref: PluginRef, *, required_methods: tuple[str, ...]
     return _load_plugin_impl(kind, ref, required_methods=required_methods)
 
 
-def _capability_set(plugin: Any) -> set[str]:
-    return normalize_capabilities(getattr(plugin, "capabilities", set()))
-
-
-def _validate_method_for_capability(plugin: Any, capability: str, method_name: str) -> None:
-    capabilities = _capability_set(plugin)
-    if capability in capabilities and not callable(getattr(plugin, method_name, None)):
-        raise CapabilityError(
-            f"Plugin '{type(plugin).__name__}' declares '{capability}' but does not implement '{method_name}'"
-        )
-
-
-def _validate_required_capabilities(
-    plugin: Any,
-    required: set[str],
-    where: str,
-) -> None:
-    missing = required - _capability_set(plugin)
-    if missing:
-        raise CapabilityError(f"{where} is missing required capabilities: {sorted(missing)}")
-
-
 def load_memory_plugin(ref: MemoryRef) -> Any:
-    plugin = _load_plugin_impl("memory", ref)
-    _validate_method_for_capability(plugin, MEMORY_INJECT, "inject")
-    _validate_method_for_capability(plugin, MEMORY_WRITEBACK, "writeback")
-    return plugin
+    return _load_plugin_impl("memory", ref)
 
 
 def load_pattern_plugin(ref: PatternRef) -> Any:
-    plugin = _load_plugin_impl("pattern", ref, required_methods=("execute", "react"))
-    _validate_required_capabilities(plugin, {PATTERN_EXECUTE}, "pattern plugin")
-    _validate_method_for_capability(plugin, PATTERN_EXECUTE, "execute")
-    _validate_method_for_capability(plugin, PATTERN_REACT, "react")
-    return plugin
+    return _load_plugin_impl("pattern", ref, required_methods=("execute", "react"))
 
 
 def load_tool_plugin(ref: ToolRef) -> Any:
-    plugin = _load_plugin_impl("tool", ref, required_methods=("invoke",))
-    _validate_required_capabilities(plugin, {TOOL_INVOKE}, f"tool plugin '{ref.id}'")
-    _validate_method_for_capability(plugin, TOOL_INVOKE, "invoke")
-    return plugin
+    return _load_plugin_impl("tool", ref, required_methods=("invoke",))
 
 
 def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
@@ -211,9 +163,9 @@ def load_tool_executor_plugin(ref: ToolExecutorRef | None) -> Any | None:
         return None
     plugin = _load_plugin_impl("tool_executor", ref, required_methods=("execute", "execute_stream"))
     if not callable(getattr(plugin, "execute", None)):
-        raise CapabilityError(f"tool executor '{type(plugin).__name__}' must implement 'execute'")
+        raise PluginLoadError(f"tool executor '{type(plugin).__name__}' must implement 'execute'")
     if not callable(getattr(plugin, "execute_stream", None)):
-        raise CapabilityError(f"tool executor '{type(plugin).__name__}' must implement 'execute_stream'")
+        raise PluginLoadError(f"tool executor '{type(plugin).__name__}' must implement 'execute_stream'")
     return plugin
 
 
@@ -222,9 +174,9 @@ def load_context_assembler_plugin(ref: ContextAssemblerRef | None) -> Any | None
         return None
     plugin = _load_plugin_impl("context_assembler", ref, required_methods=("assemble", "finalize"))
     if not callable(getattr(plugin, "assemble", None)):
-        raise CapabilityError(f"context assembler '{type(plugin).__name__}' must implement 'assemble'")
+        raise PluginLoadError(f"context assembler '{type(plugin).__name__}' must implement 'assemble'")
     if not callable(getattr(plugin, "finalize", None)):
-        raise CapabilityError(f"context assembler '{type(plugin).__name__}' must implement 'finalize'")
+        raise PluginLoadError(f"context assembler '{type(plugin).__name__}' must implement 'finalize'")
     return plugin
 
 
@@ -251,27 +203,17 @@ def load_agent_plugins(agent: AgentDefinition) -> LoadedAgentPlugins:
 
 def load_runtime_plugin(ref: RuntimeRef) -> Any:
     """Load a runtime plugin."""
-    plugin = _load_plugin_impl("runtime", ref, required_methods=("run",))
-    _validate_required_capabilities(plugin, {RUNTIME_RUN}, "runtime plugin")
-    _validate_method_for_capability(plugin, RUNTIME_RUN, "run")
-    return plugin
+    return _load_plugin_impl("runtime", ref, required_methods=("run",))
 
 
 def load_session_plugin(ref: SessionRef) -> Any:
     """Load a session manager plugin."""
-    plugin = _load_plugin_impl("session", ref, required_methods=("session",))
-    _validate_required_capabilities(plugin, {SESSION_MANAGE}, "session plugin")
-    _validate_method_for_capability(plugin, SESSION_MANAGE, "session")
-    return plugin
+    return _load_plugin_impl("session", ref, required_methods=("session",))
 
 
 def load_events_plugin(ref: EventBusRef) -> Any:
     """Load an event bus plugin."""
-    plugin = _load_plugin_impl("events", ref, required_methods=("emit", "subscribe"))
-    _validate_required_capabilities(plugin, {EVENT_EMIT}, "event bus plugin")
-    _validate_method_for_capability(plugin, EVENT_EMIT, "emit")
-    _validate_method_for_capability(plugin, EVENT_SUBSCRIBE, "subscribe")
-    return plugin
+    return _load_plugin_impl("events", ref, required_methods=("emit", "subscribe"))
 
 
 def load_skills_plugin(ref: SkillsRef | None) -> SkillsPlugin:
@@ -281,7 +223,7 @@ def load_skills_plugin(ref: SkillsRef | None) -> SkillsPlugin:
     plugin = _load_plugin_impl("skills", actual, required_methods=("prepare_session", "load_references", "run_skill"))
     for method_name in ("prepare_session", "load_references", "run_skill"):
         if not callable(getattr(plugin, method_name, None)):
-            raise CapabilityError(f"skills component '{type(plugin).__name__}' must implement '{method_name}'")
+            raise PluginLoadError(f"skills component '{type(plugin).__name__}' must implement '{method_name}'")
     return plugin
 
 
@@ -320,26 +262,18 @@ def load_runtime_components(
     those three. ``skills_ref`` remains optional because
     :func:`load_skills_plugin` owns its own default (``type=local``).
     ``diagnostics_ref`` is optional; None yields a NullDiagnosticsPlugin.
-    Handles dependency injection between components.
     """
-    # Load events first (no dependencies)
     events = load_events_plugin(events_ref)
-
-    # Load session (no dependencies)
     session = load_session_plugin(session_ref)
 
-    # Load host-level skills manager and inject session dependency when available
     skills = load_skills_plugin(skills_ref)
     if hasattr(skills, "_session_manager"):
         skills._session_manager = session
 
-    # Load diagnostics plugin
     diagnostics = load_diagnostics_plugin(diagnostics_ref)
 
-    # Load runtime with injected dependencies
     runtime = load_runtime_plugin(runtime_ref)
 
-    # Inject dependencies into runtime if it supports it
     if hasattr(runtime, "_event_bus"):
         runtime._event_bus = events
     if hasattr(runtime, "_session_manager"):

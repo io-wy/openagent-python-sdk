@@ -16,7 +16,6 @@ from openagents.errors.exceptions import (
     ToolTimeoutError,  # noqa: F401
 )
 
-from .capabilities import TOOL_INVOKE
 from .plugin import BasePlugin
 
 if TYPE_CHECKING:
@@ -205,20 +204,13 @@ class ToolExecutorPlugin(BasePlugin):
 
 
 class ToolPlugin(BasePlugin):
-    """Base tool plugin.
-
-    Core capability ``tool.invoke`` is injected automatically;
-    subclasses do not need to declare it.
-    """
+    """Base tool plugin."""
 
     def __init__(
         self,
         config: dict[str, Any] | None = None,
-        capabilities: set[str] | None = None,
     ):
-        caps = set(capabilities) if capabilities else set()
-        caps.add(TOOL_INVOKE)
-        super().__init__(config=config or {}, capabilities=caps)
+        super().__init__(config=config or {})
 
     # Subclasses can override these
     name: str = ""
