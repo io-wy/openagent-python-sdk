@@ -86,6 +86,42 @@ Verify:
 uv run pytest -q tests/integration/test_research_analyst_example.py
 ```
 
+### `corecoder_agent/`
+
+CoreCoder（[he-yufeng/CoreCoder](https://github.com/he-yufeng/CoreCoder.git)）的
+SDK 实现版，演示如何用现有 seams 把 production-grade coding agent 的细节全部
+塞到插件层：
+
+- `CoreCoderPattern` — 直接驱动 `ctx.llm_client.generate(messages, tools)`
+  的原生 Anthropic tool_use/tool_result 循环，绕开 `PatternPlugin.call_llm`
+  的纯文本路径
+- `CompressingContextAssembler` — 三层渐进式压缩（snip → LLM summarize →
+  hard-collapse），`ContextAssemblyResult.metadata.layers_fired` 记录每轮触发
+  的层
+- `CoreCoderMemory` — 持久化 dirty-files 集合 + 上一次 cwd + 历史 summary，
+  跨会话灌入 system prompt
+- 7 个工具：`read_file` / `write_file` / `edit_file`（严格唯一性 search-replace）
+  / `glob` / `grep` / `bash`（9 条 regex denylist）/ `sub_agent`（递归安全的
+  sibling agent）
+
+跟 `production_coding_agent` 是同一道题、不同档位：production_coding_agent 偏
+保守演示，corecoder_agent 把 seam 拨满档展示真正可用的 coding agent。
+
+运行：
+
+```bash
+cp examples/corecoder_agent/.env.example examples/corecoder_agent/.env
+# 编辑 .env 填入 LLM_API_BASE / LLM_API_KEY / LLM_MODEL
+
+uv run python examples/corecoder_agent/run_demo.py
+```
+
+测试：
+
+```bash
+uv run pytest -q tests/unit/examples/corecoder_agent/
+```
+
 ## 配合文档一起看
 
 建议配合：
