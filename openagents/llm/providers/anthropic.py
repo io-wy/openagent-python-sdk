@@ -91,6 +91,78 @@ def _parse_tool_input(raw: Any) -> tuple[dict[str, Any], str | None]:
     return {}, None
 
 
+def _normalize_tool_schema(tool: dict[str, Any]) -> dict[str, Any]:
+    """Accept OpenAI-style tool schemas and convert to Anthropic Messages shape.
+
+    Patterns in this SDK historically build tool schemas in the OpenAI
+    ``{"type": "function", "function": {"name", "description", "parameters"}}``
+    shape. The Anthropic Messages API expects
+    ``{"name", "description", "input_schema"}``. We convert in-place so callers
+    don't need provider-specific code paths.
+
+    Already-Anthropic-shaped tools (those with ``input_schema``) are passed
+    through unchanged.
+    """
+    if not isinstance(tool, dict):
+        return tool
+    # Already Anthropic-shaped.
+    if "input_schema" in tool and "name" in tool:
+        return tool
+    # OpenAI shape: {"type": "function", "function": {...}}
+    if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+        fn = tool["function"]
+        out: dict[str, Any] = {"name": fn.get("name", "")}
+        if "description" in fn:
+            out["description"] = fn.get("description", "")
+        # OpenAI uses "parameters"; Anthropic uses "input_schema".
+        schema = fn.get("parameters") or {"type": "object", "properties": {}}
+        out["input_schema"] = schema
+        return out
+    # Fallback: bare {name, description, parameters} → rename parameters to input_schema.
+    if "name" in tool:
+        out = {"name": tool["name"]}
+        if "description" in tool:
+            out["description"] = tool["description"]
+        if "parameters" in tool:
+            out["input_schema"] = tool["parameters"]
+        elif "input_schema" in tool:
+            out["input_schema"] = tool["input_schema"]
+        else:
+            out["input_schema"] = {"type": "object", "properties": {}}
+        return out
+    return tool
+
+
+def _normalize_tool_choice(choice: Any) -> Any:
+    """Translate OpenAI-style tool_choice strings/dicts to Anthropic shape.
+
+    OpenAI accepts: "auto" | "required" | "none" |
+                    {"type": "function", "function": {"name": "X"}}
+    Anthropic accepts: {"type": "auto"} | {"type": "any"} | {"type": "tool", "name": "X"}
+    """
+    if choice is None:
+        return None
+    if isinstance(choice, str):
+        s = choice.strip().lower()
+        if s in ("auto", ""):
+            return {"type": "auto"}
+        if s in ("required", "any"):
+            return {"type": "any"}
+        if s == "none":
+            return None
+        return {"type": "auto"}
+    if isinstance(choice, dict):
+        # Already Anthropic shape.
+        if choice.get("type") in ("auto", "any", "tool"):
+            return choice
+        # OpenAI shape with named function.
+        if choice.get("type") == "function" and isinstance(choice.get("function"), dict):
+            name = choice["function"].get("name")
+            if name:
+                return {"type": "tool", "name": name}
+    return choice
+
+
 class AnthropicClient(HTTPProviderClient):
     """Anthropic-compatible LLM client."""
 
@@ -237,10 +309,10 @@ class AnthropicClient(HTTPProviderClient):
 
         system_value: Any = _coalesce_system_content(system_parts)
 
-        payload_tools = list(tools or [])
-        chosen_tool_choice = tool_choice
+        payload_tools = [_normalize_tool_schema(t) for t in (tools or [])]
+        chosen_tool_choice = _normalize_tool_choice(tool_choice)
         if structured_tool is not None:
-            payload_tools.append(structured_tool)
+            payload_tools.append(_normalize_tool_schema(structured_tool))
             chosen_tool_choice = {"type": "tool", "name": structured_tool_name}
 
         payload: dict[str, Any] = {
