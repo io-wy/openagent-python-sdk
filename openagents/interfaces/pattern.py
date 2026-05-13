@@ -281,6 +281,8 @@ class PatternPlugin(BasePlugin):
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: dict[str, Any] | None = None,
     ) -> str:
         ctx = self.context
         if ctx.llm_client is None:
@@ -314,7 +316,7 @@ class PatternPlugin(BasePlugin):
                 )
                 ctx.scratch["__cost_skipped_emitted__"] = True
 
-        await self.emit("llm.called", model=model)
+        await self.emit("llm.called", model=model, has_tools=tools is not None and len(tools) > 0)
         _t_start = time.monotonic()
         try:
             response = await ctx.llm_client.generate(
@@ -322,6 +324,8 @@ class PatternPlugin(BasePlugin):
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                tools=tools,
+                tool_choice=tool_choice,
             )
         except BaseException as exc:
             latency_ms = (time.monotonic() - _t_start) * 1000.0
@@ -408,6 +412,71 @@ class PatternPlugin(BasePlugin):
             ctx.scratch["__cost_skipped_emitted__"] = True
 
         return response.output_text
+
+    def _build_tool_schemas(self) -> list[dict[str, Any]]:
+        """Return OpenAI-compatible tool schemas from registered tools.
+
+        Each schema follows the ``tools`` parameter shape accepted by
+        OpenAI Chat Completions and Anthropic Messages:
+        ``{"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}``.
+        """
+        ctx = self.context
+        schemas: list[dict[str, Any]] = []
+        for tool_id in sorted(ctx.tools.keys()):
+            tool = ctx.tools[tool_id]
+            desc = tool.describe() if hasattr(tool, "describe") else {}
+            name = desc.get("name") or tool_id
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": desc.get("description", ""),
+                        "parameters": desc.get("parameters", {"type": "object"}),
+                    },
+                }
+            )
+        return schemas
+
+    def _make_tool_result_message(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        result: Any,
+    ) -> dict[str, Any]:
+        """Build a standardized tool-result message for the LLM conversation.
+
+        Returns the provider-native shape so the LLM can correlate the
+        result with its earlier ``tool_calls``.
+
+        * Anthropic: ``{"role": "user", "content": [{"type": "tool_result", ...}]}``
+        * OpenAI / default: ``{"role": "tool", "tool_call_id": ..., "content": ...}``
+        """
+        ctx = self.context
+        provider = ""
+        if ctx.llm_client is not None:
+            provider = getattr(ctx.llm_client, "provider_name", "") or ""
+
+        content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+
+        if provider == "anthropic":
+            return {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_call_id,
+                        "content": content,
+                    }
+                ],
+            }
+
+        return {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "name": tool_name,
+            "content": content,
+        }
 
     def compose_system_prompt(self, base_prompt: str) -> str:
         """Merge runtime/system fragments into one system prompt."""
