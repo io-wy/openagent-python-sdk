@@ -32,6 +32,7 @@ OpenCLI/
 # Tooling
 .ace-tool/
 .claude/
+.opencli/
 .tmp
 *.log
 
@@ -42,5 +43,8 @@ OpenCLI/
 examples/research_analyst/sessions/
 examples/production_coding_agent/outputs/*
 !examples/production_coding_agent/outputs/README.md
+examples/pptx_generator/outputs/*
+!examples/pptx_generator/outputs/README.md
 examples/llm_wiki_agent/knowledge/
 examples/llm_wiki_agent/sessions/
+web-articles/
