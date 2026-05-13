@@ -1,4 +1,9 @@
-"""Builtin ReAct pattern plugin."""
+"""Builtin ReAct pattern plugin.
+
+Uses native LLM function-calling (``tools`` / ``tool_choice``) when the
+provider supports it, falling back to prompt-based JSON control when
+``native_tool_calls: false`` is set in config.
+"""
 
 from __future__ import annotations
 
@@ -13,20 +18,21 @@ from openagents.interfaces.typed_config import TypedConfigPluginMixin
 
 
 class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
-    """ReAct pattern implementation.
+    """ReAct pattern implementation with native tool-calling support.
 
     What:
-        A minimal Reason-Act loop. Each step the LLM produces either a
-        tool call (prefixed by ``tool_prefix``) or a final answer
-        (prefixed by ``echo_prefix``). Tool calls are dispatched
-        through ``RunContext.tools`` and their results fed back into
-        the next step until the budget is hit or a final answer
-        appears.
+        A Reason-Act loop that uses the LLM's native ``tools`` parameter.
+        The LLM receives structured tool schemas and may emit one or more
+        ``tool_calls`` in its response.  The pattern executes them, feeds
+        the results back as standardized ``tool_result`` messages, and
+        loops until a final answer is produced or the budget is hit.
+
+        Backward-compat: set ``native_tool_calls: false`` to fall back
+        to the legacy prompt-based JSON protocol.
 
     Usage:
-        ``{"type": "react", "config": {"tool_prefix": "/tool",
-        "echo_prefix": "Echo", "max_steps": 16, "step_timeout_ms":
-        30000}}``
+        ``{"type": "react", "config": {"max_steps": 16,
+        "step_timeout_ms": 30000, "native_tool_calls": true}}``
 
     Depends on:
         - ``RunContext.llm_client`` for step generation
@@ -34,81 +40,99 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
         - ``RunContext.event_bus`` for tool/llm/usage events
     """
 
-    _PENDING_TOOL_KEY = "_react_pending_tool"
-
     class Config(BaseModel):
-        tool_prefix: str = "/tool"
-        echo_prefix: str = "Echo"
         max_steps: int = 16
         step_timeout_ms: int = 30000
+        native_tool_calls: bool = True
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {})
         self._init_typed_config()
+        self._messages: list[dict[str, Any]] = []
 
-    # Default implementations - can be overridden
-
-    async def emit(self, event_name: str, **payload: Any) -> None:
-        """Emit event using context's event_bus."""
-        ctx = self.context
-        await ctx.event_bus.emit(
-            event_name,
-            agent_id=ctx.agent_id,
-            session_id=ctx.session_id,
-            **payload,
-        )
-
-    async def call_tool(self, tool_id: str, params: dict[str, Any] | None = None) -> Any:
-        """Call a tool and record result."""
-        return await super().call_tool(tool_id, params)
-
-    async def call_llm(
-        self,
-        *,
-        messages: list[dict[str, str]],
-        model: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-    ) -> str:
-        """Call the LLM."""
-        return await super().call_llm(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-
-    # Pattern-specific methods
-
-    def _tool_prefix(self) -> str:
-        return self.cfg.tool_prefix.strip() or "/tool"
-
-    def _echo_prefix(self) -> str:
-        return self.cfg.echo_prefix.strip() or "Echo"
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _max_steps(self) -> int:
-        # Read from self.config (the raw dict) to honor post-init runtime
-        # budget overrides applied via DefaultRuntime._apply_runtime_budget.
         max_steps = self.config.get("max_steps", self.cfg.max_steps)
         if isinstance(max_steps, int) and max_steps > 0:
             return max_steps
         return 16
 
     def _step_timeout_ms(self) -> int:
-        # See _max_steps note about runtime budget overrides.
         timeout = self.config.get("step_timeout_ms", self.cfg.step_timeout_ms)
         if isinstance(timeout, int) and timeout > 0:
             return timeout
         return 30000
 
-    def _format_tool_result(self, tool_id: str, result: Any) -> str:
-        return f"Tool[{tool_id}] => {result}"
+    def _native_tool_calls(self) -> bool:
+        return bool(self.config.get("native_tool_calls", self.cfg.native_tool_calls))
 
-    def _llm_enabled(self) -> bool:
+    def _build_tool_schemas(self) -> list[dict[str, Any]]:
+        """Return OpenAI-compatible tool schemas from registered tools."""
         ctx = self.context
-        return ctx.llm_client is not None
+        schemas: list[dict[str, Any]] = []
+        for tool_id in sorted(ctx.tools.keys()):
+            tool = ctx.tools[tool_id]
+            desc = tool.describe() if hasattr(tool, "describe") else {}
+            name = desc.get("name") or tool_id
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": desc.get("description", ""),
+                        "parameters": desc.get("parameters", {"type": "object"}),
+                    },
+                }
+            )
+        return schemas
 
-    def _llm_system_prompt(self) -> str:
+    def _make_tool_result_message(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        result: Any,
+    ) -> dict[str, Any]:
+        """Build a standardized tool-result message for the LLM conversation.
+
+        Returns the provider-native shape so the LLM can correlate the
+        result with its earlier ``tool_calls``.
+        """
+        ctx = self.context
+        provider = ""
+        if ctx.llm_client is not None:
+            provider = getattr(ctx.llm_client, "provider_name", "") or ""
+
+        content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+
+        # Anthropic uses a block-style user message with tool_result blocks.
+        if provider == "anthropic":
+            return {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_call_id,
+                        "content": content,
+                    }
+                ],
+            }
+
+        # Default / OpenAI-compatible: role="tool" with tool_call_id.
+        return {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "name": tool_name,
+            "content": content,
+        }
+
+    # ------------------------------------------------------------------
+    # Legacy fallback (prompt-based JSON)
+    # ------------------------------------------------------------------
+
+    def _legacy_system_prompt(self) -> str:
         return self.compose_system_prompt(
             "You are a strict planner for an agent runtime.\n"
             "Return only JSON with one of these shapes:\n"
@@ -118,108 +142,52 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
             "No markdown, no extra text."
         )
 
-    def _format_history(self, history: list) -> str:
-        """Format history for LLM prompt."""
-        if not history:
-            return "(no conversation history)"
-
-        lines = []
-        for item in history:
-            if isinstance(item, dict):
-                user_msg = item.get("input", "")
-                assistant_msg = item.get("output", "")
-                if user_msg:
-                    lines.append(f"User: {user_msg}")
-                if assistant_msg:
-                    lines.append(f"Assistant: {assistant_msg}")
-            elif isinstance(item, str):
-                lines.append(item)
-
-        return "\n".join(lines) if lines else "(no conversation history)"
-
-    def _format_tools_description(self) -> str:
-        """Format tool descriptions for LLM prompt."""
+    def _legacy_user_prompt(self) -> str:
         ctx = self.context
-        lines = []
+        lines = [f"INPUT: {ctx.input_text}"]
+        lines.append("AVAILABLE_TOOLS:")
         for tool_id in sorted(ctx.tools.keys()):
             tool = ctx.tools[tool_id]
             desc = tool.describe() if hasattr(tool, "describe") else {}
-            description = desc.get("description", "")
-            params_schema = desc.get("parameters", {})
-            props = params_schema.get("properties", {})
-            required = params_schema.get("required", [])
+            lines.append(f"  - {tool_id}: {desc.get('description', '')}")
+            params = desc.get("parameters", {})
+            for pname, pinfo in (params.get("properties") or {}).items():
+                req = " (required)" if pname in (params.get("required") or []) else ""
+                lines.append(f"      {pname}: {pinfo.get('type', 'any')}{req}")
+        lines.append("If no tool is needed, return final.")
+        return "\n".join(lines)
 
-            param_parts = []
-            for pname, pinfo in props.items():
-                ptype = pinfo.get("type", "any")
-                pdesc = pinfo.get("description", "")
-                req_marker = " (required)" if pname in required else ""
-                param_parts.append(f"    {pname}: {ptype}{req_marker} — {pdesc}")
-
-            tool_line = f"  - {tool_id}: {description}" if description else f"  - {tool_id}"
-            lines.append(tool_line)
-            if param_parts:
-                lines.extend(param_parts)
-
-        return "\n".join(lines) if lines else "  (none)"
-
-    def _llm_user_prompt(self) -> str:
-        ctx = self.context
-        history = ctx.memory_view.get("history")
-        if not isinstance(history, list):
-            history = []
-
-        history_text = self._format_history(history)
-        tools_text = self._format_tools_description()
-        return (
-            f"INPUT:{ctx.input_text}\n"
-            f"CONVERSATION_HISTORY:\n{history_text}\n"
-            f"AVAILABLE_TOOLS:\n{tools_text}\n"
-            "Prefer tool_call when user explicitly asks for tool usage. "
-            "params must match the tool's parameter schema.\n"
-            "If no tool is needed, return final."
-        )
-
-    def _parse_llm_action(self, raw: str) -> dict[str, Any]:
+    def _legacy_parse_action(self, raw: str) -> dict[str, Any]:
         try:
             data = json.loads(raw)
             if isinstance(data, dict):
                 return data
         except json.JSONDecodeError:
             pass
-
-        # Soft fallback: try to parse first JSON object block.
         start = raw.find("{")
         end = raw.rfind("}")
         if start >= 0 and end > start:
-            snippet = raw[start : end + 1]
             try:
-                data = json.loads(snippet)
+                data = json.loads(raw[start : end + 1])
                 if isinstance(data, dict):
                     return data
             except json.JSONDecodeError:
                 pass
-
         return {"type": "final", "content": raw}
 
-    async def _react_with_llm(self) -> dict[str, Any]:
-        ctx = self.context
+    async def _legacy_react_step(self) -> dict[str, Any]:
         messages = [
-            {"role": "system", "content": self._llm_system_prompt()},
-            {"role": "user", "content": self._llm_user_prompt()},
+            {"role": "system", "content": self._legacy_system_prompt()},
+            {"role": "user", "content": self._legacy_user_prompt()},
         ]
+        ctx = self.context
         llm_options = ctx.llm_options
-        model = getattr(llm_options, "model", None) if llm_options else None
-        temperature = getattr(llm_options, "temperature", None) if llm_options else None
-        max_tokens = getattr(llm_options, "max_tokens", None) if llm_options else None
         raw = await self.call_llm(
             messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            model=getattr(llm_options, "model", None) if llm_options else None,
+            temperature=getattr(llm_options, "temperature", None) if llm_options else None,
+            max_tokens=getattr(llm_options, "max_tokens", None) if llm_options else None,
         )
-        # Empty-response repair: if the LLM produced nothing, call the
-        # repair_empty_response() override to synthesize a recovery.
         if not (raw or "").strip():
             repair = await self.repair_empty_response(
                 context=ctx,
@@ -230,82 +198,131 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
             )
             if repair is not None and repair.status == "repaired":
                 raw = repair.output
-        action = self._parse_llm_action(raw)
-        if action.get("type") == "tool_call":
-            tool_id = action.get("tool") or action.get("tool_id")
-            if isinstance(tool_id, str) and tool_id.strip():
-                ctx.scratch[self._PENDING_TOOL_KEY] = tool_id.strip()
-        return action
+        return self._legacy_parse_action(raw)
+
+    # ------------------------------------------------------------------
+    # Native tool-calling loop
+    # ------------------------------------------------------------------
+
+    async def _native_react_step(self) -> dict[str, Any]:
+        """One ReAct step using native function calling.
+
+        Returns a dict so ``execute()`` can treat native and legacy steps
+        uniformly.
+        """
+        ctx = self.context
+        llm_options = ctx.llm_options
+        model = getattr(llm_options, "model", None) if llm_options else None
+        temperature = getattr(llm_options, "temperature", None) if llm_options else None
+        max_tokens = getattr(llm_options, "max_tokens", None) if llm_options else None
+
+        tools = self._build_tool_schemas()
+
+        # First call: ask the LLM with tools available.
+        response = await ctx.llm_client.generate(
+            messages=self._messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools or None,
+        )
+
+        # Empty-response repair.
+        if not response.output_text and not response.tool_calls:
+            repair = await self.repair_empty_response(
+                context=ctx,
+                messages=self._messages,
+                assistant_content=[],
+                stop_reason=response.stop_reason,
+                retries=0,
+            )
+            if repair is not None and repair.status == "repaired":
+                return {"type": "final", "content": repair.output}
+
+        # If the LLM emitted tool_calls, execute them and return a pseudo-action
+        # so the outer loop handles the continue.
+        if response.tool_calls:
+            for tc in response.tool_calls:
+                tool_name = tc.name
+                # Map tool name back to tool_id (name usually == tool_id).
+                tool_id = tool_name
+                if tool_id not in ctx.tools:
+                    # Try to find by the tool's describe().name as well.
+                    for tid, t in ctx.tools.items():
+                        desc = t.describe() if hasattr(t, "describe") else {}
+                        if desc.get("name") == tool_name:
+                            tool_id = tid
+                            break
+
+                result = await self.call_tool(tool_id, tc.arguments or {})
+
+                # Append assistant tool_call + user tool_result to conversation.
+                self._messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": tc.id or "",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps(tc.arguments or {}),
+                                },
+                            }
+                        ],
+                    }
+                )
+                self._messages.append(
+                    self._make_tool_result_message(
+                        tc.id or "",
+                        tool_name,
+                        result,
+                    )
+                )
+            return {"type": "continue"}
+
+        # No tool calls — final answer.
+        return {"type": "final", "content": response.output_text}
 
     async def react(self) -> dict[str, Any]:
         """Run one pattern step."""
-        ctx = self.context
-        pending_tool = ctx.scratch.get(self._PENDING_TOOL_KEY)
-        if isinstance(pending_tool, str):
-            ctx.scratch.pop(self._PENDING_TOOL_KEY, None)
-            latest = ctx.tool_results[-1]["result"] if ctx.tool_results else None
-            return {"type": "final", "content": self._format_tool_result(pending_tool, latest)}
+        if self._native_tool_calls():
+            return await self._native_react_step()
+        return await self._legacy_react_step()
 
-        if self._llm_enabled():
-            return await self._react_with_llm()
-
-        raw_input = (ctx.input_text or "").strip()
-        prefix = self._tool_prefix()
-        if raw_input.startswith(prefix):
-            rest = raw_input[len(prefix) :].strip()
-            if not rest:
-                return {
-                    "type": "final",
-                    "content": f"Usage: {prefix} <tool_id> <query>",
-                }
-            parts = rest.split(maxsplit=1)
-            tool_id = parts[0].strip()
-            query = parts[1].strip() if len(parts) == 2 else ""
-            ctx.scratch[self._PENDING_TOOL_KEY] = tool_id
-            return {
-                "type": "tool_call",
-                "tool": tool_id,
-                "params": {"query": query},
-            }
-
-        history = ctx.memory_view.get("history")
-        if not isinstance(history, list):
-            history = []
-
-        history_count = len(history)
-        history_lines = []
-        for item in history:
-            if isinstance(item, dict):
-                user_msg = item.get("input", "")
-                assistant_msg = item.get("output", "")
-                if user_msg:
-                    history_lines.append(f"User: {user_msg}")
-                if assistant_msg:
-                    history_lines.append(f"Assistant: {assistant_msg}")
-        history_text = "\n".join(history_lines) if history_lines else "(no conversation history)"
-
-        return {
-            "type": "final",
-            "content": (
-                f"{self._echo_prefix()}: {raw_input}\n\n[Conversation History ({history_count} items)]:\n{history_text}"
-            ),
-        }
+    # ------------------------------------------------------------------
+    # Execute
+    # ------------------------------------------------------------------
 
     async def execute(self) -> Any:
         """Execute the complete ReAct loop."""
         self._inject_validation_correction()
         ctx = self.context
 
-        # Followup short-circuit: allow a resolver to answer locally and skip
-        # the LLM loop entirely. Mirrors the app-layer idiom in
-        # examples/research_analyst/app/followup_pattern.py but now default
-        # for all builtin patterns via the resolve_followup() override.
+        # Followup short-circuit.
         resolution = await self.resolve_followup(context=ctx)
         if resolution is not None and resolution.status == "resolved":
             if ctx.state is not None:
                 ctx.state["_runtime_last_output"] = resolution.output
                 ctx.state["resolved_by"] = "resolve_followup"
             return resolution.output
+
+        # Initialise conversation for native mode.
+        if self._native_tool_calls():
+            self._messages = [
+                {
+                    "role": "system",
+                    "content": self.compose_system_prompt(
+                        "You are a helpful assistant with access to tools. "
+                        "Use the available tools when needed. "
+                        "When you have enough information, provide a final answer."
+                    ),
+                },
+                {"role": "user", "content": ctx.input_text},
+            ]
+        else:
+            self._messages = []
 
         allowed_action_types = {"tool_call", "final", "continue"}
         max_steps = self._max_steps()
@@ -317,7 +334,9 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
             try:
                 action = await asyncio.wait_for(self.react(), timeout=timeout_s)
             except asyncio.TimeoutError as exc:
-                raise TimeoutError(f"Pattern step timed out after {self._step_timeout_ms()}ms at step {step}") from exc
+                raise TimeoutError(
+                    f"Pattern step timed out after {self._step_timeout_ms()}ms at step {step}"
+                ) from exc
 
             await self.emit("pattern.step_finished", step=step, action=action)
 
@@ -333,12 +352,11 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
                 )
 
             if action_type == "tool_call":
+                # Legacy path only — native path handles tool calls inside _native_react_step.
                 tool_id = action.get("tool") or action.get("tool_id")
                 if not isinstance(tool_id, str) or not tool_id:
                     raise ValueError("tool_call action must include non-empty 'tool' or 'tool_id'")
-                params = action.get("params", {})
-                if params is None:
-                    params = {}
+                params = action.get("params", {}) or {}
                 if not isinstance(params, dict):
                     raise ValueError("tool_call action 'params' must be an object")
                 await self.call_tool(tool_id, params)
@@ -349,7 +367,7 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
                 ctx.state["_runtime_last_output"] = content
                 return content
 
-            # action_type == "continue"
+            # action_type == "continue" — loop again.
             continue
 
         raise RuntimeError(f"Pattern exceeded max_steps ({max_steps})")

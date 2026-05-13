@@ -1,7 +1,13 @@
-"""Plan-Execute pattern: first plan, then execute step by step."""
+"""Plan-Execute pattern: first plan, then execute step by step.
+
+Uses native LLM function-calling (``tools`` / ``tool_choice``) when the
+provider supports it, falling back to prompt-based JSON control when
+``native_tool_calls: false`` is set in config.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -21,9 +27,16 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
         ``pattern.step_started`` / ``pattern.step_finished``. Useful
         when work decomposes naturally before any tool is called.
 
+        When ``native_tool_calls`` is ``true`` (default), the execution
+        phase uses native LLM ``tool_calls`` instead of prompt-based
+        JSON parsing. The LLM receives structured tool schemas, may
+        emit ``tool_calls``, and the pattern feeds results back as
+        standardized ``tool_result`` messages until a final answer
+        is produced.
+
     Usage:
         ``{"type": "plan_execute", "config": {"max_steps": 16,
-        "step_timeout_ms": 30000}}``
+        "step_timeout_ms": 30000, "native_tool_calls": true}}``
 
     Depends on:
         - ``RunContext.llm_client`` for plan + step generation
@@ -34,48 +47,17 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
     class Config(BaseModel):
         max_steps: int = 16
         step_timeout_ms: int = 30000
+        native_tool_calls: bool = True
 
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config=config or {})
         self._init_typed_config()
 
-    # Default implementations
-
-    async def emit(self, event_name: str, **payload: Any) -> None:
-        """Emit event using context's event_bus."""
-        ctx = self.context
-        await ctx.event_bus.emit(
-            event_name,
-            agent_id=ctx.agent_id,
-            session_id=ctx.session_id,
-            **payload,
-        )
-
-    async def call_tool(self, tool_id: str, params: dict[str, Any] | None = None) -> Any:
-        """Call a tool and record result."""
-        return await super().call_tool(tool_id, params)
-
-    async def call_llm(
-        self,
-        *,
-        messages: list[dict[str, str]],
-        model: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-    ) -> str:
-        """Call the LLM."""
-        return await super().call_llm(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-
-    # Pattern-specific methods
+    # ------------------------------------------------------------------
+    # Config helpers
+    # ------------------------------------------------------------------
 
     def _max_steps(self) -> int:
-        # Read from self.config (raw dict) to honor post-init runtime
-        # budget overrides applied via DefaultRuntime._apply_runtime_budget.
         max_steps = self.config.get("max_steps", self.cfg.max_steps)
         if isinstance(max_steps, int) and max_steps > 0:
             return max_steps
@@ -87,9 +69,16 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
             return timeout
         return 30000
 
+    def _native_tool_calls(self) -> bool:
+        return bool(self.config.get("native_tool_calls", self.cfg.native_tool_calls))
+
     def _llm_enabled(self) -> bool:
         ctx = self.context
         return ctx.llm_client is not None
+
+    # ------------------------------------------------------------------
+    # Prompt helpers
+    # ------------------------------------------------------------------
 
     def _format_history(self, history: list) -> str:
         """Format history for LLM prompt."""
@@ -155,6 +144,10 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
                 pass
         return {"type": "final", "content": raw}
 
+    # ------------------------------------------------------------------
+    # Phase 1: Planning (shared between native and legacy)
+    # ------------------------------------------------------------------
+
     async def _plan(self) -> list[dict[str, Any]]:
         """Phase 1: Create a plan."""
         ctx = self.context
@@ -163,9 +156,7 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
             {"role": "user", "content": ctx.input_text},
         ]
         raw = await self.call_llm(messages=messages)
-        # Empty-response repair: the planning call is the only LLM boundary
-        # in this pattern, so recover here before downstream parsing turns
-        # empty text into an empty plan.
+        # Empty-response repair
         if not (raw or "").strip():
             repair = await self.repair_empty_response(
                 context=ctx,
@@ -183,8 +174,12 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
             plan = [{"type": "final", "content": str(plan)}]
         return plan
 
-    async def _execute_plan(self, plan: list[dict[str, Any]]) -> str:
-        """Phase 2: Execute the plan step by step."""
+    # ------------------------------------------------------------------
+    # Phase 2: Legacy execution (prompt-based JSON)
+    # ------------------------------------------------------------------
+
+    async def _execute_plan_legacy(self, plan: list[dict[str, Any]]) -> str:
+        """Phase 2: Execute the plan step by step using prompt-based JSON."""
         max_steps = self._max_steps()
         results = []
 
@@ -212,6 +207,144 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
 
         return "\n".join(results) if results else "Plan executed"
 
+    # ------------------------------------------------------------------
+    # Phase 2: Native tool-calling execution
+    # ------------------------------------------------------------------
+
+    async def _execute_plan_native(self, plan: list[dict[str, Any]]) -> str:
+        """Phase 2: Execute the plan using native LLM tool_calls.
+
+        The LLM receives the plan as context plus available tool schemas.
+        It may emit tool_calls to execute steps; results are fed back
+        into the conversation until a final answer is produced.
+        """
+        ctx = self.context
+        llm_options = ctx.llm_options
+        model = getattr(llm_options, "model", None) if llm_options else None
+        temperature = getattr(llm_options, "temperature", None) if llm_options else None
+        max_tokens = getattr(llm_options, "max_tokens", None) if llm_options else None
+        max_steps = self._max_steps()
+        timeout_s = self._step_timeout_ms() / 1000
+
+        # Build tool schemas from registered tools.
+        tools = self._build_tool_schemas()
+
+        # Serialize the plan for the LLM context.
+        plan_text = json.dumps(plan, ensure_ascii=False, indent=2)
+
+        # Initialise conversation.
+        messages: list[dict[str, Any]] = [
+            {
+                "role": "system",
+                "content": self.compose_system_prompt(
+                    "You are an executor for an agent runtime.\n"
+                    "You have been given a plan. Execute it step by step.\n"
+                    "Use the available tools when a step requires a tool call.\n"
+                    "When all steps are complete, provide a final answer.\n"
+                    "If a step fails, note the failure and continue with the remaining steps."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"User input: {ctx.input_text}\n\n"
+                    f"Plan to execute:\n{plan_text}\n\n"
+                    "Please execute this plan using the available tools."
+                ),
+            },
+        ]
+
+        results: list[str] = []
+
+        for step in range(max_steps):
+            await self.emit("pattern.step_started", step=step)
+
+            try:
+                response = await asyncio.wait_for(
+                    ctx.llm_client.generate(
+                        messages=messages,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        tools=tools or None,
+                    ),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(
+                    f"Pattern step timed out after {self._step_timeout_ms()}ms at step {step}"
+                ) from exc
+
+            await self.emit("pattern.step_finished", step=step)
+
+            # Empty-response repair.
+            if not response.output_text and not response.tool_calls:
+                repair = await self.repair_empty_response(
+                    context=ctx,
+                    messages=messages,
+                    assistant_content=[],
+                    stop_reason=response.stop_reason,
+                    retries=0,
+                )
+                if repair is not None and repair.status == "repaired":
+                    return repair.output
+
+            # If the LLM emitted tool_calls, execute them and feed results back.
+            if response.tool_calls:
+                for tc in response.tool_calls:
+                    tool_name = tc.name
+                    # Map tool name back to tool_id (name usually == tool_id).
+                    tool_id = tool_name
+                    if tool_id not in ctx.tools:
+                        for tid, t in ctx.tools.items():
+                            desc = t.describe() if hasattr(t, "describe") else {}
+                            if desc.get("name") == tool_name:
+                                tool_id = tid
+                                break
+
+                    try:
+                        result = await self.call_tool(tool_id, tc.arguments or {})
+                        results.append(f"Step {step + 1}: {tool_id} completed")
+                    except Exception as e:
+                        result = f"Error: {e}"
+                        results.append(f"Step {step + 1}: {tool_id} failed - {e}")
+
+                    # Append assistant tool_call + tool_result to conversation.
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": tc.id or "",
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_name,
+                                        "arguments": json.dumps(tc.arguments or {}),
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                    messages.append(
+                        self._make_tool_result_message(
+                            tc.id or "",
+                            tool_name,
+                            result,
+                        )
+                    )
+                continue  # Loop again for next step.
+
+            # No tool calls — final answer.
+            final = response.output_text or "\n".join(results) if results else "Plan executed"
+            return final
+
+        raise RuntimeError(f"Pattern exceeded max_steps ({max_steps})")
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     async def react(self) -> dict[str, Any]:
         """Single step - not used in PlanExecute, use execute instead."""
         return {"type": "final", "content": "Use execute() for PlanExecute pattern"}
@@ -235,15 +368,18 @@ class PlanExecutePattern(TypedConfigPluginMixin, PatternPlugin):
 
         await self.emit("pattern.phase", phase="planning")
 
-        # Phase 1: Create plan
+        # Phase 1: Create plan (shared)
         plan = await self._plan()
         ctx.scratch["_plan"] = plan
 
         await self.emit("pattern.phase", phase="executing")
         await self.emit("pattern.plan_created", plan=plan)
 
-        # Phase 2: Execute plan
-        result = await self._execute_plan(plan)
+        # Phase 2: Execute plan (native or legacy)
+        if self._native_tool_calls():
+            result = await self._execute_plan_native(plan)
+        else:
+            result = await self._execute_plan_legacy(plan)
 
         ctx.state["_runtime_last_output"] = result
         return result
