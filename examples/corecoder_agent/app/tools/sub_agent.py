@@ -76,28 +76,35 @@ class SubAgentTool(ToolPlugin):
         task = str(params.get("task", "")).strip()
         if not task:
             raise ToolError("task is required", tool_name=self.name)
-        if not self._agent_config_path:
-            raise ToolError(
-                "SubAgentTool needs config.agent_config_path pointing to an agent.json",
-                tool_name=self.name,
-            )
-        config_path = Path(self._agent_config_path).expanduser()
-        if not config_path.exists():
-            raise ToolError(
-                f"Sub-agent config not found: {self._agent_config_path}",
-                tool_name=self.name,
-            )
-
-        runtime = self._get_runtime(config_path)
+        runner = _extract_runner(context)
         parent_session = context.session_id if context is not None else "anon"
         sub_session = f"{parent_session}-sub-{uuid4().hex[:8]}"
 
         try:
-            result_text = await runtime.run(
-                agent_id=self._sub_agent_id,
-                session_id=sub_session,
-                input_text=task,
-            )
+            if runner is not None:
+                result_text = await runner.run(
+                    agent_id=self._sub_agent_id,
+                    session_id=sub_session,
+                    input_text=task,
+                )
+            else:
+                if not self._agent_config_path:
+                    raise ToolError(
+                        "SubAgentTool needs config.agent_config_path pointing to an agent.json",
+                        tool_name=self.name,
+                    )
+                config_path = Path(self._agent_config_path).expanduser()
+                if not config_path.exists():
+                    raise ToolError(
+                        f"Sub-agent config not found: {self._agent_config_path}",
+                        tool_name=self.name,
+                    )
+                runtime = self._get_runtime(config_path)
+                result_text = await runtime.run(
+                    agent_id=self._sub_agent_id,
+                    session_id=sub_session,
+                    input_text=task,
+                )
         except Exception as exc:
             return {
                 "task": task,
@@ -127,3 +134,17 @@ class SubAgentTool(ToolPlugin):
 
             self._runtime = Runtime.from_config(config_path)
         return self._runtime
+
+
+def _extract_runner(context: "RunContext[Any] | None") -> Any | None:
+    if context is None:
+        return None
+    deps = getattr(context, "deps", None)
+    if deps is None:
+        return None
+    runner = getattr(deps, "corecoder_runner", None)
+    if runner is not None:
+        return runner
+    if isinstance(deps, dict):
+        return deps.get("corecoder_runner")
+    return None

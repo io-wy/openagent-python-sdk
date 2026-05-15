@@ -67,8 +67,15 @@ corecoder_agent/
 ```bash
 cp examples/corecoder_agent/.env.example examples/corecoder_agent/.env
 # edit .env with your provider details
+# - Anthropic-compatible: LLM_PROVIDER=anthropic
+# - OpenAI-compatible: LLM_PROVIDER=openai_compatible
+#   (or keep OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL; run_demo.py aliases them)
 
+# bundled bug-fix demo
 uv run python examples/corecoder_agent/run_demo.py
+
+# interactive REPL (same local runner, same agent.json, no Runtime black box)
+uv run python examples/corecoder_agent/run_demo.py --interactive
 ```
 
 The demo briefs the agent with `workspace/TASK.md` and asks it to fix the two
@@ -79,6 +86,12 @@ manually:
 cd examples/corecoder_agent/workspace
 python -m unittest test_stats.py
 ```
+
+`run_demo.py` now drives the example through a small handwritten runner in
+`app/runner.py`: it loads `agent.json`, instantiates the pattern/memory/tools/LLM
+directly, assembles context, and persists transcript in a tiny in-process
+session store. The default SDK `Runtime` is only kept as a fallback path inside
+`sub_agent` when no local runner is available.
 
 ## How the 3-layer compressor works
 

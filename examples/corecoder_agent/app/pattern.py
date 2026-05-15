@@ -85,10 +85,9 @@ class CoreCoderPattern(PatternPlugin):
         messages: list[dict[str, Any]] = []
         # Prepend prior transcript turns (assembled context, prior memories, etc.)
         for entry in ctx.transcript:
-            role = entry.get("role")
-            content = entry.get("content")
-            if role in ("user", "assistant", "system") and content is not None:
-                messages.append({"role": role, "content": content})
+            normalized = _normalize_history_message(entry)
+            if normalized is not None:
+                messages.append(normalized)
 
         # The current user input.
         if not _last_message_is_user(messages):
@@ -113,8 +112,7 @@ class CoreCoderPattern(PatternPlugin):
                 if stripped:
                     # Real text-only final answer.
                     final_text = stripped
-                    if assistant_content:
-                        messages.append({"role": "assistant", "content": assistant_content})
+                    messages.append(self._assistant_text_message(stripped, assistant_content))
                     await self.emit(
                         "pattern.completed",
                         steps=step,
@@ -155,9 +153,17 @@ class CoreCoderPattern(PatternPlugin):
 
             # Reset the empty-streak when we get any productive response.
             consecutive_empty = 0
-            messages.append({"role": "assistant", "content": assistant_content})
-            tool_result_blocks = await self._dispatch_tool_calls(tool_calls)
-            messages.append({"role": "user", "content": tool_result_blocks})
+            if self._uses_openai_conversation():
+                messages.append(self._assistant_tool_call_message(tool_calls, text_part))
+                tool_result_messages = await self._dispatch_tool_calls(
+                    tool_calls,
+                    as_openai_messages=True,
+                )
+                messages.extend(tool_result_messages)
+            else:
+                messages.append({"role": "assistant", "content": assistant_content})
+                tool_result_blocks = await self._dispatch_tool_calls(tool_calls)
+                messages.append({"role": "user", "content": tool_result_blocks})
         else:  # for/else: ran out of steps
             await self.emit(
                 "pattern.step_budget_exhausted",
@@ -169,14 +175,20 @@ class CoreCoderPattern(PatternPlugin):
             )
 
         # Persist the loop transcript so memory writeback / context assembler can see it.
-        ctx.transcript.extend(
-            entry for entry in messages if entry.get("role") in ("user", "assistant")
-        )
+        ctx.transcript[:] = [
+            dict(entry)
+            for entry in messages
+            if entry.get("role") in ("user", "assistant", "tool")
+        ]
         return final_text
 
     def _build_tool_schemas(self) -> list[dict[str, Any]]:
-        """Render Anthropic-style tool definitions from the registered tools."""
+        """Render tool definitions in the shape expected by the active provider."""
         ctx = self.context
+        provider = getattr(getattr(ctx, "llm_client", None), "provider_name", "")
+        use_openai_shape = provider.startswith("openai_compatible") or provider.startswith(
+            "litellm"
+        )
         schemas: list[dict[str, Any]] = []
         for tool_id, bound in (ctx.tools or {}).items():
             raw = getattr(bound, "_tool", bound)
@@ -186,21 +198,36 @@ class CoreCoderPattern(PatternPlugin):
                 input_schema = schema_fn() or {"type": "object", "properties": {}}
             else:
                 input_schema = {"type": "object", "properties": {}}
-            schemas.append(
-                {
-                    "name": tool_id,
-                    "description": description,
-                    "input_schema": input_schema,
-                }
-            )
+            if use_openai_shape:
+                schemas.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool_id,
+                            "description": description,
+                            "parameters": input_schema,
+                        },
+                    }
+                )
+            else:
+                schemas.append(
+                    {
+                        "name": tool_id,
+                        "description": description,
+                        "input_schema": input_schema,
+                    }
+                )
         return schemas
 
     async def _dispatch_tool_calls(
-        self, tool_calls: list[Any]
+        self,
+        tool_calls: list[Any],
+        *,
+        as_openai_messages: bool = False,
     ) -> list[dict[str, Any]]:
-        """Run each tool_use serially; build the tool_result block list."""
+        """Run each tool call serially and build provider-native result messages."""
         ctx = self.context
-        result_blocks: list[dict[str, Any]] = []
+        result_payloads: list[dict[str, Any]] = []
         for call in tool_calls:
             tool_id = call.name
             params = call.arguments if isinstance(call.arguments, dict) else {}
@@ -210,7 +237,15 @@ class CoreCoderPattern(PatternPlugin):
             if tool_id not in (ctx.tools or {}):
                 err_msg = f"Tool '{tool_id}' is not registered."
                 await self.emit("tool.failed", tool_id=tool_id, error=err_msg)
-                result_blocks.append(_tool_result_block(call_id, err_msg, is_error=True))
+                result_payloads.append(
+                    self._tool_result_message(
+                        tool_call_id=call_id,
+                        tool_name=tool_id,
+                        content=err_msg,
+                        is_error=True,
+                        as_openai_message=as_openai_messages,
+                    )
+                )
                 continue
 
             tool = ctx.tools[tool_id]
@@ -223,8 +258,14 @@ class CoreCoderPattern(PatternPlugin):
                     tool_id=tool_id,
                     error=str(retry_exc),
                 )
-                result_blocks.append(
-                    _tool_result_block(call_id, str(retry_exc), is_error=True)
+                result_payloads.append(
+                    self._tool_result_message(
+                        tool_call_id=call_id,
+                        tool_name=tool_id,
+                        content=str(retry_exc),
+                        is_error=True,
+                        as_openai_message=as_openai_messages,
+                    )
                 )
                 continue
             except ToolError as tool_exc:
@@ -234,8 +275,14 @@ class CoreCoderPattern(PatternPlugin):
                     error=str(tool_exc),
                     error_details=ErrorDetails.from_exception(tool_exc).model_dump(),
                 )
-                result_blocks.append(
-                    _tool_result_block(call_id, f"Tool error: {tool_exc}", is_error=True)
+                result_payloads.append(
+                    self._tool_result_message(
+                        tool_call_id=call_id,
+                        tool_name=tool_id,
+                        content=f"Tool error: {tool_exc}",
+                        is_error=True,
+                        as_openai_message=as_openai_messages,
+                    )
                 )
                 continue
             except Exception as exc:  # pragma: no cover - safety net
@@ -245,9 +292,13 @@ class CoreCoderPattern(PatternPlugin):
                     error=str(exc),
                     error_details=ErrorDetails.from_exception(exc).model_dump(),
                 )
-                result_blocks.append(
-                    _tool_result_block(
-                        call_id, f"Unexpected tool failure: {exc}", is_error=True
+                result_payloads.append(
+                    self._tool_result_message(
+                        tool_call_id=call_id,
+                        tool_name=tool_id,
+                        content=f"Unexpected tool failure: {exc}",
+                        is_error=True,
+                        as_openai_message=as_openai_messages,
                     )
                 )
                 continue
@@ -268,8 +319,16 @@ class CoreCoderPattern(PatternPlugin):
             )
 
             payload = _format_tool_result(data)
-            result_blocks.append(_tool_result_block(call_id, payload, is_error=False))
-        return result_blocks
+            result_payloads.append(
+                self._tool_result_message(
+                    tool_call_id=call_id,
+                    tool_name=tool_id,
+                    content=payload,
+                    is_error=False,
+                    as_openai_message=as_openai_messages,
+                )
+            )
+        return result_payloads
 
     async def _invoke_llm(
         self,
@@ -350,11 +409,88 @@ class CoreCoderPattern(PatternPlugin):
         await self.emit("llm.succeeded", model=model, _metrics=metrics)
         return response
 
+    def _provider_name(self) -> str:
+        ctx = self.context
+        return str(getattr(getattr(ctx, "llm_client", None), "provider_name", "") or "")
+
+    def _uses_openai_conversation(self) -> bool:
+        return self._provider_name() != "anthropic"
+
+    def _assistant_text_message(
+        self,
+        text: str,
+        assistant_content: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if self._uses_openai_conversation():
+            return {"role": "assistant", "content": text}
+        if assistant_content:
+            return {"role": "assistant", "content": assistant_content}
+        return {"role": "assistant", "content": text}
+
+    def _assistant_tool_call_message(
+        self,
+        tool_calls: list[Any],
+        text_part: str,
+    ) -> dict[str, Any]:
+        payload_calls: list[dict[str, Any]] = []
+        for call in tool_calls:
+            arguments = call.arguments if isinstance(call.arguments, dict) else {}
+            payload_calls.append(
+                {
+                    "id": call.id or f"call_{uuid4().hex[:12]}",
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": json.dumps(arguments, ensure_ascii=False),
+                    },
+                }
+            )
+        return {
+            "role": "assistant",
+            "content": text_part or None,
+            "tool_calls": payload_calls,
+        }
+
+    def _tool_result_message(
+        self,
+        *,
+        tool_call_id: str,
+        tool_name: str,
+        content: str,
+        is_error: bool,
+        as_openai_message: bool,
+    ) -> dict[str, Any]:
+        if as_openai_message:
+            return {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "name": tool_name,
+                "content": content,
+            }
+        return _tool_result_block(tool_call_id, content, is_error=is_error)
+
 
 def _wrap_text(text: str) -> list[dict[str, Any]]:
     if not text:
         return []
     return [{"type": "text", "text": text}]
+
+
+def _normalize_history_message(entry: dict[str, Any]) -> dict[str, Any] | None:
+    role = entry.get("role")
+    if role not in ("user", "assistant", "system", "tool"):
+        return None
+    normalized: dict[str, Any] = {"role": role}
+    if "content" in entry:
+        normalized["content"] = entry.get("content")
+    if role == "assistant" and "tool_calls" in entry:
+        normalized["tool_calls"] = entry.get("tool_calls")
+    if role == "tool":
+        if "tool_call_id" in entry:
+            normalized["tool_call_id"] = entry.get("tool_call_id")
+        if "name" in entry:
+            normalized["name"] = entry.get("name")
+    return normalized
 
 
 def _last_message_is_user(messages: list[dict[str, Any]]) -> bool:

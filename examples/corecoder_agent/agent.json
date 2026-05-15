@@ -42,12 +42,6 @@
         "config": {
           "memories": [
             {
-              "type": "window_buffer",
-              "config": {
-                "window_size": 16
-              }
-            },
-            {
               "impl": "examples.corecoder_agent.app.memory.CoreCoderMemory",
               "config": {
                 "storage_dir": "examples/corecoder_agent/.agent_memory",
@@ -84,10 +78,11 @@
         }
       },
       "llm": {
-        "provider": "anthropic",
+        "provider": "${LLM_PROVIDER:-anthropic}",
         "api_base": "${LLM_API_BASE}",
-        "api_key_env": "LLM_API_KEY",
+        "api_key_env": "${LLM_API_KEY_ENV:-LLM_API_KEY}",
         "model": "${LLM_MODEL}",
+        "openai_api_style": "${LLM_OPENAI_API_STYLE:-chat_completions}",
         "temperature": 0.1,
         "max_tokens": 4096,
         "timeout_ms": 120000
@@ -162,10 +157,11 @@
         }
       },
       "llm": {
-        "provider": "anthropic",
+        "provider": "${LLM_PROVIDER:-anthropic}",
         "api_base": "${LLM_API_BASE}",
-        "api_key_env": "LLM_API_KEY",
+        "api_key_env": "${LLM_API_KEY_ENV:-LLM_API_KEY}",
         "model": "${LLM_MODEL}",
+        "openai_api_style": "${LLM_OPENAI_API_STYLE:-chat_completions}",
         "temperature": 0.1,
         "max_tokens": 4096,
         "timeout_ms": 120000
