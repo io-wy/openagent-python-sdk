@@ -26,7 +26,9 @@
       "Bash(opencli web *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(curl -s \"https://api.github.com/repos/openai/openai-agents-python\")"
+      "Bash(curl -s \"https://api.github.com/repos/openai/openai-agents-python\")",
+      "Read(//c/Users/31809/**)",
+      "Bash(cp *)"
     ]
   }
 }

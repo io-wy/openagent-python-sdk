@@ -148,6 +148,7 @@ class RunResult(BaseModel, Generic[OutputT]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     run_id: str
+    task_id: str | None = None
     final_output: OutputT | None = None
     stop_reason: StopReason = StopReason.COMPLETED
     usage: RunUsage = Field(default_factory=RunUsage)

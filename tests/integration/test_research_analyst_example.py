@@ -60,7 +60,7 @@ import pytest
 import openagents.llm.registry as llm_registry
 from examples.research_analyst.app.stub_server import start_stub_server
 from openagents.interfaces.runtime import RunRequest
-from openagents.llm.base import LLMClient
+from openagents.llm.base import LLMClient, LLMResponse
 from openagents.runtime.runtime import Runtime
 
 _EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "research_analyst"
@@ -90,7 +90,7 @@ class _ScriptedResearchLLM(LLMClient):
         """Append a response to the queue (used to feed sub-runs after construction)."""
         self._script.append(response)
 
-    async def complete(
+    async def generate(
         self,
         *,
         messages,
@@ -99,11 +99,46 @@ class _ScriptedResearchLLM(LLMClient):
         max_tokens=None,
         tools=None,
         tool_choice=None,
-    ) -> str:
+        response_format=None,
+    ) -> LLMResponse:
         self.calls += 1
-        if self._script:
-            return self._script.pop(0)
-        return json.dumps({"type": "final", "content": "done"})
+        output = self._script.pop(0) if self._script else json.dumps({"type": "final", "content": "done"})
+        from openagents.llm.base import LLMToolCall, LLMUsage
+        import hashlib
+
+        # Parse JSON tool_calls so ReActPattern._native_react_step() sees them.
+        tool_calls: list[LLMToolCall] = []
+        stop_reason = "end_turn"
+        try:
+            parsed = json.loads(output)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("type") == "tool_call":
+            tool_id = str(parsed.get("tool", "") or "")
+            if tool_id:
+                params = parsed.get("params") or {}
+                if not isinstance(params, dict):
+                    params = {}
+                tool_calls.append(LLMToolCall(
+                    id=f"mock_{tool_id}",
+                    name=tool_id,
+                    arguments=dict(params),
+                    raw_arguments=json.dumps(params, ensure_ascii=True),
+                    type="tool_use",
+                ))
+                stop_reason = "tool_use"
+        content_blocks = [{"type": "text", "text": output}] if output else []
+        result = LLMResponse(
+            output_text=output,
+            content=content_blocks,
+            tool_calls=tool_calls,
+            usage=LLMUsage(input_tokens=10, output_tokens=10),
+            stop_reason=stop_reason,
+            model="mock",
+            provider="mock",
+            response_id="mock-" + hashlib.sha256(output.encode()).hexdigest()[:12],
+        )
+        return self._store_response(result)
 
 
 # ---------------------------------------------------------------------------
@@ -132,21 +167,17 @@ async def test_research_analyst_end_to_end(monkeypatch):
         runtime = Runtime.from_config(_EXAMPLE_DIR / "agent.json")
 
         # --- Sub-run A: http_request to stub server (exercises network policy + tool) ---
-        client.push(
-            json.dumps(
-                {
-                    "type": "tool_call",
-                    "tool": "http_request",
-                    "params": {"url": f"{base_url}/pages/topic-a", "method": "GET"},
-                }
-            )
-        )
+        # ReActPattern loops after tool execution, so push tool_call + final.
+        client.push(json.dumps(
+            {"type": "tool_call", "tool": "http_request",
+             "params": {"url": f"{base_url}/pages/topic-a", "method": "GET"}}))
+        client.push(json.dumps(
+            {"type": "final", "content": "http_request completed — stub returned data"}))
         result_a = await runtime.run(
             agent_id="research-analyst",
             session_id="http-check",
             input_text="fetch topic-a",
         )
-        # After one tool call, ReActPattern returns "Tool[http_request] => <result-dict>"
         assert result_a is not None
         assert "http_request" in str(result_a)
 
@@ -196,18 +227,11 @@ async def test_research_analyst_end_to_end(monkeypatch):
         )
 
         # --- Sub-run B: write_file exercises filesystem policy + report persistence ---
-        client.push(
-            json.dumps(
-                {
-                    "type": "tool_call",
-                    "tool": "write_file",
-                    "params": {
-                        "path": str(report_path),
-                        "content": "# research report\n\ncovered topic-a.\n",
-                    },
-                }
-            )
-        )
+        client.push(json.dumps(
+            {"type": "tool_call", "tool": "write_file",
+             "params": {"path": str(report_path), "content": "# research report\n\ncovered topic-a.\n"}}))
+        client.push(json.dumps(
+            {"type": "final", "content": "report.md written successfully"}))
         result_b = await runtime.run(
             agent_id="research-analyst",
             session_id="report-write",

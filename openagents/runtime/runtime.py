@@ -58,6 +58,8 @@ class Runtime:
         self._events = components.events
         self._skills = components.skills
         self._diagnostics = components.diagnostics
+        if self._diagnostics is not None and hasattr(self._runtime, "_diagnostics"):
+            self._runtime._diagnostics = self._diagnostics
 
         # Wire multi-agent router post-construction when enabled in config.
         # Needs self.run_detailed to be bound, so this must run after

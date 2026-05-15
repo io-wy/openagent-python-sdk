@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio as _asyncio
+import json
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal, NoReturn
 from uuid import uuid4
 
@@ -11,12 +15,12 @@ from openagents.interfaces.agent_router import (
     AgentRouterPlugin,
     DelegationDepthExceededError,
     HandoffSignal,
+    TaskInfo,
 )
-from openagents.interfaces.runtime import RunBudget, RunRequest
+from openagents.interfaces.runtime import RunBudget, RunRequest, RunResult
 
 if TYPE_CHECKING:
     from openagents.interfaces.run_context import RunContext
-    from openagents.interfaces.runtime import RunResult
     from openagents.interfaces.session import SessionManagerPlugin
 
 
@@ -61,6 +65,13 @@ class DefaultAgentRouter(AgentRouterPlugin):
         self._session_manager: "SessionManagerPlugin | None" = None
         self._agent_exists: Callable[[str], bool] | None = None
 
+        # Background task registry
+        self._tasks: dict[str, TaskInfo] = {}
+        self._bg_output_dir: Path = Path(
+            cfg.get("background_output_dir", tempfile.mkdtemp(prefix="openagent_bg_"))
+        )
+        self._bg_output_dir.mkdir(parents=True, exist_ok=True)
+
     @staticmethod
     def _coerce_budget(value: Any) -> RunBudget | None:
         if value is None:
@@ -80,6 +91,7 @@ class DefaultAgentRouter(AgentRouterPlugin):
         session_isolation: Literal["shared", "isolated", "forked"] | None = None,
         budget: "RunBudget | None" = None,
         deps: Any = None,
+        background: bool = False,
     ) -> "RunResult":
         isolation = session_isolation if session_isolation is not None else self._default_isolation
         self._check_depth(ctx)
@@ -111,7 +123,49 @@ class DefaultAgentRouter(AgentRouterPlugin):
             deps=deps if deps is not None else ctx.deps,
             metadata={DELEGATION_DEPTH_KEY: parent_depth + 1},
         )
-        return await self._run_fn(request=child_request)
+
+        if not background:
+            return await self._run_fn(request=child_request)
+        return self._launch_background(agent_id, child_request)
+
+    def _launch_background(
+        self, agent_id: str, request: RunRequest,
+    ) -> "RunResult":
+        tid = f"bg_{uuid4().hex[:8]}"
+        info = TaskInfo(task_id=tid, agent_id=agent_id, status="running")
+        self._tasks[tid] = info
+
+        async def _runner():
+            try:
+                result = await self._run_fn(request=request)  # type: ignore[misc]
+                info.status = "completed"
+                info.output = str(getattr(result, "final_output", "") or "")
+                output_file = self._bg_output_dir / f"{tid}.json"
+                output_file.write_text(json.dumps({
+                    "task_id": tid, "agent_id": agent_id,
+                    "status": "completed",
+                    "final_output": info.output[:8000],
+                }), encoding="utf-8")
+            except Exception as exc:
+                info.status = "failed"
+                info.error = str(exc)
+                output_file = self._bg_output_dir / f"{tid}.json"
+                output_file.write_text(json.dumps({
+                    "task_id": tid, "agent_id": agent_id,
+                    "status": "failed", "error": str(exc)[:2000],
+                }), encoding="utf-8")
+
+        _asyncio.create_task(_runner())
+        return RunResult(
+            run_id=request.run_id,
+            task_id=tid,
+            final_output=None,
+            metadata={"background": True, "agent_id": agent_id},
+        )
+
+    async def task_status(self, task_id: str) -> TaskInfo | None:
+        """Query a background task by ID."""
+        return self._tasks.get(task_id)
 
     async def transfer(
         self,

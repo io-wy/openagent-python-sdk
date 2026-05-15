@@ -96,6 +96,8 @@ class CoreCoderPattern(PatternPlugin):
 
         system_prompt = self.compose_system_prompt("")
         final_text = ""
+        consecutive_empty = 0
+        max_consecutive_empty = 2
         for step in range(1, self._max_steps + 1):
             response = await self._invoke_llm(
                 messages=[{"role": "system", "content": system_prompt}, *messages],
@@ -107,16 +109,52 @@ class CoreCoderPattern(PatternPlugin):
             text_part = response.output_text or ""
 
             if not tool_calls:
-                final_text = text_part.strip()
-                if assistant_content:
-                    messages.append({"role": "assistant", "content": assistant_content})
+                stripped = text_part.strip()
+                if stripped:
+                    # Real text-only final answer.
+                    final_text = stripped
+                    if assistant_content:
+                        messages.append({"role": "assistant", "content": assistant_content})
+                    await self.emit(
+                        "pattern.completed",
+                        steps=step,
+                        final_chars=len(final_text),
+                    )
+                    break
+                # Empty response — model didn't emit a tool_call AND didn't say
+                # anything. Nudge it back into the loop instead of returning ""
+                # as the "final answer". After N consecutive empties, give up.
+                consecutive_empty += 1
                 await self.emit(
-                    "pattern.completed",
-                    steps=step,
-                    final_chars=len(final_text),
+                    "pattern.empty_response",
+                    step=step,
+                    consecutive=consecutive_empty,
                 )
-                break
+                if consecutive_empty >= max_consecutive_empty:
+                    final_text = (
+                        f"[CoreCoder] model returned {consecutive_empty} consecutive empty responses; "
+                        "stopping without a final answer."
+                    )
+                    await self.emit(
+                        "pattern.empty_response_budget_exhausted",
+                        steps=step,
+                    )
+                    break
+                # Push a corrective user message and continue the loop.
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous response was empty. If you have completed all required "
+                            "deliverables, respond with a brief text summary. Otherwise, continue "
+                            "by calling exactly one of the available tools."
+                        ),
+                    }
+                )
+                continue
 
+            # Reset the empty-streak when we get any productive response.
+            consecutive_empty = 0
             messages.append({"role": "assistant", "content": assistant_content})
             tool_result_blocks = await self._dispatch_tool_calls(tool_calls)
             messages.append({"role": "user", "content": tool_result_blocks})

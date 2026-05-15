@@ -87,8 +87,10 @@ def _parse_json_object(raw: Any) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _parse_tool_calls(payload: list[Any]) -> list[LLMToolCall]:
+def _parse_tool_calls(payload: list[Any] | None) -> list[LLMToolCall]:
     tool_calls: list[LLMToolCall] = []
+    if payload is None:
+        return tool_calls
     for item in payload:
         if not isinstance(item, dict):
             continue

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 from pydantic import BaseModel
@@ -219,12 +220,33 @@ class ReActPattern(TypedConfigPluginMixin, PatternPlugin):
         tools = self._build_tool_schemas()
 
         # First call: ask the LLM with tools available.
-        response = await ctx.llm_client.generate(
-            messages=self._messages,
+        tools_list = tools or None
+        await self.emit("llm.called", model=model, has_tools=tools is not None and len(tools or []) > 0)
+        _t0 = time.monotonic()
+        try:
+            response = await ctx.llm_client.generate(
+                messages=self._messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                tools=tools_list,
+            )
+        except BaseException:
+            await self.emit("llm.failed", model=model, error="LLM generate failed")
+            raise
+        _elapsed = (time.monotonic() - _t0) * 1000
+        from openagents.interfaces.diagnostics import LLMCallMetrics
+        _usage = response.usage
+        await self.emit(
+            "llm.succeeded",
             model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            tools=tools or None,
+            _metrics=LLMCallMetrics(
+                model=model or "",
+                latency_ms=_elapsed,
+                input_tokens=_usage.input_tokens if _usage is not None else 0,
+                output_tokens=_usage.output_tokens if _usage is not None else 0,
+                cached_tokens=_usage.metadata.get("cached_tokens", 0) if _usage is not None and _usage.metadata else 0,
+            ),
         )
 
         # Empty-response repair.

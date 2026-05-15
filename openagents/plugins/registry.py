@@ -32,6 +32,7 @@ from openagents.plugins.builtin.memory.chain import ChainMemory
 from openagents.plugins.builtin.memory.markdown_memory import MarkdownMemory
 from openagents.plugins.builtin.memory.mem0_memory import Mem0Memory
 from openagents.plugins.builtin.memory.window_buffer import WindowBufferMemory
+from openagents.plugins.builtin.memory.zep_memory import ZepMemory
 from openagents.plugins.builtin.pattern.plan_execute import PlanExecutePattern
 from openagents.plugins.builtin.pattern.react import ReActPattern
 from openagents.plugins.builtin.pattern.reflexion import ReflexionPattern
@@ -108,6 +109,7 @@ _BUILTIN_REGISTRY: dict[str, dict[str, type[Any]]] = {
         "markdown_memory": MarkdownMemory,
         "mem0": Mem0Memory,
         "window_buffer": WindowBufferMemory,
+        "zep": ZepMemory,
     },
     "pattern": {
         "react": ReActPattern,

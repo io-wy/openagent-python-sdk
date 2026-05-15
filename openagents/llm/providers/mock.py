@@ -115,7 +115,13 @@ class MockLLMClient(LLMClient):
         parsed_json = _parse_structured_output(output_text, {"type": "json_object"})
         if isinstance(parsed_json, dict) and parsed_json.get("type") == "tool_call" and tools:
             tool_id = str(parsed_json.get("tool", ""))
-            tool_names = {str(t.get("name")) for t in tools if isinstance(t, dict)}
+            tool_names: set[str] = set()
+            for t in tools:
+                if not isinstance(t, dict):
+                    continue
+                name = t.get("name") or (t.get("function", {}) or {}).get("name")
+                if name:
+                    tool_names.add(str(name))
             if tool_id and tool_id in tool_names:
                 params = parsed_json.get("params") or {}
                 if not isinstance(params, dict):

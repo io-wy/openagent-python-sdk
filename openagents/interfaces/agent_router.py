@@ -40,10 +40,21 @@ class DelegationDepthExceededError(Exception):
         self.limit = limit
 
 
+class TaskInfo:
+    """Snapshot of a background task's current state."""
+
+    def __init__(self, task_id: str, agent_id: str, status: str):
+        self.task_id = task_id
+        self.agent_id = agent_id
+        self.status = status      # "running" | "completed" | "failed"
+        self.output: str = ""      # populated on completion
+        self.error: str = ""
+
+
 class AgentRouterPlugin:
     """Protocol for the agent_router seam.
 
-    Implementations must provide delegate() and transfer().
+    Implementations must provide delegate(), transfer(), and task_status().
     """
 
     async def delegate(
@@ -55,8 +66,18 @@ class AgentRouterPlugin:
         session_isolation: Literal["shared", "isolated", "forked"] = "isolated",
         budget: "RunBudget | None" = None,
         deps: Any = None,
+        background: bool = False,
     ) -> "RunResult":
-        """Invoke a sub-agent and await its result before continuing."""
+        """Invoke a sub-agent and return its result.
+
+        When ``background=False`` (default): await the child run and return
+        the completed RunResult.
+
+        When ``background=True``: launch the child as a background task
+        and return immediately with a RunResult whose ``task_id`` field
+        identifies the running task.  Query ``task_status(task_id)`` to
+        poll for completion.
+        """
         raise NotImplementedError
 
     async def transfer(
@@ -70,4 +91,11 @@ class AgentRouterPlugin:
         deps: Any = None,
     ) -> NoReturn:
         """Transfer control to another agent permanently. Raises HandoffSignal."""
+        raise NotImplementedError
+
+    async def task_status(self, task_id: str) -> TaskInfo | None:
+        """Query the status of a background task by its ID.
+
+        Returns None if the task_id is unknown.
+        """
         raise NotImplementedError
